@@ -43,21 +43,21 @@ var (
 		"wal_level":       "",
 	}
 
+	subDirs = []string{"current", "base", "wal"}
+
 	setupCmd = &cobra.Command{
 		Use:   "setup",
 		Short: "Setup PostgreSQL and needed directories.",
 		Long:  `This command makes all needed configuration changes via ALTER SYSTEM and creates missing folders. To operate it needs a superuser connection (connection sting) and the path where the backups should go.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			// TODO: Work your own magic here
-			fmt.Println("setup called")
+			fmt.Println("Setup")
 
 			// Set loglevel to debug
 			log.SetLevel(log.DebugLevel)
 
-			fmt.Println("pg_gobackup")
-
-			// Setup
-			createDirs("tmp")
+			// Create directories for backups, WAL and configuration
+			err := createDirs(archiveDir, subDirs)
+			check(err)
 
 			// Connect to database
 			conString := "user=postgres dbname=postgres password=toor"
@@ -88,10 +88,6 @@ var (
 				// Settings are still not good, restart needed!
 				log.Warn("Not all settings took affect, restart the Database!")
 			}
-
-			// Create directories for backups and WAL
-			createDirs("tmp/")
-			check(err)
 		},
 	}
 )
@@ -103,7 +99,7 @@ func init() {
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	pgSettings["archive_command"] = *setupCmd.PersistentFlags().String("archive_command", "/bin/true", "The command to archive WAL files")
+	pgSettings["archive_command"] = *setupCmd.PersistentFlags().String("archive_command", "test ! -f "+archiveDir+"/wal/%f && cp %p "+archiveDir+"/wal/%f && /bin/sync --data "+archiveDir+"/wal/%f", "The command to archive WAL files")
 	pgSettings["archive_mode"] = *setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be on to archive)")
 	pgSettings["wal_level"] = *setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
 	//	setupCmd.PersistentFlags().String("", "", "")
@@ -145,8 +141,8 @@ func setPgSetting(db *sql.DB, setting string, value string) (err error) {
 }
 
 func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, err error) {
+	changed = 0
 	for setting := range settings {
-		changed := 0
 		settingShould := settings[setting]
 		settingIs, err := getPgSetting(db, setting)
 		check(err)
@@ -157,8 +153,8 @@ func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, e
 			check(err)
 			changed++
 		}
-
 	}
+	log.Debug("configurePostgreSQL changed: ", changed, " settings.")
 	return changed, nil
 }
 
@@ -170,11 +166,10 @@ func testTools(tools []string) {
 	}
 }
 
-func createDirs(archivedir string) error {
-	dirs := []string{"current", "base", "wal"}
-	for _, dir := range dirs {
+func createDirs(archivedir string, subDirs []string) error {
+	for _, dir := range subDirs {
 		path := archivedir + "/" + dir
-		err := os.MkdirAll(path, 0700)
+		err := os.MkdirAll(path, 0770)
 		if err != nil {
 			log.Fatal("Can not create directory: ", path)
 			return err
