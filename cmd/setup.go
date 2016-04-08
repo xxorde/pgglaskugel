@@ -22,7 +22,6 @@ package cmd
 
 import (
 	"database/sql"
-	"fmt"
 	"os"
 	"os/exec"
 
@@ -37,10 +36,10 @@ import (
 // setupCmd represents the setup command
 var (
 	// PostgreSQL settings
-	pgSettings = map[string]string{
-		"archive_command": "",
-		"archive_mode":    "",
-		"wal_level":       "",
+	pgSettings = map[string]*string{
+		"archive_command": new(string),
+		"archive_mode":    new(string),
+		"wal_level":       new(string),
 	}
 
 	subDirs = []string{"current", "base", "wal"}
@@ -50,10 +49,7 @@ var (
 		Short: "Setup PostgreSQL and needed directories.",
 		Long:  `This command makes all needed configuration changes via ALTER SYSTEM and creates missing folders. To operate it needs a superuser connection (connection sting) and the path where the backups should go.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("Setup")
-
-			// Set loglevel to debug
-			log.SetLevel(log.DebugLevel)
+			log.Info("Run Setup")
 
 			// Create directories for backups, WAL and configuration
 			err := createDirs(archiveDir, subDirs)
@@ -74,10 +70,9 @@ var (
 			log.Debug("pgVersion ", pgVersion)
 
 			// Configure PostgreSQL for archiving
-			fmt.Println("Configure PostgreSQL for archiving.")
+			log.Info("Configure PostgreSQL for archiving.")
 			changed, _ := configurePostgreSQL(db, pgSettings)
 			check(err)
-
 			if changed > 0 {
 				// Configure PostgreSQL again to see if all settings are good now!
 				changed, _ = configurePostgreSQL(db, pgSettings)
@@ -87,6 +82,8 @@ var (
 			if changed > 0 {
 				// Settings are still not good, restart needed!
 				log.Warn("Not all settings took affect, restart the Database!")
+			} else {
+				log.Info("PostgreSQl is configured for archiving.")
 			}
 		},
 	}
@@ -99,11 +96,10 @@ func init() {
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	pgSettings["archive_command"] = *setupCmd.PersistentFlags().String("archive_command", "test ! -f "+archiveDir+"/wal/%f && cp %p "+archiveDir+"/wal/%f && /bin/sync --data "+archiveDir+"/wal/%f", "The command to archive WAL files")
-	pgSettings["archive_mode"] = *setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be on to archive)")
-	pgSettings["wal_level"] = *setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
-	//	setupCmd.PersistentFlags().String("", "", "")
-	//	setupCmd.PersistentFlags().String("", "", "")
+	// pgSettings["archive_command"] = *setupCmd.PersistentFlags().String("archive_command", "test ! -f "+archiveDir+"/wal/%f && cp %p "+archiveDir+"/wal/%f && /bin/sync --data "+archiveDir+"/wal/%f", "The command to archive WAL files")
+	setupCmd.PersistentFlags().StringVar(pgSettings["archive_command"], "archive_command", "test ! -f "+archiveDir+"/wal/%f && lzop -o "+archiveDir+"/wal/%f.lzo %p && /bin/sync --data "+archiveDir+"/wal/%f.lzo", "The command to archive WAL files")
+	setupCmd.PersistentFlags().StringVar(pgSettings["archive_mode"], "archive_mode", "on", "The archive mode (should be 'on' to archive)")
+	setupCmd.PersistentFlags().StringVar(pgSettings["wal_level"], "wal_level", "hot_standby", "The level of information to include in WAL files")
 }
 
 func check(err error) error {
@@ -140,10 +136,10 @@ func setPgSetting(db *sql.DB, setting string, value string) (err error) {
 	return nil
 }
 
-func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, err error) {
+func configurePostgreSQL(db *sql.DB, settings map[string]*string) (changed int, err error) {
 	changed = 0
 	for setting := range settings {
-		settingShould := settings[setting]
+		settingShould := *settings[setting]
 		settingIs, err := getPgSetting(db, setting)
 		check(err)
 		log.Debug(setting, " should be: ", settingShould, " it is: ", settingIs)

@@ -24,26 +24,22 @@ import (
 	"fmt"
 	"os"
 
+	log "github.com/Sirupsen/logrus"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+var debugMode bool
+var jsonOutput bool
 var cfgFile string
 var archiveDir string
 
-// This represents the base command when called without any subcommands
+// RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "pg_gobackup",
 	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	//	Run: func(cmd *cobra.Command, args []string) { },
+	Long:  `A longer description .`,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -57,17 +53,10 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports Persistent Flags, which, if defined here,
-	// will be global for your application.
-
 	RootCmd.PersistentFlags().StringVar(&archiveDir, "archivedir", "/var/lib/postgresql/pg_gobackup", "Dir where configuration and backups go")
-	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", archiveDir+"/pg_gobackup.yaml", "config file (default is archivedir/pg_gobackup.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", archiveDir+"/pg_gobackup.yaml", "Config file")
+	RootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Enable debug mode, to increase verbosity")
+	RootCmd.PersistentFlags().BoolVar(&jsonOutput, "jsonoutput", false, "Generate output as JSON")
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -83,5 +72,16 @@ func initConfig() {
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
+
+	// Set log format to json
+	if jsonOutput == true {
+		log.SetFormatter(&log.JSONFormatter{})
+	}
+
+	// Set loglevel to debug
+	if debugMode == true {
+		log.SetLevel(log.DebugLevel)
+		log.Debug("Running with debug mode")
 	}
 }
