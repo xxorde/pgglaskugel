@@ -38,8 +38,8 @@ var archiveDir string
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "pg_gobackup",
-	Short: "A brief description of your application",
-	Long:  `A longer description .`,
+	Short: "A tool to backup PostgreSQL databases",
+	Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.`,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.

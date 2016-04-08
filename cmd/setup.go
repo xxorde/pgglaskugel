@@ -97,7 +97,7 @@ func init() {
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
 	// pgSettings["archive_command"] = *setupCmd.PersistentFlags().String("archive_command", "test ! -f "+archiveDir+"/wal/%f && cp %p "+archiveDir+"/wal/%f && /bin/sync --data "+archiveDir+"/wal/%f", "The command to archive WAL files")
-	setupCmd.PersistentFlags().StringVar(pgSettings["archive_command"], "archive_command", "test ! -f "+archiveDir+"/wal/%f && lzop -o "+archiveDir+"/wal/%f.lzo %p && /bin/sync --data "+archiveDir+"/wal/%f.lzo", "The command to archive WAL files")
+	setupCmd.PersistentFlags().StringVar(pgSettings["archive_command"], "archive_command", "test ! -f "+archiveDir+"/wal/%f.lzo && lzop -o "+archiveDir+"/wal/%f.lzo %p && /bin/sync --data "+archiveDir+"/wal/%f.lzo", "The command to archive WAL files")
 	setupCmd.PersistentFlags().StringVar(pgSettings["archive_mode"], "archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().StringVar(pgSettings["wal_level"], "wal_level", "hot_standby", "The level of information to include in WAL files")
 }
