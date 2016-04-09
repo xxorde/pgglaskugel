@@ -22,8 +22,10 @@ package cmd
 
 import (
 	"database/sql"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -33,8 +35,17 @@ import (
 	_ "github.com/lib/pq"
 )
 
+type pgVersion struct {
+	string string
+	num    int
+}
+
 // setupCmd represents the setup command
 var (
+	// Minimal and maximal PostgreSQL version (numeric)
+	pgMinVersion = 90500
+	pgMaxVersion = 90599
+
 	// PostgreSQL settings
 	pgSettings = map[string]*string{
 		"archive_command": new(string),
@@ -42,6 +53,7 @@ var (
 		"wal_level":       new(string),
 	}
 
+	// Alle directories that should be created if missing
 	subDirs = []string{"current", "base", "wal"}
 
 	setupCmd = &cobra.Command{
@@ -65,9 +77,8 @@ var (
 			defer db.Close()
 
 			// Get version
-			pgVersion, err := getPgSetting(db, "server_version")
+			_, err = checkPgVersion(db)
 			check(err)
-			log.Debug("pgVersion ", pgVersion)
 
 			// Configure PostgreSQL for archiving
 			log.Info("Configure PostgreSQL for archiving.")
@@ -81,10 +92,13 @@ var (
 
 			if changed > 0 {
 				// Settings are still not good, restart needed!
-				log.Warn("Not all settings took affect, restart the Database!")
-			} else {
-				log.Info("PostgreSQl is configured for archiving.")
+				log.Warn("Not all settings took affect, we need to restart the Database!")
+				pgRestartDB(pgDataDir)
+				if err != nil {
+					log.Fatal("Unable to restart Database: ", err)
+				}
 			}
+			log.Info("PostgreSQl is configured for archiving.")
 		},
 	}
 )
@@ -125,7 +139,7 @@ func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 }
 
 func setPgSetting(db *sql.DB, setting string, value string) (err error) {
-	// Bad style and risk for injection!!! But not better option ...
+	// Bad style and risk for injection!!! But no better option ... open for suggestions!
 	query := "ALTER SYSTEM SET " + setting + " = '" + value + "';"
 	_, err = db.Query(query)
 	if err != nil {
@@ -134,6 +148,55 @@ func setPgSetting(db *sql.DB, setting string, value string) (err error) {
 	}
 	log.Info("Set PostgreSQL setting: ", setting, " to: ", value)
 	return nil
+}
+
+func getPostmasterPID(pgDataDir string) (postmasterPID int, err error) {
+	postmasterPID = -1
+	dat, err := ioutil.ReadFile(pgDataDir)
+	if err != nil {
+		log.Error("Can not read PID file ", pgDataDir)
+	}
+	postmasterPID, err = strconv.Atoi(string(dat))
+	if err != nil {
+		log.Error("Can not parse postmaster PID: ", string(dat), " from: ", pgDataDir)
+	}
+	return postmasterPID, err
+}
+
+func pgRestartDB(pgDataDir string) (err error) {
+	postmasterPID, err := getPostmasterPID(pgDataDir)
+	log.Warn(postmasterPID)
+	return err
+}
+
+func checkPgVersion(db *sql.DB) (pgVersion pgVersion, err error) {
+	pgVersion.string, err = getPgSetting(db, "server_version")
+	if err != nil {
+		log.Fatal("Can not get server_version!")
+		return pgVersion, err
+	}
+
+	numString, err := getPgSetting(db, "server_version_num")
+	if err != nil {
+		log.Fatal("Can not get server_version_num!")
+		return pgVersion, err
+	}
+	pgVersion.num, err = strconv.Atoi(numString)
+	if err != nil {
+		log.Fatal("Can not parse server_version_num!")
+		return pgVersion, err
+	}
+
+	log.Debug("pgVersion ", pgVersion)
+
+	if pgVersion.num < pgMinVersion {
+		log.Fatal("The version of PostgreSQL ist too old and not supported! Your version: ", pgVersion.num, " Min required version: ", pgMinVersion)
+	}
+
+	if pgVersion.num > pgMaxVersion {
+		log.Fatal("The version of PostgreSQL is not jet support! Your version: ", pgVersion.num, " Max supported version: ", pgMaxVersion)
+	}
+	return pgVersion, err
 }
 
 func configurePostgreSQL(db *sql.DB, settings map[string]*string) (changed int, err error) {

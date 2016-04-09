@@ -30,17 +30,20 @@ import (
 	"github.com/spf13/viper"
 )
 
-var debugMode bool
-var jsonOutput bool
-var cfgFile string
-var archiveDir string
+var (
+	debugMode  bool
+	jsonOutput bool
+	cfgFile    string
+	archiveDir string
+	pgDataDir  string
 
-// RootCmd represents the base command when called without any subcommands
-var RootCmd = &cobra.Command{
-	Use:   "pg_gobackup",
-	Short: "A tool to backup PostgreSQL databases",
-	Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.`,
-}
+	// RootCmd represents the base command when called without any subcommands
+	RootCmd = &cobra.Command{
+		Use:   "pg_gobackup",
+		Short: "A tool to backup PostgreSQL databases",
+		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.`,
+	}
+)
 
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -54,9 +57,10 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	RootCmd.PersistentFlags().StringVar(&archiveDir, "archivedir", "/var/lib/postgresql/pg_gobackup", "Dir where configuration and backups go")
+	RootCmd.PersistentFlags().StringVar(&pgDataDir, "datadir", "", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", archiveDir+"/pg_gobackup.yaml", "Config file")
 	RootCmd.PersistentFlags().BoolVar(&debugMode, "debug", false, "Enable debug mode, to increase verbosity")
-	RootCmd.PersistentFlags().BoolVar(&jsonOutput, "jsonoutput", false, "Generate output as JSON")
+	RootCmd.PersistentFlags().BoolVar(&jsonOutput, "json", false, "Generate output as JSON")
 }
 
 // initConfig reads in config file and ENV variables if set.
