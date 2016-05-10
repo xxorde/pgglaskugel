@@ -28,6 +28,7 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -62,9 +63,6 @@ var (
 		Long:  `This command makes all needed configuration changes via ALTER SYSTEM and creates missing folders. To operate it needs a superuser connection (connection sting) and the path where the backups should go.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Run Setup")
-
-			// Read config
-			// ...
 
 			// Create directories for backups, WAL and configuration
 			err := createDirs(archiveDir, subDirs)
@@ -117,6 +115,11 @@ func init() {
 	setupCmd.PersistentFlags().StringVar(pgSettings["archive_command"], "archive_command", "test ! -f "+archiveDir+"/wal/%f.lzo && lzop -o "+archiveDir+"/wal/%f.lzo %p && /bin/sync --data "+archiveDir+"/wal/%f.lzo", "The command to archive WAL files")
 	setupCmd.PersistentFlags().StringVar(pgSettings["archive_mode"], "archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().StringVar(pgSettings["wal_level"], "wal_level", "hot_standby", "The level of information to include in WAL files")
+
+	// Bind flags to viper
+	viper.BindPFlag("archive_command", setupCmd.PersistentFlags().Lookup("archive_command"))
+	viper.BindPFlag("archive_mode", setupCmd.PersistentFlags().Lookup("archive_mode"))
+	viper.BindPFlag("wal_level", setupCmd.PersistentFlags().Lookup("wal_level"))
 }
 
 func check(err error) error {

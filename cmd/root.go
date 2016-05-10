@@ -95,5 +95,4 @@ func initConfig() {
 
 	// Set archiveDir var
 	archiveDir = viper.GetString("archivedir")
-	log.Warn("archiveDir: ", archiveDir)
 }
