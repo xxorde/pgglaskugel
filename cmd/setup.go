@@ -21,8 +21,8 @@
 package cmd
 
 import (
+	"bufio"
 	"database/sql"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"strconv"
@@ -62,6 +62,9 @@ var (
 		Long:  `This command makes all needed configuration changes via ALTER SYSTEM and creates missing folders. To operate it needs a superuser connection (connection sting) and the path where the backups should go.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Run Setup")
+
+			// Read config
+			// ...
 
 			// Create directories for backups, WAL and configuration
 			err := createDirs(archiveDir, subDirs)
@@ -151,21 +154,29 @@ func setPgSetting(db *sql.DB, setting string, value string) (err error) {
 }
 
 func getPostmasterPID(pgDataDir string) (postmasterPID int, err error) {
+	pidFile := pgDataDir + "/postmaster.pid"
 	postmasterPID = -1
-	dat, err := ioutil.ReadFile(pgDataDir)
+	file, err := os.Open(pidFile)
 	if err != nil {
-		log.Error("Can not read PID file ", pgDataDir)
+		log.Error("Can not open PID file ", pidFile)
 	}
-	postmasterPID, err = strconv.Atoi(string(dat))
+
+	scanner := bufio.NewScanner(file)
+
+	// Read first line
+	scanner.Scan()
+	line := scanner.Text()
+
+	postmasterPID, err = strconv.Atoi(line)
 	if err != nil {
-		log.Error("Can not parse postmaster PID: ", string(dat), " from: ", pgDataDir)
+		log.Error("Can not parse postmaster PID: ", string(line), " from: ", pidFile)
 	}
 	return postmasterPID, err
 }
 
 func pgRestartDB(pgDataDir string) (err error) {
 	postmasterPID, err := getPostmasterPID(pgDataDir)
-	log.Warn(postmasterPID)
+	log.Warn("Please restart PostgreSQL wth PID ", postmasterPID)
 	return err
 }
 

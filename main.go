@@ -20,7 +20,7 @@
 
 package main
 
-import "gogs.xxor.de/xxorde/pg_gobackup/cmd"
+import "gogs.xxor.de/xxorde/pg_ghost/cmd"
 
 func main() {
 	cmd.Execute()
