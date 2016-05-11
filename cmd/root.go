@@ -55,16 +55,19 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	RootCmd.PersistentFlags().StringVar(&pgDataDir, "pg_data", "/var/lib/pgsql/pg_data", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
+	RootCmd.PersistentFlags().String("pg_data", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pg_ghost", "Dir where the backups go")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
+	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
 
 	// Bind flags to viper
+	viper.BindPFlag("pg_data", RootCmd.PersistentFlags().Lookup("pg_data"))
 	viper.BindPFlag("archivedir", RootCmd.PersistentFlags().Lookup("archivedir"))
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json"))
+	viper.BindPFlag("connection", RootCmd.PersistentFlags().Lookup("connection"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -73,13 +76,16 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	}
 
-	viper.SetConfigName("pg_ghost") // name of config file (without extension)
-	viper.AddConfigPath(pgDataDir)  // adding data directory as first search path
-	viper.AutomaticEnv()            // read in environment variables that match
+	viper.SetConfigName("pg_ghost")                    // name of config file (without extension)
+	viper.AddConfigPath("/etc/pg_ghost")               // adding /etc/pg_ghost as first search path
+	viper.AddConfigPath("$HOME/.pg_ghost")             // adding data config to search path
+	viper.AddConfigPath(pgDataDir)                     // adding data directory to search path
+	viper.AddConfigPath(viper.GetString("archivedir")) // adding archive directory to search path
+	viper.AutomaticEnv()                               // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
-		log.Info("Using config file:", viper.ConfigFileUsed())
+		log.Info("Using config file: ", viper.ConfigFileUsed())
 	}
 
 	// Set log format to json
@@ -95,4 +101,8 @@ func initConfig() {
 
 	// Set archiveDir var
 	archiveDir = viper.GetString("archivedir")
+	log.Debug("archiveDir: ", archiveDir)
+
+	// Show pg_data
+	log.Debug("pg_data: ", viper.GetString("pg_data"))
 }
