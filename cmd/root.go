@@ -21,8 +21,10 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -105,4 +107,20 @@ func initConfig() {
 
 	// Show pg_data
 	log.Debug("pg_data: ", viper.GetString("pg_data"))
+}
+
+// Global needed functions
+func testTools(tools []string) (err error) {
+	for _, tool := range tools {
+		cmd := exec.Command(tool, "--version")
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		err := cmd.Run()
+		if err != nil {
+			log.Debug("Output of tool: ", tool, " is: ", out.String())
+			log.Error("It seems that tool: ", tool, " is not working correctly: ", err)
+		}
+		log.Debug("Tool ", tool, " seems to be functional")
+	}
+	return err
 }

@@ -21,21 +21,47 @@
 package cmd
 
 import (
-	"fmt"
+	"bytes"
+	"os/exec"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // basebackupCmd represents the basebackup command
-var basebackupCmd = &cobra.Command{
-	Use:   "basebackup",
-	Short: "Creates a new basebackup from the database",
-	Long:  `Creates a new basebackup from the database with the given method.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		fmt.Println("basebackup called")
-	},
-}
+var (
+	baseBackupTools = []string{
+		"pg_basebackup",
+	}
+	basebackupCmd = &cobra.Command{
+		Use:   "basebackup",
+		Short: "Creates a new basebackup from the database",
+		Long:  `Creates a new basebackup from the database with the given method.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			log.Info("Perform basebackup")
+
+			// Check if needed tools are available
+			err := testTools(baseBackupTools)
+			check(err)
+
+			// Connect to database
+			conString := viper.GetString("connection")
+			log.Info("Using the following connection string: ", conString)
+
+			backupCmd := exec.Command("pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/base/2016")
+			var out bytes.Buffer
+			backupCmd.Stdout = &out
+			err = backupCmd.Run()
+			if err != nil {
+				log.Error("pg_basebackup failed ", err)
+			}
+			log.Debug("pg_basebackup out: ", out.String())
+			log.Warn("pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/base/2016")
+		},
+	}
+)
 
 func init() {
 	RootCmd.AddCommand(basebackupCmd)

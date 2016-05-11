@@ -26,7 +26,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -56,6 +55,13 @@ var (
 		"wal_level":       "",
 	}
 
+	setupTools = []string{
+		"lzop",
+	}
+
+	// If enabled: dry run
+	dryRun = false
+
 	// Alle directories that should be created if missing
 	subDirs = []string{"current", "base", "wal"}
 
@@ -66,6 +72,16 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Run Setup")
 
+			// Check if needed tools are available
+			err := testTools(setupTools)
+			check(err)
+
+			// Check if we perform a dry run
+			dryRun = viper.GetBool("check")
+			if dryRun == true {
+				log.Info("Running in dry run mode, nothing is changed!")
+			}
+
 			// Set default archive command
 			viper.SetDefault("archive_command", "test ! -f "+archiveDir+"/wal/%f.lzo && lzop -o "+archiveDir+"/wal/%f.lzo %p && /bin/sync --data "+archiveDir+"/wal/%f.lzo")
 
@@ -74,13 +90,9 @@ var (
 			pgSettings["archive_mode"] = viper.GetString("archive_mode")
 			pgSettings["wal_level"] = viper.GetString("wal_level")
 
-			// Create directories for backups, WAL and configuration
-			err := createDirs(archiveDir, subDirs)
-			check(err)
-
 			// Connect to database
 			conString := viper.GetString("connection")
-			log.Debug("Connection string, conString:", conString)
+			log.Info("Using the following connection string: ", conString)
 			db, err := sql.Open("postgres", conString)
 			if err != nil {
 				log.Fatal("Unable to connect to database!")
@@ -105,8 +117,27 @@ var (
 				log.Info("Got pg_data via SQL: ", pgData)
 			}
 
-			// Get version
-			_, err = checkPgVersion(db)
+			// Get version via SQL
+			pgVersion, err := checkPgVersion(db)
+			check(err)
+
+			// Get version of the data
+			pgDataVersion, err := getMajorVersionFromPgData(pgData)
+			check(err)
+
+			log.WithFields(log.Fields{
+				"pgVersion.string": pgVersion.string,
+				"pgVersion.num":    pgVersion.num,
+				"pgDataVersion":    pgDataVersion,
+			}).Debug("Versions")
+
+			if dryRun == true {
+				log.Info("Dry run ends here, now the setup would happen.")
+				os.Exit(2)
+			}
+
+			// Create directories for backups, WAL and configuration
+			err = createDirs(archiveDir, subDirs)
 			check(err)
 
 			// Configure PostgreSQL for archiving
@@ -146,11 +177,13 @@ func init() {
 	setupCmd.PersistentFlags().String("archive_command", "", "The command to archive WAL files")
 	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
+	setupCmd.PersistentFlags().Bool("check", false, "Perform only a dry run without doing changes")
 
 	// Bind flags to viper
 	viper.BindPFlag("archive_command", setupCmd.PersistentFlags().Lookup("archive_command"))
 	viper.BindPFlag("archive_mode", setupCmd.PersistentFlags().Lookup("archive_mode"))
 	viper.BindPFlag("wal_level", setupCmd.PersistentFlags().Lookup("wal_level"))
+	viper.BindPFlag("check", setupCmd.PersistentFlags().Lookup("check"))
 }
 
 func check(err error) error {
@@ -282,14 +315,6 @@ func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, e
 	}
 	log.Debug("configurePostgreSQL changed: ", changed, " settings.")
 	return changed, nil
-}
-
-func testTools(tools []string) {
-	for _, tool := range tools {
-		cmd := exec.Command("command", "-v", tool)
-		err := cmd.Run()
-		check(err)
-	}
 }
 
 func createDirs(archivedir string, subDirs []string) error {
