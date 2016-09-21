@@ -27,6 +27,7 @@ import (
 	"io/ioutil"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -44,10 +45,6 @@ type pgVersion struct {
 
 // setupCmd represents the setup command
 var (
-	// Minimal and maximal PostgreSQL version (numeric)
-	pgMinVersion = 90500
-	pgMaxVersion = 90599
-
 	// PostgreSQL settings
 	pgSettings = map[string]string{
 		"archive_command": "",
@@ -57,12 +54,13 @@ var (
 
 	setupTools = []string{
 		"lzop",
+		"lz4",
 	}
 
 	// If enabled: dry run
 	dryRun = false
 
-	// Alle directories that should be created if missing
+	// All directories that should be created if missing
 	subDirs = []string{"current", "base", "wal"}
 
 	setupCmd = &cobra.Command{
@@ -82,9 +80,6 @@ var (
 				log.Info("Running in dry run mode, nothing is changed!")
 			}
 
-			// Set default archive command
-			viper.SetDefault("archive_command", "test ! -f "+archiveDir+"/wal/%f.lzo && lzop -o "+archiveDir+"/wal/%f.lzo %p && /bin/sync --data "+archiveDir+"/wal/%f.lzo")
-
 			// Fill up pgSettings
 			pgSettings["archive_command"] = viper.GetString("archive_command")
 			pgSettings["archive_mode"] = viper.GetString("archive_mode")
@@ -92,7 +87,7 @@ var (
 
 			// Connect to database
 			conString := viper.GetString("connection")
-			log.Info("Using the following connection string: ", conString)
+			log.Debug("Using the following connection string: ", conString)
 			db, err := sql.Open("postgres", conString)
 			if err != nil {
 				log.Fatal("Unable to connect to database!")
@@ -105,16 +100,19 @@ var (
 			// If pg_data is not valid try to get it from PostgreSQL
 			err = validatePgData(pgData)
 			if err != nil {
+				log.Warn("Can not validate pg_data: ", pgData)
 				pgData, err = getPgSetting(db, "data_directory")
 				if err != nil {
 					log.Warn("pg_data was not set correctly, can not get it via SQL: ", err)
+				} else {
+					// Try to validate pg_data from SQL
+					err = validatePgData(pgData)
+					if err != nil {
+						log.Warn("Can not validate pg_data: ", pgData)
+					} else {
+						log.Info("Got pg_data via SQL: ", pgData)
+					}
 				}
-				// Try to find out major version, to see if pg_data is valid
-				err = validatePgData(pgData)
-				if err != nil {
-					log.Warn("Can not validate pg_data: ", pgData)
-				}
-				log.Info("Got pg_data via SQL: ", pgData)
 			}
 
 			// Get version via SQL
@@ -133,7 +131,7 @@ var (
 
 			if dryRun == true {
 				log.Info("Dry run ends here, now the setup would happen.")
-				os.Exit(2)
+				os.Exit(0)
 			}
 
 			// Create directories for backups, WAL and configuration
@@ -144,6 +142,7 @@ var (
 			log.Info("Configure PostgreSQL for archiving.")
 			changed, _ := configurePostgreSQL(db, pgSettings)
 			check(err)
+			// If more than 0 setings have been changed we reload the configuration
 			if changed > 0 {
 				log.Info("Going to reload the configuration.")
 				reloadConfiguration(db)
@@ -161,7 +160,7 @@ var (
 					log.Fatal("Unable to restart Database: ", err)
 				}
 			}
-			log.Info("PostgreSQl is configured for archiving.")
+			log.Info("PostgreSQL is configured for archiving.")
 		},
 	}
 )
@@ -169,12 +168,9 @@ var (
 func init() {
 	RootCmd.AddCommand(setupCmd)
 
-	// Here you will define your flags and configuration settings.
-
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	// pgSettings["archive_command"] = *setupCmd.PersistentFlags().String("archive_command", "test ! -f "+archiveDir+"/wal/%f && cp %p "+archiveDir+"/wal/%f && /bin/sync --data "+archiveDir+"/wal/%f", "The command to archive WAL files")
-	setupCmd.PersistentFlags().String("archive_command", "", "The command to archive WAL files")
+	setupCmd.PersistentFlags().String("archive_command", "pg_ghost archive %p", "The command to archive WAL files")
 	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
 	setupCmd.PersistentFlags().Bool("check", false, "Perform only a dry run without doing changes")
@@ -194,6 +190,7 @@ func check(err error) error {
 	return nil
 }
 
+// reloadConfiguration reloads the PostgreSQL configuration
 func reloadConfiguration(db *sql.DB) (err error) {
 	query := "SELECT pg_reload_conf();"
 	_, err = db.Query(query)
@@ -201,20 +198,21 @@ func reloadConfiguration(db *sql.DB) (err error) {
 	return err
 }
 
+// getPgSetting gets the value for a given setting in the current PostgreSQL configuration
 func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 	query := "SELECT setting FROM pg_settings WHERE name = $1;"
-	rows, err := db.Query(query, setting)
+	row := db.QueryRow(query, setting)
 	check(err)
-	for rows.Next() {
-		err = rows.Scan(&value)
-		if err != nil {
-			log.Fatal("Can't get PostgreSQL setting: ", setting, err)
-			return "", err
-		}
+	err = row.Scan(&value)
+	if err != nil {
+		log.Fatal("Can't get PostgreSQL setting: ", setting, " err:", err)
+		return "", err
 	}
+	log.Debug("Got ", value, " for ", setting, " in pg_settings")
 	return value, nil
 }
 
+// setPgSetting sets a value to a setting
 func setPgSetting(db *sql.DB, setting string, value string) (err error) {
 	// Bad style and risk for injection!!! But no better option ... open for suggestions!
 	query := "ALTER SYSTEM SET " + setting + " = '" + value + "';"
@@ -227,6 +225,7 @@ func setPgSetting(db *sql.DB, setting string, value string) (err error) {
 	return nil
 }
 
+// getPostmasterPID returns the PID of the postmaster process found in the pid file
 func getPostmasterPID(pgData string) (postmasterPID int, err error) {
 	pidFile := pgData + "/postmaster.pid"
 	postmasterPID = -1
@@ -246,9 +245,20 @@ func getPostmasterPID(pgData string) (postmasterPID int, err error) {
 	if err != nil {
 		log.Error("Can not parse postmaster PID: ", string(line), " from: ", pidFile)
 	}
+
+	if postmasterPID < 1 {
+		log.Error("PID found in ", pidFile, " is to low: ", postmasterPID)
+	}
+
+	if postmasterPID > maxPID {
+		log.Error("PID found in ", pidFile, " is to high: ", postmasterPID)
+	}
+
 	return postmasterPID, err
 }
 
+// pgRestartDB is called when PostgreSQL needs a restart
+// it then shows the user the need to restart PostgreSQL
 func pgRestartDB(pgData string) (err error) {
 	postmasterPID, err := getPostmasterPID(pgData)
 	check(err)
@@ -256,19 +266,35 @@ func pgRestartDB(pgData string) (err error) {
 	return err
 }
 
-func getMajorVersionFromPgData(pgData string) (pgVersion string, err error) {
+func isMajorVersionSupported(pgMjaorVersion string) (supported bool) {
+	for _, version := range supportedMajorVersions {
+		if pgMjaorVersion == version {
+			return true
+		}
+	}
+	return false
+}
+
+// getMajorVersionFromPgData looks in pgData and returns the major version of PostgreSQL
+func getMajorVersionFromPgData(pgData string) (pgMajorVersion string, err error) {
 	versionFile := pgData + "/PG_VERSION"
-	pgVersion = ""
 
 	dat, err := ioutil.ReadFile(versionFile)
 	if err != nil {
 		log.Debug("Can not open PG_VERSION file ", versionFile)
-		return pgVersion, err
+		return "", err
 	}
 
-	return string(dat), err
+	pgMajorVersion = strings.TrimSpace(string(dat))
+
+	if isMajorVersionSupported(pgMajorVersion) != true {
+		err = errors.New("The PostgreSQL major version: " + pgMajorVersion + " is not in the supported list")
+	}
+
+	return pgMajorVersion, err
 }
 
+// checkPgVersion checks if PostgreSQL Version is supported via SQL
 func checkPgVersion(db *sql.DB) (pgVersion pgVersion, err error) {
 	pgVersion.string, err = getPgSetting(db, "server_version")
 	if err != nil {
@@ -289,16 +315,29 @@ func checkPgVersion(db *sql.DB) (pgVersion pgVersion, err error) {
 
 	log.Debug("pgVersion ", pgVersion)
 
-	if pgVersion.num < pgMinVersion {
-		log.Fatal("The version of PostgreSQL ist too old and not supported! Your version: ", pgVersion.num, " Min required version: ", pgMinVersion)
+	if isPgVersionSupported(pgVersion.num) != true {
+		log.Fatal("Please check for a compatible version.")
 	}
 
-	if pgVersion.num > pgMaxVersion {
-		log.Fatal("The version of PostgreSQL is not jet support! Your version: ", pgVersion.num, " Max supported version: ", pgMaxVersion)
-	}
 	return pgVersion, err
 }
 
+// isPgVersionSupported returns true if pgVersionNum is supported
+func isPgVersionSupported(pgVersionNum int) (supported bool) {
+	if pgVersionNum < pgMinVersion {
+		log.Warning("The version of PostgreSQL ist too old and not supported! Your version: ", pgVersionNum, " Min required version: ", pgMinVersion)
+		return false
+	}
+
+	if pgVersionNum > pgMaxVersion {
+		log.Warning("The version of PostgreSQL is not jet support! Your version: ", pgVersionNum, " Max supported version: ", pgMaxVersion)
+		return false
+	}
+
+	return true
+}
+
+// configurePostgreSQL set all settings in "settings" return count of changes
 func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, err error) {
 	changed = 0
 	for setting := range settings {
@@ -317,6 +356,7 @@ func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, e
 	return changed, nil
 }
 
+// createDirs creates all dirs in archivedir + "/" + subDirs
 func createDirs(archivedir string, subDirs []string) error {
 	for _, dir := range subDirs {
 		path := archivedir + "/" + dir
@@ -329,15 +369,11 @@ func createDirs(archivedir string, subDirs []string) error {
 	return nil
 }
 
+// validatePgData validates a given pgData path
 func validatePgData(pgData string) (err error) {
-	majorVersion, err := getMajorVersionFromPgData(pgData)
+	_, err = getMajorVersionFromPgData(pgData)
 	if err != nil {
-		log.Debug("Try to validate pg_data: ", pgData, " error:", err)
-	}
-
-	if majorVersion == "" {
-		err := errors.New("Try to validate pg_data, got empty PG_VERSION.")
-		log.Debug(err)
+		log.Debug("Can not validate pg_data: ", pgData, " error:", err)
 	}
 	return err
 }

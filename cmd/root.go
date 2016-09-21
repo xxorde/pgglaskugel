@@ -32,17 +32,34 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	// elefant logo
+	elefant = `
+      __
+.-====O|\_.
+  /\ /\
+`
+)
+
 var (
+	// Vars for configuration
 	cfgFile    string
 	archiveDir string
 	pgDataDir  string
-	//pidFile    string
+
+	// Minimal and maximal PostgreSQL version (numeric)
+	pgMinVersion           = 90500
+	pgMaxVersion           = 90699
+	supportedMajorVersions = [...]string{"9.5", "9.6"}
+
+	// Maximum PID
+	maxPID = 32768
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
 		Use:   "pg_ghost",
 		Short: "A tool to backup PostgreSQL databases",
-		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.`,
+		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.` + elefant,
 	}
 )
 
@@ -57,6 +74,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
+	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
 	RootCmd.PersistentFlags().String("pg_data", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pg_ghost", "Dir where the backups go")
@@ -65,6 +83,7 @@ func init() {
 	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
 
 	// Bind flags to viper
+	// Try to find better suiting values over the viper configuration files
 	viper.BindPFlag("pg_data", RootCmd.PersistentFlags().Lookup("pg_data"))
 	viper.BindPFlag("archivedir", RootCmd.PersistentFlags().Lookup("archivedir"))
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
@@ -78,9 +97,10 @@ func initConfig() {
 		viper.SetConfigFile(cfgFile)
 	}
 
+	// Set the priority / chain where to look for configuration files
 	viper.SetConfigName("pg_ghost")                    // name of config file (without extension)
-	viper.AddConfigPath("/etc/pg_ghost")               // adding /etc/pg_ghost as first search path
-	viper.AddConfigPath("$HOME/.pg_ghost")             // adding data config to search path
+	viper.AddConfigPath("/etc/")                       // adding /etc/pg_ghost as first search path
+	viper.AddConfigPath("$HOME/.config")               // adding data config to search path
 	viper.AddConfigPath(pgDataDir)                     // adding data directory to search path
 	viper.AddConfigPath(viper.GetString("archivedir")) // adding archive directory to search path
 	viper.AutomaticEnv()                               // read in environment variables that match
@@ -90,7 +110,7 @@ func initConfig() {
 		log.Info("Using config file: ", viper.ConfigFileUsed())
 	}
 
-	// Set log format to json
+	// Set log format to json if set
 	if viper.GetBool("json") == true {
 		log.SetFormatter(&log.JSONFormatter{})
 	}
@@ -106,10 +126,13 @@ func initConfig() {
 	log.Debug("archiveDir: ", archiveDir)
 
 	// Show pg_data
-	log.Debug("pg_data: ", viper.GetString("pg_data"))
+	pgDataDir = viper.GetString("pg_data")
+	log.Debug("pg_data: ", pgDataDir)
 }
 
 // Global needed functions
+
+// testTools test if all tools in tools are installed by trying to run them
 func testTools(tools []string) (err error) {
 	for _, tool := range tools {
 		cmd := exec.Command(tool, "--version")
@@ -118,7 +141,7 @@ func testTools(tools []string) (err error) {
 		err := cmd.Run()
 		if err != nil {
 			log.Debug("Output of tool: ", tool, " is: ", out.String())
-			log.Error("It seems that tool: ", tool, " is not working correctly: ", err)
+			log.Warning("It seems that tool: ", tool, " is not working correctly: ", err)
 		}
 		log.Debug("Tool ", tool, " seems to be functional")
 	}

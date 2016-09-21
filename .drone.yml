@@ -1,0 +1,6 @@
+build:
+  image: golang
+  commands:
+    - go get
+    - go build
+    - tar cfJ pg_ghost.tar.xz pg_ghost
