@@ -1,2 +1,6 @@
+debug
 pg_ghost
 pg_GhOst
+*.xz
+*.lzo
+*.lz4
