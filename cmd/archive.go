@@ -21,34 +21,73 @@
 package cmd
 
 import (
-	"fmt"
+	"errors"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"time"
+
+	log "github.com/Sirupsen/logrus"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-// archiveCmd represents the archive command
-var archiveCmd = &cobra.Command{
-	Use:   "archive",
-	Short: "Archive a WAL file",
-	Long: `This command archives a given WAL file. This command can be used as an archive_command.
+var (
+	// archiveCmd represents the archive command
+	archiveCmd = &cobra.Command{
+		Use:   "archive",
+		Short: "Archive a WAL file",
+		Long: `This command archives a given WAL file. This command can be used as an archive_command.
 	Example: archive_command = "pg_ghost archive %p"`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		fmt.Println("archive called")
-	},
+		Run: func(cmd *cobra.Command, args []string) {
+			if len(args) < 1 {
+				log.Fatal("No WAL file was defined!")
+			}
+
+			count := 0
+			for _, walSource := range args {
+				walName := filepath.Base(walSource)
+				err := archiveWithLz4Command(walSource, walName)
+				if err != nil {
+					log.Fatal("archive failed ", err)
+				}
+				count++
+			}
+			elapsed := time.Since(startTime)
+			log.Info("Archived ", count, " WAL file(s) in ", elapsed)
+		},
+	}
+)
+
+// archiveToFile archives to a local file (implemented in Go)
+func archiveToFile(walSource string, walName string) (err error) {
+	// TODO...
+	return err
+}
+
+// archiveToS3 archives to a S3 compatible object store
+func archiveToS3(walSource string, walName string) (err error) {
+	// TODO...
+	return err
+}
+
+// archiveWithLz4Command uses the shell command lz4 to archive WAL files
+func archiveWithLz4Command(walSource string, walName string) (err error) {
+	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".lz4"
+	log.Debug("archiveWithLz4Command ", walSource, walName, walTarget)
+
+	// Check if WAL file is already in archive
+	if _, err := os.Stat(walTarget); err == nil {
+		err := errors.New("WAL file is already in archive: " + walTarget)
+		return err
+	}
+
+	archiveCmd := exec.Command("/usr/bin/lz4", walSource, walTarget)
+	err = archiveCmd.Run()
+	return err
 }
 
 func init() {
 	RootCmd.AddCommand(archiveCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// archiveCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// archiveCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 
@@ -38,7 +39,7 @@ const (
       __
 .-====O|\_.
   /\ /\
-`
+	`
 )
 
 var (
@@ -54,6 +55,9 @@ var (
 
 	// Maximum PID
 	maxPID = 32768
+
+	// Store time of programm start
+	startTime time.Time
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
@@ -73,6 +77,7 @@ func Execute() {
 }
 
 func init() {
+	startTime = time.Now()
 	cobra.OnInitialize(initConfig)
 	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")

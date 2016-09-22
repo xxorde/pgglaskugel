@@ -35,6 +35,7 @@ var (
 	baseBackupTools = []string{
 		"pg_basebackup",
 	}
+
 	basebackupCmd = &cobra.Command{
 		Use:   "basebackup",
 		Short: "Creates a new basebackup from the database",
@@ -48,9 +49,7 @@ var (
 
 			// Connect to database
 			conString := viper.GetString("connection")
-			log.Info("Using the following connection string: ", conString)
-
-			backupCmd := exec.Command("pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/base/2016")
+			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
 			var out bytes.Buffer
 			backupCmd.Stdout = &out
 			err = backupCmd.Run()
@@ -58,7 +57,6 @@ var (
 				log.Error("pg_basebackup failed ", err)
 			}
 			log.Debug("pg_basebackup out: ", out.String())
-			log.Warn("pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/base/2016")
 		},
 	}
 )

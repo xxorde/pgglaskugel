@@ -50,6 +50,7 @@ var (
 		"archive_command": "",
 		"archive_mode":    "",
 		"wal_level":       "",
+		"max_wal_senders": "",
 	}
 
 	setupTools = []string{
@@ -61,7 +62,7 @@ var (
 	dryRun = false
 
 	// All directories that should be created if missing
-	subDirs = []string{"current", "base", "wal"}
+	subDirs = []string{"basebackup", "wal"}
 
 	setupCmd = &cobra.Command{
 		Use:   "setup",
@@ -84,6 +85,7 @@ var (
 			pgSettings["archive_command"] = viper.GetString("archive_command")
 			pgSettings["archive_mode"] = viper.GetString("archive_mode")
 			pgSettings["wal_level"] = viper.GetString("wal_level")
+			pgSettings["max_wal_senders"] = viper.GetString("max_wal_senders")
 
 			// Connect to database
 			conString := viper.GetString("connection")
@@ -173,12 +175,14 @@ func init() {
 	setupCmd.PersistentFlags().String("archive_command", "pg_ghost archive %p", "The command to archive WAL files")
 	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
+	setupCmd.PersistentFlags().String("max_wal_senders", "3", "The max number of walsender processes")
 	setupCmd.PersistentFlags().Bool("check", false, "Perform only a dry run without doing changes")
 
 	// Bind flags to viper
 	viper.BindPFlag("archive_command", setupCmd.PersistentFlags().Lookup("archive_command"))
 	viper.BindPFlag("archive_mode", setupCmd.PersistentFlags().Lookup("archive_mode"))
 	viper.BindPFlag("wal_level", setupCmd.PersistentFlags().Lookup("wal_level"))
+	viper.BindPFlag("max_wal_senders", setupCmd.PersistentFlags().Lookup("max_wal_senders"))
 	viper.BindPFlag("check", setupCmd.PersistentFlags().Lookup("check"))
 }
 
