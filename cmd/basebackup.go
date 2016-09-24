@@ -23,12 +23,17 @@ package cmd
 import (
 	"bufio"
 	"io"
+	"os"
 	"os/exec"
-	"time"
-
-	"github.com/spf13/cobra"
+	"sync"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/spf13/cobra"
+)
+
+const (
+	// Number of bytes to read per iteration
+	nBytes = 64
 )
 
 // basebackupCmd represents the basebackup command
@@ -36,6 +41,9 @@ var (
 	baseBackupTools = []string{
 		"pg_basebackup",
 	}
+
+	// WaitGroup for workers
+	wg sync.WaitGroup
 
 	basebackupCmd = &cobra.Command{
 		Use:   "basebackup",
@@ -52,7 +60,8 @@ var (
 			//conString := viper.GetString("connection")
 			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
 			//backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft")
-			backupCmd := exec.Command("yes", "Hi aso")
+			backupCmd := exec.Command("cat", "pg1661.txt")
+			//backupCmd := exec.Command("uptime")
 
 			stdout, err := backupCmd.StdoutPipe()
 			if err != nil {
@@ -60,6 +69,7 @@ var (
 			}
 
 			// Start worker
+			wg.Add(1)
 			go handleBackup(stdout)
 
 			// Start the process (in the background)
@@ -73,19 +83,62 @@ var (
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)
 			}
+
+			// Wait for workers to finish
+			wg.Wait()
 		},
 	}
 )
 
 func handleBackup(stdoutPipe io.ReadCloser) {
+	log.Debug("Run handleBackup")
+	defer wg.Done()
+	writtenSum := 0
 	in := bufio.NewScanner(stdoutPipe)
+	file, err := os.Create("t1.out")
+	if err != nil {
+		log.Fatal("Can not create output file, ", err)
+	}
+	defer file.Close()
+
+	// Use custom split function to only scan nBytes
+	in.Split(bufio.ScanLines)
+
 	for in.Scan() {
-		time.Sleep(time.Duration(5) * time.Second)
-		log.Printf(in.Text()) // write each line to your log, or anything you need
+		log.Debug("Reading chunk ...")
+		written, err := file.Write(in.Bytes())
+		if err != nil {
+			log.Fatal("Failed to open output file: ", err)
+		}
+		writtenSum += written
+		log.Debug(string(in.Bytes()))
+		log.Debugf(" ... written %d (total %d)\n", written, writtenSum)
+		if err := in.Err(); err != nil {
+			log.Fatalf("int error: %s", err)
+		}
 	}
 	if err := in.Err(); err != nil {
-		log.Printf("error: %s", err)
+		log.Fatalf("handleBackup error: %s", err)
 	}
+	if err := file.Sync(); err != nil {
+		log.Fatal("Error wile sync data, ", err)
+	}
+
+	log.Debug("Total written bytes: ", writtenSum)
+}
+
+// Split function to use with *Scanner.Scan()
+func scanNBytes(data []byte, atEOF bool) (advance int, token []byte, err error) {
+	log.Info(len(data))
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+
+	if len(data) < nBytes {
+		return len(data), data[0:len(data)], nil
+	}
+
+	return nBytes, data[0:nBytes], nil
 }
 
 func init() {
