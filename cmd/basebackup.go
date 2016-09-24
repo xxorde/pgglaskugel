@@ -21,8 +21,10 @@
 package cmd
 
 import (
-	"bytes"
+	"bufio"
+	"io"
 	"os/exec"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -50,15 +52,18 @@ var (
 			//conString := viper.GetString("connection")
 			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
 			//backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft")
-			backupCmd := exec.Command("sleep", "5")
+			backupCmd := exec.Command("yes", "Hi aso")
 
-			// define a buffer for output and fill it wirh stdout
-			var out bytes.Buffer
-			backupCmd.Stdout = &out
+			stdout, err := backupCmd.StdoutPipe()
+			if err != nil {
+				log.Fatal("Can not attach pipe to backup process, ", err)
+			}
+
+			// Start worker
+			go handleBackup(stdout)
 
 			// Start the process (in the background)
-			err = backupCmd.Start()
-			if err != nil {
+			if err := backupCmd.Start(); err != nil {
 				log.Fatal("pg_basebackup failed on startup, ", err)
 			}
 			log.Info("Backup was started")
@@ -68,11 +73,20 @@ var (
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)
 			}
-
-			log.Debug("pg_basebackup out: ", out.String())
 		},
 	}
 )
+
+func handleBackup(stdoutPipe io.ReadCloser) {
+	in := bufio.NewScanner(stdoutPipe)
+	for in.Scan() {
+		time.Sleep(time.Duration(5) * time.Second)
+		log.Printf(in.Text()) // write each line to your log, or anything you need
+	}
+	if err := in.Err(); err != nil {
+		log.Printf("error: %s", err)
+	}
+}
 
 func init() {
 	RootCmd.AddCommand(basebackupCmd)
