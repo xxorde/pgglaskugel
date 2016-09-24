@@ -1,6 +1,6 @@
 debug
-pg_ghost
-pg_GhOst
+pgSOSBackup
+pgSOSBackup
 *.xz
 *.lzo
 *.lz4

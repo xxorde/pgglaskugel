@@ -61,7 +61,7 @@ var (
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
-		Use:   "pg_ghost",
+		Use:   "pgSOSBackup",
 		Short: "A tool to backup PostgreSQL databases",
 		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.` + elefant,
 	}
@@ -82,7 +82,7 @@ func init() {
 	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
 	RootCmd.PersistentFlags().String("pg_data", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
-	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pg_ghost", "Dir where the backups go")
+	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgSOSBackup", "Dir where the backups go")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
@@ -103,12 +103,11 @@ func initConfig() {
 	}
 
 	// Set the priority / chain where to look for configuration files
-	viper.SetConfigName("pg_ghost")                    // name of config file (without extension)
-	viper.AddConfigPath("/etc/")                       // adding /etc/pg_ghost as first search path
-	viper.AddConfigPath("$HOME/.config")               // adding data config to search path
-	viper.AddConfigPath(pgDataDir)                     // adding data directory to search path
-	viper.AddConfigPath(viper.GetString("archivedir")) // adding archive directory to search path
-	viper.AutomaticEnv()                               // read in environment variables that match
+	viper.SetConfigName("config")           // name of config file (without extension)
+	viper.AddConfigPath("/etc/pgsosbackup") // adding /etc/pgSOSBackup as first search path
+	viper.AddConfigPath("$HOME/.config/pgsosbackup")
+	viper.AddConfigPath("$HOME/.pgsosbackup")
+	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {

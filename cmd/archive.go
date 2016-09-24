@@ -39,7 +39,7 @@ var (
 		Use:   "archive",
 		Short: "Archive a WAL file",
 		Long: `This command archives a given WAL file. This command can be used as an archive_command.
-	Example: archive_command = "pg_ghost archive %p"`,
+	Example: archive_command = "pgSOSBackup archive %p"`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
 				log.Fatal("No WAL file was defined!")

@@ -25,7 +25,6 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -48,14 +47,28 @@ var (
 			check(err)
 
 			// Connect to database
-			conString := viper.GetString("connection")
-			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
+			//conString := viper.GetString("connection")
+			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
+			//backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft")
+			backupCmd := exec.Command("sleep", "5")
+
+			// define a buffer for output and fill it wirh stdout
 			var out bytes.Buffer
 			backupCmd.Stdout = &out
-			err = backupCmd.Run()
+
+			// Start the process (in the background)
+			err = backupCmd.Start()
 			if err != nil {
-				log.Error("pg_basebackup failed ", err)
+				log.Fatal("pg_basebackup failed on startup, ", err)
 			}
+			log.Info("Backup was started")
+
+			// Wait for backup to finish
+			err = backupCmd.Wait()
+			if err != nil {
+				log.Fatal("pg_basebackup failed after startup, ", err)
+			}
+
 			log.Debug("pg_basebackup out: ", out.String())
 		},
 	}

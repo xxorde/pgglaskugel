@@ -1,4 +1,4 @@
-pg_GhOst
+pgSOSBackup
 ========
 This should become decentralized and easy to use backup tool for PostgreSQL.
 

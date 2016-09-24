@@ -172,7 +172,7 @@ func init() {
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	setupCmd.PersistentFlags().String("archive_command", "pg_ghost archive %p", "The command to archive WAL files")
+	setupCmd.PersistentFlags().String("archive_command", "pgSOSBackup archive %p", "The command to archive WAL files")
 	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
 	setupCmd.PersistentFlags().String("max_wal_senders", "3", "The max number of walsender processes")
