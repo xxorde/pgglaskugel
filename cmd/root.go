@@ -25,10 +25,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/pierrec/lz4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -40,6 +42,7 @@ const (
 .-====O|\_.
   /\ /\
 	`
+	lz4BlockMaxSizeDefault = 4 << 20
 )
 
 var (
@@ -58,6 +61,15 @@ var (
 
 	// Store time of programm start
 	startTime time.Time
+
+	// Set lz4 parameter
+	lz4Header = lz4.Header{
+		BlockDependency: false,
+		BlockChecksum:   false,
+		BlockMaxSize:    lz4BlockMaxSizeDefault,
+		NoChecksum:      false,
+		HighCompression: false,
+	}
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
@@ -86,6 +98,7 @@ func init() {
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
+	RootCmd.PersistentFlags().IntP("jobs", "j", runtime.NumCPU(), "The number of jobs to run parallel")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -94,6 +107,7 @@ func init() {
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json"))
 	viper.BindPFlag("connection", RootCmd.PersistentFlags().Lookup("connection"))
+	viper.BindPFlag("jobs", RootCmd.PersistentFlags().Lookup("jobs"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -124,6 +138,9 @@ func initConfig() {
 		log.SetLevel(log.DebugLevel)
 		log.Debug("Running with debug mode")
 	}
+
+	// Sett parallelism
+	runtime.GOMAXPROCS(viper.GetInt("jobs"))
 
 	// Set archiveDir var
 	archiveDir = viper.GetString("archivedir")
