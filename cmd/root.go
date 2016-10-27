@@ -59,6 +59,16 @@ var (
 	// Maximum PID
 	maxPID = 32768
 
+	// Default number of parallel jobs
+	defaultJobs = int((runtime.NumCPU() + 2) / 3)
+	//  1 core =>  1 jobs
+	//  2 core =>  1 jobs
+	//  3 core =>  1 jobs
+	//  4 core =>  2 jobs
+	//  8 core =>  3 jobs
+	// 16 core =>  6 jobs
+	// 32 core => 11 jobs
+
 	// Store time of programm start
 	startTime time.Time
 
@@ -93,16 +103,16 @@ func init() {
 	cobra.OnInitialize(initConfig)
 	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
-	RootCmd.PersistentFlags().String("pg_data", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
+	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgSOSBackup", "Dir where the backups go")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
-	RootCmd.PersistentFlags().IntP("jobs", "j", runtime.NumCPU(), "The number of jobs to run parallel")
+	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
-	viper.BindPFlag("pg_data", RootCmd.PersistentFlags().Lookup("pg_data"))
+	viper.BindPFlag("pgdata", RootCmd.PersistentFlags().Lookup("pgdata"))
 	viper.BindPFlag("archivedir", RootCmd.PersistentFlags().Lookup("archivedir"))
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json"))
@@ -147,8 +157,8 @@ func initConfig() {
 	log.Debug("archiveDir: ", archiveDir)
 
 	// Show pg_data
-	pgDataDir = viper.GetString("pg_data")
-	log.Debug("pg_data: ", pgDataDir)
+	pgDataDir = viper.GetString("pgdata")
+	log.Debug("pgdata: ", pgDataDir)
 }
 
 // Global needed functions

@@ -21,11 +21,11 @@
 package cmd
 
 import (
-	"bufio"
 	"io"
 	"os"
 	"os/exec"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/pierrec/lz4"
@@ -61,7 +61,7 @@ var (
 			// Connect to database
 			//conString := viper.GetString("connection")
 			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
-			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft")
+			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft", "--checkpoint", "fast")
 			//backupCmd := exec.Command("cat", "pg1661.txt")
 
 			stdout, err := backupCmd.StdoutPipe()
@@ -87,12 +87,14 @@ var (
 
 			// Wait for workers to finish
 			wg.Wait()
+			elapsed := time.Since(startTime)
+			log.Info("Backup done in ", elapsed)
 		},
 	}
 )
 
 func writeStreamLz4(reader io.ReadCloser, filename string) {
-	// Tell the workgroup this process is done
+	// Tell the waiting group this process is done
 	defer wg.Done()
 
 	file, err := os.Create(filename)
@@ -101,9 +103,7 @@ func writeStreamLz4(reader io.ReadCloser, filename string) {
 	}
 	defer file.Close()
 
-
 	zw := lz4.NewWriter(nil)
-
 
 	worker := func(in io.Reader, out io.Writer) {
 		zw.Reset(out)
@@ -118,92 +118,6 @@ func writeStreamLz4(reader io.ReadCloser, filename string) {
 
 	log.Info("Data is written, waiting for file.Sync()")
 	file.Sync()
-}
-
-func handleReader(reader io.ReadCloser) {
-	defer wg.Done()
-	buf := make([]byte, 4096)
-	writtenSum := 0
-	file, err := os.Create("t1.lz4")
-	if err != nil {
-		log.Fatal("Can not create output file, ", err)
-	}
-	defer file.Close()
-	read, err := reader.Read(buf)
-	for read > 0 {
-		log.Debug("Read: ", read)
-		written, err := file.Write(buf[0:read])
-		if err != nil {
-			log.Fatal("Failed to open output file: ", err)
-		}
-		writtenSum += written
-		log.Debugf(" ... written %d (total %d)\n", written, writtenSum)
-		read, err = reader.Read(buf)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			log.Fatalf("int error: %s", err)
-		}
-	}
-
-	if err != nil {
-		log.Fatalf("handleReader error: %s", err)
-	}
-
-	if err := file.Sync(); err != nil {
-		log.Fatal("Error wile sync data, ", err)
-	}
-
-	log.Debug("Total written bytes: ", writtenSum)
-}
-
-func handleBackup(stdoutPipe io.ReadCloser) {
-	log.Debug("Run handleBackup")
-	defer wg.Done()
-	writtenSum := 0
-	in := bufio.NewScanner(stdoutPipe)
-	file, err := os.Create("t1.out")
-	if err != nil {
-		log.Fatal("Can not create output file, ", err)
-	}
-	defer file.Close()
-
-	// Use custom split function to only scan nBytes
-	in.Split(bufio.ScanLines)
-
-	for in.Scan() {
-		//	log.Debug("Reading chunk ...")
-		written, err := file.Write(in.Bytes())
-		if err != nil {
-			log.Fatal("Failed to open output file: ", err)
-		}
-		writtenSum += written
-		//		log.Debug(string(in.Bytes()))
-		//log.Debugf(" ... written %d (total %d)\n", written, writtenSum)
-	}
-	//	if err := in.Err(); err != nil {
-	//		log.Fatalf("handleBackup error: %s", err)
-	//	}
-	if err := file.Sync(); err != nil {
-		log.Fatal("Error wile sync data, ", err)
-	}
-
-	log.Debug("Total written bytes: ", writtenSum)
-}
-
-// Split function to use with *Scanner.Scan()
-func scanNBytes(data []byte, atEOF bool) (advance int, token []byte, err error) {
-	log.Info(len(data))
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-
-	if len(data) < nBytes {
-		return len(data), data[0:len(data)], bufio.ErrFinalToken
-	}
-
-	return nBytes, data[0:nBytes], nil
 }
 
 func init() {

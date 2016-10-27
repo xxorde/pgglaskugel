@@ -29,6 +29,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -53,6 +54,11 @@ var (
 		"max_wal_senders": "",
 	}
 
+	// Preset archive_command
+	executable, _  = osext.Executable()
+	archiveCommand = executable + " archive %p"
+
+	// Tools that should be installed
 	setupTools = []string{
 		"lzop",
 		"lz4",
@@ -172,7 +178,7 @@ func init() {
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	setupCmd.PersistentFlags().String("archive_command", "pgSOSBackup archive %p", "The command to archive WAL files")
+	setupCmd.PersistentFlags().String("archive_command", archiveCommand, "The command to archive WAL files")
 	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
 	setupCmd.PersistentFlags().String("max_wal_senders", "3", "The max number of walsender processes")
