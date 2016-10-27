@@ -21,11 +21,14 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -37,11 +40,18 @@ import (
 
 const (
 	// elefant logo
-	elefant = `
-      __
-.-====O|\_.
-  /\ /\
+	logo = `
+     __________
+    /          \
+   /   ______   \
+  /   /     0\   \
+ /   /        \   \
+ \   \        /   /
+  \   \______/   /
+   \  /______\  /
+    \__________/
 	`
+
 	lz4BlockMaxSizeDefault = 4 << 20
 )
 
@@ -85,7 +95,7 @@ var (
 	RootCmd = &cobra.Command{
 		Use:   "pgSOSBackup",
 		Short: "A tool to backup PostgreSQL databases",
-		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.` + elefant,
+		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.` + logo,
 	}
 )
 
@@ -104,15 +114,17 @@ func init() {
 	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
 	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
+	RootCmd.PersistentFlags().Bool("pgdata-auto", true, "Try to find pgdata if not set correctly (via SQL)")
 	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgSOSBackup", "Dir where the backups go")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
-	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel")
+	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel, default depends on cores ")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
 	viper.BindPFlag("pgdata", RootCmd.PersistentFlags().Lookup("pgdata"))
+	viper.BindPFlag("pgdata-auto", RootCmd.PersistentFlags().Lookup("pgdata"))
 	viper.BindPFlag("archivedir", RootCmd.PersistentFlags().Lookup("archivedir"))
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json"))
@@ -158,6 +170,7 @@ func initConfig() {
 
 	// Show pg_data
 	pgDataDir = viper.GetString("pgdata")
+
 	log.Debug("pgdata: ", pgDataDir)
 }
 
@@ -177,4 +190,105 @@ func testTools(tools []string) (err error) {
 		log.Debug("Tool ", tool, " seems to be functional")
 	}
 	return err
+}
+
+// validatePgData validates a given pgData path
+func validatePgData(pgData string) (err error) {
+	_, err = getMajorVersionFromPgData(pgData)
+	if err != nil {
+		log.Debug("Can not validate pg_data: ", pgData, " error:", err)
+	}
+	return err
+}
+
+func check(err error) error {
+	if err != nil {
+		log.Fatal(err)
+		return err
+	}
+	return nil
+}
+
+// reloadConfiguration reloads the PostgreSQL configuration
+func reloadConfiguration(db *sql.DB) (err error) {
+	query := "SELECT pg_reload_conf();"
+	_, err = db.Query(query)
+	check(err)
+	return err
+}
+
+// getPgSetting gets the value for a given setting in the current PostgreSQL configuration
+func getPgSetting(db *sql.DB, setting string) (value string, err error) {
+	query := "SELECT setting FROM pg_settings WHERE name = $1;"
+	row := db.QueryRow(query, setting)
+	check(err)
+	err = row.Scan(&value)
+	if err != nil {
+		log.Fatal("Can't get PostgreSQL setting: ", setting, " err:", err)
+		return "", err
+	}
+	log.Debug("Got ", value, " for ", setting, " in pg_settings")
+	return value, nil
+}
+
+// setPgSetting sets a value to a setting
+func setPgSetting(db *sql.DB, setting string, value string) (err error) {
+	// Bad style and risk for injection!!! But no better option ... open for suggestions!
+	query := "ALTER SYSTEM SET " + setting + " = '" + value + "';"
+	_, err = db.Query(query)
+	if err != nil {
+		log.Fatal("Can't set PostgreSQL setting: ", setting, " to: ", value, " Error: ", err)
+		return err
+	}
+	log.Info("Set PostgreSQL setting: ", setting, " to: ", value)
+	return nil
+}
+
+// getPostmasterPID returns the PID of the postmaster process found in the pid file
+func getPostmasterPID(pgData string) (postmasterPID int, err error) {
+	pidFile := pgData + "/postmaster.pid"
+	postmasterPID = -1
+	file, err := os.Open(pidFile)
+	if err != nil {
+		log.Error("Can not open PID file ", pidFile)
+		return postmasterPID, err
+	}
+
+	scanner := bufio.NewScanner(file)
+
+	// Read first line
+	scanner.Scan()
+	line := scanner.Text()
+
+	postmasterPID, err = strconv.Atoi(line)
+	if err != nil {
+		log.Error("Can not parse postmaster PID: ", string(line), " from: ", pidFile)
+	}
+
+	if postmasterPID < 1 {
+		log.Error("PID found in ", pidFile, " is to low: ", postmasterPID)
+	}
+
+	if postmasterPID > maxPID {
+		log.Error("PID found in ", pidFile, " is to high: ", postmasterPID)
+	}
+
+	return postmasterPID, err
+}
+
+// If pg_data is not valid try to get it from PostgreSQL
+func getPgData(db *sql.DB) (pgDataDir string, err error) {
+	pgDataDir, err = getPgSetting(db, "data_directory")
+	if err != nil {
+		log.Warn("pg_data was not set correctly, can not get it via SQL: ", err)
+	} else {
+		// Try to validate pg_data from SQL
+		err = validatePgData(pgDataDir)
+		if err != nil {
+			log.Warn("Can not validate pg_data: ", pgDataDir)
+		} else {
+			log.Info("Got pg_data via SQL: ", pgDataDir)
+		}
+	}
+	return pgDataDir, err
 }

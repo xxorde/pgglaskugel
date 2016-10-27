@@ -21,7 +21,6 @@
 package cmd
 
 import (
-	"bufio"
 	"database/sql"
 	"errors"
 	"io/ioutil"
@@ -105,24 +104,6 @@ var (
 			// Get pg_data from viper (config and flags)
 			pgData := viper.GetString("pg_data")
 
-			// If pg_data is not valid try to get it from PostgreSQL
-			err = validatePgData(pgData)
-			if err != nil {
-				log.Warn("Can not validate pg_data: ", pgData)
-				pgData, err = getPgSetting(db, "data_directory")
-				if err != nil {
-					log.Warn("pg_data was not set correctly, can not get it via SQL: ", err)
-				} else {
-					// Try to validate pg_data from SQL
-					err = validatePgData(pgData)
-					if err != nil {
-						log.Warn("Can not validate pg_data: ", pgData)
-					} else {
-						log.Info("Got pg_data via SQL: ", pgData)
-					}
-				}
-			}
-
 			// Get version via SQL
 			pgVersion, err := checkPgVersion(db)
 			check(err)
@@ -190,81 +171,6 @@ func init() {
 	viper.BindPFlag("wal_level", setupCmd.PersistentFlags().Lookup("wal_level"))
 	viper.BindPFlag("max_wal_senders", setupCmd.PersistentFlags().Lookup("max_wal_senders"))
 	viper.BindPFlag("check", setupCmd.PersistentFlags().Lookup("check"))
-}
-
-func check(err error) error {
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	return nil
-}
-
-// reloadConfiguration reloads the PostgreSQL configuration
-func reloadConfiguration(db *sql.DB) (err error) {
-	query := "SELECT pg_reload_conf();"
-	_, err = db.Query(query)
-	check(err)
-	return err
-}
-
-// getPgSetting gets the value for a given setting in the current PostgreSQL configuration
-func getPgSetting(db *sql.DB, setting string) (value string, err error) {
-	query := "SELECT setting FROM pg_settings WHERE name = $1;"
-	row := db.QueryRow(query, setting)
-	check(err)
-	err = row.Scan(&value)
-	if err != nil {
-		log.Fatal("Can't get PostgreSQL setting: ", setting, " err:", err)
-		return "", err
-	}
-	log.Debug("Got ", value, " for ", setting, " in pg_settings")
-	return value, nil
-}
-
-// setPgSetting sets a value to a setting
-func setPgSetting(db *sql.DB, setting string, value string) (err error) {
-	// Bad style and risk for injection!!! But no better option ... open for suggestions!
-	query := "ALTER SYSTEM SET " + setting + " = '" + value + "';"
-	_, err = db.Query(query)
-	if err != nil {
-		log.Fatal("Can't set PostgreSQL setting: ", setting, " to: ", value, " Error: ", err)
-		return err
-	}
-	log.Info("Set PostgreSQL setting: ", setting, " to: ", value)
-	return nil
-}
-
-// getPostmasterPID returns the PID of the postmaster process found in the pid file
-func getPostmasterPID(pgData string) (postmasterPID int, err error) {
-	pidFile := pgData + "/postmaster.pid"
-	postmasterPID = -1
-	file, err := os.Open(pidFile)
-	if err != nil {
-		log.Error("Can not open PID file ", pidFile)
-		return postmasterPID, err
-	}
-
-	scanner := bufio.NewScanner(file)
-
-	// Read first line
-	scanner.Scan()
-	line := scanner.Text()
-
-	postmasterPID, err = strconv.Atoi(line)
-	if err != nil {
-		log.Error("Can not parse postmaster PID: ", string(line), " from: ", pidFile)
-	}
-
-	if postmasterPID < 1 {
-		log.Error("PID found in ", pidFile, " is to low: ", postmasterPID)
-	}
-
-	if postmasterPID > maxPID {
-		log.Error("PID found in ", pidFile, " is to high: ", postmasterPID)
-	}
-
-	return postmasterPID, err
 }
 
 // pgRestartDB is called when PostgreSQL needs a restart
@@ -377,13 +283,4 @@ func createDirs(archivedir string, subDirs []string) error {
 		}
 	}
 	return nil
-}
-
-// validatePgData validates a given pgData path
-func validatePgData(pgData string) (err error) {
-	_, err = getMajorVersionFromPgData(pgData)
-	if err != nil {
-		log.Debug("Can not validate pg_data: ", pgData, " error:", err)
-	}
-	return err
 }
