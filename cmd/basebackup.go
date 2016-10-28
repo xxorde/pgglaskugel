@@ -69,10 +69,14 @@ var (
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
 
+			t := time.Now()
+			backupName := "bb-" + t.Format("2006-01-02-15:04:05")
+			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".lz4"
+
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
 			// Start worker
-			go writeStreamLz4(stdout, viper.GetString("archivedir")+"/basebackup/"+"t1.lz4", &wg)
+			go writeStreamLz4(stdout, backupPath, &wg)
 
 			// Start the process (in the background)
 			if err := backupCmd.Start(); err != nil {

@@ -22,11 +22,7 @@ package cmd
 
 import (
 	"database/sql"
-	"errors"
-	"io/ioutil"
 	"os"
-	"strconv"
-	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -51,9 +47,6 @@ var (
 		"wal_level":       "",
 		"max_wal_senders": "",
 	}
-
-	// Preset archive_command
-	archiveCommand = myExecutable + " archive %p"
 
 	// Tools that should be installed
 	setupTools = []string{
@@ -99,10 +92,10 @@ var (
 			}
 			defer db.Close()
 
-			// Get pg_data from viper (config and flags)
-			pgData := viper.GetString("pg_data")
+			// Get pg_data
+			pgData, err := getPgData(db)
 
-			// Get version via SQL
+			// Get and check version via SQL
 			pgVersion, err := checkPgVersion(db)
 			check(err)
 
@@ -111,10 +104,16 @@ var (
 			check(err)
 
 			log.WithFields(log.Fields{
+				"pgData":           pgData,
+				"archiveDir":       archiveDir,
 				"pgVersion.string": pgVersion.string,
 				"pgVersion.num":    pgVersion.num,
 				"pgDataVersion":    pgDataVersion,
-			}).Debug("Versions")
+			}).Debug("Variables")
+
+			log.Warn(myExecutable)
+
+			log.Debug(pgSettings)
 
 			if dryRun == true {
 				log.Info("Dry run ends here, now the setup would happen.")
@@ -141,7 +140,7 @@ var (
 
 			if changed > 0 {
 				// Settings are still not good, restart needed!
-				log.Warn("Not all settings took affect, we need to restart the Database!")
+				log.Warn("Not all settings took effect, we need to restart the Database!")
 				pgRestartDB(pgData)
 				if err != nil {
 					log.Fatal("Unable to restart Database: ", err)
@@ -154,6 +153,9 @@ var (
 
 func init() {
 	RootCmd.AddCommand(setupCmd)
+
+	// Preset archive_command
+	archiveCommand := myExecutable + " archive %p"
 
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
@@ -187,53 +189,6 @@ func isMajorVersionSupported(pgMjaorVersion string) (supported bool) {
 		}
 	}
 	return false
-}
-
-// getMajorVersionFromPgData looks in pgData and returns the major version of PostgreSQL
-func getMajorVersionFromPgData(pgData string) (pgMajorVersion string, err error) {
-	versionFile := pgData + "/PG_VERSION"
-
-	dat, err := ioutil.ReadFile(versionFile)
-	if err != nil {
-		log.Debug("Can not open PG_VERSION file ", versionFile)
-		return "", err
-	}
-
-	pgMajorVersion = strings.TrimSpace(string(dat))
-
-	if isMajorVersionSupported(pgMajorVersion) != true {
-		err = errors.New("The PostgreSQL major version: " + pgMajorVersion + " is not in the supported list")
-	}
-
-	return pgMajorVersion, err
-}
-
-// checkPgVersion checks if PostgreSQL Version is supported via SQL
-func checkPgVersion(db *sql.DB) (pgVersion pgVersion, err error) {
-	pgVersion.string, err = getPgSetting(db, "server_version")
-	if err != nil {
-		log.Fatal("Can not get server_version!")
-		return pgVersion, err
-	}
-
-	numString, err := getPgSetting(db, "server_version_num")
-	if err != nil {
-		log.Fatal("Can not get server_version_num!")
-		return pgVersion, err
-	}
-	pgVersion.num, err = strconv.Atoi(numString)
-	if err != nil {
-		log.Fatal("Can not parse server_version_num!")
-		return pgVersion, err
-	}
-
-	log.Debug("pgVersion ", pgVersion)
-
-	if isPgVersionSupported(pgVersion.num) != true {
-		log.Fatal("Please check for a compatible version.")
-	}
-
-	return pgVersion, err
 }
 
 // isPgVersionSupported returns true if pgVersionNum is supported

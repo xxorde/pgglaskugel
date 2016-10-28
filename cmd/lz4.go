@@ -36,7 +36,7 @@ var (
 
 	// lz4Cmd represents the lz4 command
 	lz4Cmd = &cobra.Command{
-		Use:   myName + " lz4 [-d|--decompress] <input> <output>",
+		Use:   "lz4 [-d|--decompress] <input> <output>",
 		Short: "Compresses and decompresses using lz4",
 		Long: `This command can be used to compress and uncompress using lz4. It is provided in case there is no other tool on your system. Performance is not perfect. Other tools should be preferred!
 Example:

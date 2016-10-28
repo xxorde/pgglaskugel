@@ -24,11 +24,14 @@ import (
 	"bufio"
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
+	"strings"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -65,7 +68,6 @@ var (
 	// Vars for configuration
 	cfgFile    string
 	archiveDir string
-	pgDataDir  string
 
 	// Minimal and maximal PostgreSQL version (numeric)
 	pgMinVersion           = 90500
@@ -134,7 +136,7 @@ func init() {
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
 	viper.BindPFlag("pgdata", RootCmd.PersistentFlags().Lookup("pgdata"))
-	viper.BindPFlag("pgdata-auto", RootCmd.PersistentFlags().Lookup("pgdata"))
+	viper.BindPFlag("pgdata-auto", RootCmd.PersistentFlags().Lookup("pgdata-auto"))
 	viper.BindPFlag("archivedir", RootCmd.PersistentFlags().Lookup("archivedir"))
 	viper.BindPFlag("debug", RootCmd.PersistentFlags().Lookup("debug"))
 	viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json"))
@@ -177,11 +179,6 @@ func initConfig() {
 	// Set archiveDir var
 	archiveDir = viper.GetString("archivedir")
 	log.Debug("archiveDir: ", archiveDir)
-
-	// Show pg_data
-	pgDataDir = viper.GetString("pgdata")
-
-	log.Debug("pgdata: ", pgDataDir)
 }
 
 // Global needed functions
@@ -206,7 +203,7 @@ func testTools(tools []string) (err error) {
 func validatePgData(pgData string) (err error) {
 	_, err = getMajorVersionFromPgData(pgData)
 	if err != nil {
-		log.Debug("Can not validate pg_data: ", pgData, " error:", err)
+		err = errors.New("Can not validate pg_data: " + pgData + " error:" + err.Error())
 	}
 	return err
 }
@@ -286,19 +283,78 @@ func getPostmasterPID(pgData string) (postmasterPID int, err error) {
 	return postmasterPID, err
 }
 
-// If pg_data is not valid try to get it from PostgreSQL
-func getPgData(db *sql.DB) (pgDataDir string, err error) {
-	pgDataDir, err = getPgSetting(db, "data_directory")
+// Get pg_data from viper or try to find it (via SQL)
+func getPgData(db *sql.DB) (pgData string, err error) {
+	pgData = viper.GetString("pgdata")
+	err = validatePgData(pgData)
+	if viper.GetBool("pgdata-auto") == false {
+		log.Debug("pgdata-auto is false, using config value for pgdata, ", pgData)
+		return pgData, err
+	}
+
+	// If pg_data is not valid try to get it from PostgreSQL
 	if err != nil {
-		log.Warn("pg_data was not set correctly, can not get it via SQL: ", err)
-	} else {
-		// Try to validate pg_data from SQL
-		err = validatePgData(pgDataDir)
+		log.Debug("pgdata is not valid, try to it via SQL")
+		pgData, err = getPgSetting(db, "data_directory")
 		if err != nil {
-			log.Warn("Can not validate pg_data: ", pgDataDir)
+			log.Warn("pg_data was not set correctly, can not get it via SQL: ", err)
 		} else {
-			log.Info("Got pg_data via SQL: ", pgDataDir)
+			// Try to validate pg_data from SQL
+			err = validatePgData(pgData)
+			if err != nil {
+				log.Warn("Can not validate pg_data: ", pgData)
+			} else {
+				log.Info("Got pg_data via SQL: ", pgData)
+			}
 		}
 	}
-	return pgDataDir, err
+
+	return pgData, err
+}
+
+// getMajorVersionFromPgData looks in pgData and returns the major version of PostgreSQL
+func getMajorVersionFromPgData(pgData string) (pgMajorVersion string, err error) {
+	versionFile := pgData + "/PG_VERSION"
+
+	dat, err := ioutil.ReadFile(versionFile)
+	if err != nil {
+		log.Debug("Can not open PG_VERSION file ", versionFile)
+		return "", err
+	}
+
+	pgMajorVersion = strings.TrimSpace(string(dat))
+
+	if isMajorVersionSupported(pgMajorVersion) != true {
+		err = errors.New("The PostgreSQL major version: " + pgMajorVersion + " is not in the supported list")
+	}
+
+	return pgMajorVersion, err
+}
+
+// checkPgVersion checks if PostgreSQL Version is supported via SQL
+func checkPgVersion(db *sql.DB) (pgVersion pgVersion, err error) {
+	pgVersion.string, err = getPgSetting(db, "server_version")
+	if err != nil {
+		log.Fatal("Can not get server_version!")
+		return pgVersion, err
+	}
+
+	numString, err := getPgSetting(db, "server_version_num")
+	if err != nil {
+		log.Fatal("Can not get server_version_num!")
+		return pgVersion, err
+	}
+	pgVersion.num, err = strconv.Atoi(numString)
+	if err != nil {
+		log.Fatal("Can not parse server_version_num!")
+		return pgVersion, err
+	}
+
+	log.Debug("pgVersion ", pgVersion)
+
+	if isPgVersionSupported(pgVersion.num) != true {
+		log.Fatal("Please check for a compatible version.")
+	}
+
+	return pgVersion, err
 }

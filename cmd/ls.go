@@ -21,9 +21,11 @@
 package cmd
 
 import (
-	"fmt"
+	"io/ioutil"
 
 	"github.com/spf13/cobra"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // lsCmd represents the ls command
@@ -33,8 +35,20 @@ var lsCmd = &cobra.Command{
 	Long:  `Shows you all backups already made with meta information.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: Work your own magic here
-		fmt.Println("ls called")
+		log.Debug("ls canary")
+		getAllBackups(archiveDir + "/basebackup")
 	},
+}
+
+func getAllBackups(backupDir string) (backups []string, err error) {
+	log.Debug("getAllBackups in ", backupDir)
+	backups = make([]string, 0)
+	files, _ := ioutil.ReadDir(backupDir)
+	for _, f := range files {
+		backups = append(backups, f.Name())
+		log.Warn(f.Name())
+	}
+	return backups, nil
 }
 
 func init() {
