@@ -38,7 +38,6 @@ const (
 	nBytes = 64
 )
 
-// basebackupCmd represents the basebackup command
 var (
 	baseBackupTools = []string{
 		"pg_basebackup",
@@ -64,14 +63,16 @@ var (
 			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft", "--checkpoint", "fast")
 			//backupCmd := exec.Command("cat", "pg1661.txt")
 
+			// attach pipe to the command
 			stdout, err := backupCmd.StdoutPipe()
 			if err != nil {
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
 
-			// Start worker
+			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
-			go writeStreamLz4(stdout, viper.GetString("archivedir")+"/basebackup/"+"t1.lz4")
+			// Start worker
+			go writeStreamLz4(stdout, viper.GetString("archivedir")+"/basebackup/"+"t1.lz4", &wg)
 
 			// Start the process (in the background)
 			if err := backupCmd.Start(); err != nil {
@@ -93,8 +94,9 @@ var (
 	}
 )
 
-func writeStreamLz4(reader io.ReadCloser, filename string) {
-	// Tell the waiting group this process is done
+// handle a stream, compress with lz4 and write to file
+func writeStreamLz4(reader io.ReadCloser, filename string, wg *sync.WaitGroup) {
+	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
 	file, err := os.Create(filename)
@@ -132,5 +134,4 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// basebackupCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
 }

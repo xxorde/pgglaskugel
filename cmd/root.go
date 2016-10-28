@@ -33,13 +33,16 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/kardianos/osext"
 	"github.com/pierrec/lz4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 const (
-	// elefant logo
+	myName = "pgglaskugel"
+
+	// Logo
 	logo = `
      __________
     /          \
@@ -56,6 +59,9 @@ const (
 )
 
 var (
+	// own executable path
+	myExecutable string
+
 	// Vars for configuration
 	cfgFile    string
 	archiveDir string
@@ -93,7 +99,7 @@ var (
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
-		Use:   "pgSOSBackup",
+		Use:   myName,
 		Short: "A tool to backup PostgreSQL databases",
 		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.` + logo,
 	}
@@ -109,13 +115,17 @@ func Execute() {
 }
 
 func init() {
+	// Measure time from here
 	startTime = time.Now()
+
+	myExecutable, _ = osext.Executable()
+
 	cobra.OnInitialize(initConfig)
 	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
 	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().Bool("pgdata-auto", true, "Try to find pgdata if not set correctly (via SQL)")
-	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgSOSBackup", "Dir where the backups go")
+	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups go")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
@@ -140,9 +150,9 @@ func initConfig() {
 
 	// Set the priority / chain where to look for configuration files
 	viper.SetConfigName("config")           // name of config file (without extension)
-	viper.AddConfigPath("/etc/pgsosbackup") // adding /etc/pgSOSBackup as first search path
-	viper.AddConfigPath("$HOME/.config/pgsosbackup")
-	viper.AddConfigPath("$HOME/.pgsosbackup")
+	viper.AddConfigPath("/etc/pgglaskugel") // adding /etc/pgglaskugel as first search path
+	viper.AddConfigPath("$HOME/.config/pgglaskugel")
+	viper.AddConfigPath("$HOME/.pgglaskugel")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.

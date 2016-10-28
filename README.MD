@@ -1,7 +1,6 @@
-pgSOSBackup
-========
-This should become decentralized and easy to use backup tool for PostgreSQL.
-
+pgGlaskugel
+===========
+This should become decentralized and easy to use (backup) tool for PostgreSQL.
 
 Design
 ======

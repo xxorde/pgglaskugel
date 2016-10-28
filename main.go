@@ -20,7 +20,7 @@
 
 package main
 
-import "gogs.xxor.de/xxorde/pgSOSBackup/cmd"
+import "gogs.xxor.de/xxorde/pgGlaskugel/cmd"
 
 func main() {
 	cmd.Execute()

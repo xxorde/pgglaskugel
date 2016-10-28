@@ -36,9 +36,15 @@ var (
 
 	// lz4Cmd represents the lz4 command
 	lz4Cmd = &cobra.Command{
-		Use:   "lz4 [-d] <input> <output>",
+		Use:   myName + " lz4 [-d|--decompress] <input> <output>",
 		Short: "Compresses and decompresses using lz4",
-		Long:  `This command can be used to compress and uncompress using lz. It is provided in case there is no other tool on your system.`,
+		Long: `This command can be used to compress and uncompress using lz4. It is provided in case there is no other tool on your system. Performance is not perfect. Other tools should be preferred!
+Example:
+  Compress:
+    ` + myName + ` dump.sql dump.sql.lz4
+  Decompress:
+    ` + myName + ` -d dump.sql.lz4 dump.sql
+`,
 		Run: func(cmd *cobra.Command, args []string) {
 
 			var data []byte

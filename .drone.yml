@@ -3,4 +3,5 @@ build:
   commands:
     - go get
     - go build
-    - tar cfJ pgSOSBackup.tar.xz pgSOSBackup
+    - go test
+    - tar cfJ pgGlaskugel.tar.xz pgglaskugel

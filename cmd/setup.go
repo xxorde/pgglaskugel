@@ -28,7 +28,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -54,8 +53,7 @@ var (
 	}
 
 	// Preset archive_command
-	executable, _  = osext.Executable()
-	archiveCommand = executable + " archive %p"
+	archiveCommand = myExecutable + " archive %p"
 
 	// Tools that should be installed
 	setupTools = []string{
