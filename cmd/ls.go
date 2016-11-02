@@ -21,8 +21,6 @@
 package cmd
 
 import (
-	"io/ioutil"
-
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
 	"github.com/spf13/cobra"
@@ -38,32 +36,11 @@ var lsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: Work your own magic here
 		backupDir := archiveDir + "/basebackup"
-		backupPath, err := getAllBackups(backupDir)
-		check(err)
-
 		var backups pkg.Backups
+		backups.GetBackupsInDir(backupDir)
 
-		log.Info("Backups in: ", backupDir)
-		for _, backup := range backupPath {
-			log.Info(backup)
-			err = backups.Add(backup)
-			if err != nil {
-				log.Warn(err)
-			}
-		}
-
-		log.Info(backups)
+		log.Info(backups.String())
 	},
-}
-
-func getAllBackups(backupDir string) (backups []string, err error) {
-	log.Debug("getAllBackups in ", backupDir)
-	backups = make([]string, 0)
-	files, _ := ioutil.ReadDir(backupDir)
-	for _, f := range files {
-		backups = append(backups, backupDir+"/"+f.Name())
-	}
-	return backups, nil
 }
 
 func init() {

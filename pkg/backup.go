@@ -20,12 +20,17 @@
 package pkg
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"text/tabwriter"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/siddontang/go/log"
 )
 
@@ -73,13 +78,33 @@ func (b *Backups) Add(path string) (err error) {
 	// Remove anything before the '@'
 	reg := regexp.MustCompile(`.*@`)
 	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
-	log.Debug("Parse as time: ", backupTimeRaw)
 	newBackup.Created, err = time.Parse(BackupTimeFormat, backupTimeRaw)
 	if err != nil {
 		return err
 	}
-
-	log.Warn(newBackup.Name + "   " + newBackup.Created.String())
 	b.Backup = append(b.Backup, newBackup)
 	return nil
+}
+
+func (b *Backups) String() (backups string) {
+	buf := new(bytes.Buffer)
+	w := tabwriter.NewWriter(buf, 0, 0, 3, ' ', tabwriter.AlignRight|tabwriter.Debug)
+	fmt.Fprintln(w, "Backups")
+	fmt.Fprintln(w, "Name\tSize")
+	for _, backup := range b.Backup {
+		fmt.Fprintln(w, backup.Name+"\t"+humanize.Bytes(uint64(backup.Size)))
+	}
+	w.Flush()
+	return buf.String()
+}
+
+func (b *Backups) GetBackupsInDir(backupDir string) (backups []string) {
+	files, _ := ioutil.ReadDir(backupDir)
+	for _, f := range files {
+		err := b.Add(backupDir + "/" + f.Name())
+		if err != nil {
+			log.Warn(err)
+		}
+	}
+	return backups
 }
