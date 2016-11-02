@@ -23,6 +23,8 @@ package cmd
 import (
 	"io/ioutil"
 
+	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
 	"github.com/spf13/cobra"
 
 	log "github.com/Sirupsen/logrus"
@@ -35,8 +37,22 @@ var lsCmd = &cobra.Command{
 	Long:  `Shows you all backups already made with meta information.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: Work your own magic here
-		log.Debug("ls canary")
-		getAllBackups(archiveDir + "/basebackup")
+		backupDir := archiveDir + "/basebackup"
+		backupPath, err := getAllBackups(backupDir)
+		check(err)
+
+		var backups pkg.Backups
+
+		log.Info("Backups in: ", backupDir)
+		for _, backup := range backupPath {
+			log.Info(backup)
+			err = backups.Add(backup)
+			if err != nil {
+				log.Warn(err)
+			}
+		}
+
+		log.Info(backups)
 	},
 }
 
@@ -45,8 +61,7 @@ func getAllBackups(backupDir string) (backups []string, err error) {
 	backups = make([]string, 0)
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
-		backups = append(backups, f.Name())
-		log.Warn(f.Name())
+		backups = append(backups, backupDir+"/"+f.Name())
 	}
 	return backups, nil
 }

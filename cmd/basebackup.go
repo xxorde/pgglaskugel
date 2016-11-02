@@ -27,6 +27,8 @@ import (
 	"sync"
 	"time"
 
+	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
 	log "github.com/Sirupsen/logrus"
 	"github.com/pierrec/lz4"
 	"github.com/spf13/cobra"
@@ -70,8 +72,9 @@ var (
 			}
 
 			t := time.Now()
-			backupName := "bb-" + t.Format("2006-01-02-15:04:05")
-			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".lz4"
+			backupTime := t.Format(pkg.BackupTimeFormat)
+			backupName := "bb@" + backupTime + ".lz4"
+			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName
 
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
