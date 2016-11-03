@@ -3,3 +3,4 @@ pgGlaskugel
 *.xz
 *.lzo
 *.lz4
+*.zst

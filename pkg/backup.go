@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -47,9 +48,7 @@ type Backup struct {
 	Sane      bool
 }
 
-type Backups struct {
-	Backup []Backup
-}
+type Backups []Backup
 
 func (b *Backups) Add(path string) (err error) {
 	var newBackup Backup
@@ -82,7 +81,7 @@ func (b *Backups) Add(path string) (err error) {
 	if err != nil {
 		return err
 	}
-	b.Backup = append(b.Backup, newBackup)
+	*b = append(*b, newBackup)
 	return nil
 }
 
@@ -91,7 +90,7 @@ func (b *Backups) String() (backups string) {
 	w := tabwriter.NewWriter(buf, 0, 0, 3, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "Backups")
 	fmt.Fprintln(w, "Name\tSize")
-	for _, backup := range b.Backup {
+	for _, backup := range *b {
 		fmt.Fprintln(w, backup.Name+"\t"+humanize.Bytes(uint64(backup.Size)))
 	}
 	w.Flush()
@@ -107,4 +106,16 @@ func (b *Backups) GetBackupsInDir(backupDir string) (backups []string) {
 		}
 	}
 	return backups
+}
+
+// Backups implements sort.Interface for []Person based on Backup.Created
+func (b *Backups) Len() int           { return len(*b) }
+func (b *Backups) Swap(i, j int)      { (*b)[i], (*b)[j] = (*b)[j], (*b)[i] }
+func (b *Backups) Less(i, j int) bool { return (*b)[i].Created.Before((*b)[j].Created) }
+
+func (b *Backups) SeparateBackupsByAge(countNew int) (newBackups Backups, oldBackups Backups) {
+	sort.Sort(sort.Reverse(b))
+	newBackups = (*b)[:countNew]
+	oldBackups = (*b)[countNew:]
+	return newBackups, oldBackups
 }

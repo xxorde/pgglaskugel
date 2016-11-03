@@ -24,6 +24,10 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // cleanupCmd represents the cleanup command
@@ -35,20 +39,21 @@ var cleanupCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// TODO: Work your own magic here
 		fmt.Println("cleanup called")
+
+		backupDir := archiveDir + "/basebackup"
+		var backups pkg.Backups
+		backups.GetBackupsInDir(backupDir)
+
+		keep, discard := backups.SeparateBackupsByAge(3)
+		log.Info("Keep the following backups:", keep.String())
+		log.Info("DELETE the following backups: ", discard.String())
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
+	setupCmd.PersistentFlags().Int("retain", -1, "How many backups should we keep?")
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// cleanupCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// cleanupCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
+	// Bind flags to viper
+	viper.BindPFlag("retain", setupCmd.PersistentFlags().Lookup("retain"))
 }
