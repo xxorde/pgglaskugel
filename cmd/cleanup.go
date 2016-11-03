@@ -22,6 +22,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -44,16 +46,48 @@ var cleanupCmd = &cobra.Command{
 		var backups pkg.Backups
 		backups.GetBackupsInDir(backupDir)
 
-		keep, discard := backups.SeparateBackupsByAge(3)
+		retain := uint(viper.GetInt("retain"))
+		if retain <= 0 {
+			log.Fatal("retain has to be 1 or higher! retain is: ", retain)
+		}
+
+		keep, discard := backups.SeparateBackupsByAge(retain)
+		if uint(keep.Len()) < retain {
+			log.Warn("Not enough backups for retention policy!")
+		}
 		log.Info("Keep the following backups:", keep.String())
 		log.Info("DELETE the following backups: ", discard.String())
+
+		delete := viper.GetBool("force-retain")
+
+		if delete != true {
+			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
+			var err error
+			delete, err = pkg.AnswerConfirmation()
+			if err != nil {
+				log.Error(err)
+			}
+		}
+
+		if delete != true {
+			log.Warn("Deletion was not confirmed, ending now.")
+			os.Exit(1)
+		}
+
+		count, err := discard.DeleteAll()
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Info(strconv.Itoa(count) + " backups were removed.")
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
-	setupCmd.PersistentFlags().Int("retain", -1, "How many backups should we keep?")
+	cleanupCmd.PersistentFlags().Uint("retain", 0, "How many backups should we keep?")
+	cleanupCmd.PersistentFlags().Bool("force-retain", false, "Force the deletion of old backups, without asking!")
 
 	// Bind flags to viper
-	viper.BindPFlag("retain", setupCmd.PersistentFlags().Lookup("retain"))
+	viper.BindPFlag("retain", cleanupCmd.PersistentFlags().Lookup("retain"))
+	viper.BindPFlag("force-retain", cleanupCmd.PersistentFlags().Lookup("force-retain"))
 }

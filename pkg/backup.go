@@ -113,9 +113,37 @@ func (b *Backups) Len() int           { return len(*b) }
 func (b *Backups) Swap(i, j int)      { (*b)[i], (*b)[j] = (*b)[j], (*b)[i] }
 func (b *Backups) Less(i, j int) bool { return (*b)[i].Created.Before((*b)[j].Created) }
 
-func (b *Backups) SeparateBackupsByAge(countNew int) (newBackups Backups, oldBackups Backups) {
+// SeparateBackupsByAge separates the backups by age
+// The newest "countNew" backups are put in newBackups
+// The older backups are put in oldBackups
+func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBackups Backups) {
+	// Sort, the newest first
 	sort.Sort(sort.Reverse(b))
+
+	// If there are not enough backups, return all
+	if (*b).Len() <= int(countNew) {
+		return *b, nil
+	}
+
+	// Putt the newest in newBackups
 	newBackups = (*b)[:countNew]
 	oldBackups = (*b)[countNew:]
+
+	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
+		panic("No new backups, only old. Not sane! ")
+	}
 	return newBackups, oldBackups
+}
+
+func (b *Backups) DeleteAll() (count int, err error) {
+
+	for _, backup := range *b {
+		err = os.Remove(backup.Path)
+		if err != nil {
+			log.Warn(err)
+		} else {
+			count++
+		}
+	}
+	return count, err
 }
