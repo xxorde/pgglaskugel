@@ -55,8 +55,18 @@ var cleanupCmd = &cobra.Command{
 		if uint(keep.Len()) < retain {
 			log.Warn("Not enough backups for retention policy!")
 		}
-		log.Info("Keep the following backups:", keep.String())
-		log.Info("DELETE the following backups: ", discard.String())
+		if keep.Len() >= 1 {
+			log.Info("Keep the following backups:", keep.String())
+		} else {
+			log.Info("No backups will be left!")
+		}
+
+		if discard.Len() >= 1 {
+			log.Info("DELETE the following backups: ", discard.String())
+		} else {
+			log.Info("No backups will be removed!")
+			os.Exit(0)
+		}
 
 		delete := viper.GetBool("force-retain")
 
@@ -79,6 +89,8 @@ var cleanupCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
+		backups.GetBackupsInDir(backupDir)
+		log.Info("Backups left: " + backups.String())
 	},
 }
 

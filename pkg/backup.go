@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -87,17 +88,22 @@ func (b *Backups) Add(path string) (err error) {
 
 func (b *Backups) String() (backups string) {
 	buf := new(bytes.Buffer)
-	w := tabwriter.NewWriter(buf, 0, 0, 3, ' ', tabwriter.AlignRight|tabwriter.Debug)
+	row := 0
+	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "Backups")
-	fmt.Fprintln(w, "Name\tSize")
+	fmt.Fprintln(w, "#\tName\tExt\tSize")
 	for _, backup := range *b {
-		fmt.Fprintln(w, backup.Name+"\t"+humanize.Bytes(uint64(backup.Size)))
+		row++
+		fmt.Fprintln(w, strconv.Itoa(row)+"\t"+backup.Name+"\t"+backup.Extension+"\t"+humanize.Bytes(uint64(backup.Size)))
 	}
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Count: "+strconv.Itoa(b.Len()))
 	w.Flush()
 	return buf.String()
 }
 
 func (b *Backups) GetBackupsInDir(backupDir string) (backups []string) {
+	*b = nil
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
 		err := b.Add(backupDir + "/" + f.Name())
