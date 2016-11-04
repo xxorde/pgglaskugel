@@ -63,8 +63,8 @@ var (
 			// Connect to database
 			//conString := viper.GetString("connection")
 			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
-			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft", "--checkpoint", "fast")
-			backupCmd.Env = []string{"client-min-messages=WARNING"}
+			backupCmd := exec.Command("pg_basebackup", "-Ft", "--checkpoint", "fast", "-D", "-")
+			//backupCmd.Env = []string{"PGOPTIONS='--client-min-messages=WARNING'"}
 
 			// attach pipe to the command
 			backupStdout, err := backupCmd.StdoutPipe()

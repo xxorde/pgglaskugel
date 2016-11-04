@@ -21,13 +21,13 @@ package pkg
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
-	"strconv"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -38,6 +38,7 @@ import (
 
 const (
 	BackupTimeFormat = "2006-01-02T15:04:05"
+	saneMinSize      = 4 * 1000000 // ~ 4MB
 )
 
 type Backup struct {
@@ -46,10 +47,47 @@ type Backup struct {
 	Path      string
 	Size      int64
 	Created   time.Time
-	Sane      bool
+}
+
+// IsSane returns true if the backup seams sane
+func (b Backup) IsSane() (sane bool) {
+	if b.Size < saneMinSize {
+		return false
+	}
+	return true
 }
 
 type Backups []Backup
+
+// IsSane returns false if at leased one backups seams not sane
+func (b *Backups) IsSane() (sane bool) {
+	for _, backup := range *b {
+		if backup.IsSane() != true {
+			return false
+		}
+	}
+	return true
+}
+
+// Sane returns all backups that seem not sane
+func (b *Backups) Sane() (sane Backups) {
+	for _, backup := range *b {
+		if backup.IsSane() == true {
+			sane = append(sane, backup)
+		}
+	}
+	return sane
+}
+
+// Insane returns all backups that seem sane
+func (b *Backups) Insane() (insane Backups) {
+	for _, backup := range *b {
+		if backup.IsSane() != true {
+			insane = append(insane, backup)
+		}
+	}
+	return insane
+}
 
 func (b *Backups) Add(path string) (err error) {
 	var newBackup Backup
@@ -89,15 +127,19 @@ func (b *Backups) Add(path string) (err error) {
 func (b *Backups) String() (backups string) {
 	buf := new(bytes.Buffer)
 	row := 0
+	notSane := 0
 	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "Backups")
-	fmt.Fprintln(w, "#\tName\tExt\tSize")
+	fmt.Fprintln(w, "# \tName \tExt \tSize \t Sane")
 	for _, backup := range *b {
 		row++
-		fmt.Fprintln(w, strconv.Itoa(row)+"\t"+backup.Name+"\t"+backup.Extension+"\t"+humanize.Bytes(uint64(backup.Size)))
+		if !backup.IsSane() {
+			notSane++
+		}
+		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.IsSane())
 	}
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Count: "+strconv.Itoa(b.Len()))
+	fmt.Fprintln(w, "Total backups: ", b.Len(), " Not sane backups: ", notSane)
 	w.Flush()
 	return buf.String()
 }
@@ -128,23 +170,27 @@ func (b *Backups) Sort() {
 // SeparateBackupsByAge separates the backups by age
 // The newest "countNew" backups are put in newBackups
 // The older backups are put in oldBackups
-func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBackups Backups) {
+func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBackups Backups, err error) {
 	// Sort backups first
 	b.Sort()
 
 	// If there are not enough backups, return all
 	if (*b).Len() <= int(countNew) {
-		return *b, nil
+		return *b, nil, nil
 	}
 
 	// Putt the newest in newBackups
 	newBackups = (*b)[:countNew]
 	oldBackups = (*b)[countNew:]
 
+	if newBackups.IsSane() != true {
+		return nil, nil, errors.New("Not all backups (newBackups) are sane!")
+	}
+
 	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
 		panic("No new backups, only old. Not sane! ")
 	}
-	return newBackups, oldBackups
+	return newBackups, oldBackups, nil
 }
 
 func (b *Backups) DeleteAll() (count int, err error) {

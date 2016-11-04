@@ -51,7 +51,10 @@ var cleanupCmd = &cobra.Command{
 			log.Fatal("retain has to be 1 or higher! retain is: ", retain)
 		}
 
-		keep, discard := backups.SeparateBackupsByAge(retain)
+		keep, discard, err := backups.SeparateBackupsByAge(retain)
+		if err != nil {
+			log.Fatal(err)
+		}
 		if uint(keep.Len()) < retain {
 			log.Warn("Not enough backups for retention policy!")
 		}
