@@ -30,7 +30,6 @@ import (
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/pierrec/lz4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -43,6 +42,7 @@ const (
 var (
 	baseBackupTools = []string{
 		"pg_basebackup",
+		"zstd",
 	}
 
 	// WaitGroup for workers
@@ -63,23 +63,34 @@ var (
 			//conString := viper.GetString("connection")
 			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
 			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft", "--checkpoint", "fast")
-			//backupCmd := exec.Command("cat", "pg1661.txt")
 
 			// attach pipe to the command
-			stdout, err := backupCmd.StdoutPipe()
+			backupStdout, err := backupCmd.StdoutPipe()
 			if err != nil {
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
 
-			t := time.Now()
-			backupTime := t.Format(pkg.BackupTimeFormat)
-			backupName := "bb@" + backupTime + ".lz4"
+			// This command is used to take the backup and compress it
+			compressCmd := exec.Command("zstd", "--stdout")
+
+			// attach pipe to the command
+			compressStdout, err := compressCmd.StdoutPipe()
+			if err != nil {
+				log.Fatal("Can not attach pipe to backup process, ", err)
+			}
+
+			// Pipe the backup in the compression
+			compressCmd.Stdin = backupStdout
+
+			backupTime := startTime.Format(pkg.BackupTimeFormat)
+			backupName := "bb@" + backupTime + ".zstd"
 			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName
 
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
+
 			// Start worker
-			go writeStreamLz4(stdout, backupPath, &wg)
+			go writeStreamToFile(compressStdout, backupPath, &wg)
 
 			// Start the process (in the background)
 			if err := backupCmd.Start(); err != nil {
@@ -87,10 +98,22 @@ var (
 			}
 			log.Info("Backup was started")
 
+			// Start backup and compression
+			if err := compressCmd.Start(); err != nil {
+				log.Fatal("pg_basebackup failed on startup, ", err)
+			}
+			log.Info("Compression started")
+
 			// Wait for backup to finish
 			err = backupCmd.Wait()
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)
+			}
+
+			// Wait for compression to finish
+			err = compressCmd.Wait()
+			if err != nil {
+				log.Fatal("compression failed after startup, ", err)
 			}
 
 			// Wait for workers to finish
@@ -101,8 +124,8 @@ var (
 	}
 )
 
-// handle a stream, compress with lz4 and write to file
-func writeStreamLz4(reader io.ReadCloser, filename string, wg *sync.WaitGroup) {
+// handle a stream and write to file
+func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
@@ -112,18 +135,10 @@ func writeStreamLz4(reader io.ReadCloser, filename string, wg *sync.WaitGroup) {
 	}
 	defer file.Close()
 
-	zw := lz4.NewWriter(nil)
-
-	worker := func(in io.Reader, out io.Writer) {
-		zw.Reset(out)
-		zw.Header = lz4Header
-		if _, err := io.Copy(zw, in); err != nil {
-			log.Fatalf("Error while compressing input: %v", err)
-		}
+	log.Debug("Start writing to file")
+	if written, err := io.Copy(file, input); err != nil {
+		log.Fatalf("Error while compressing input, written %d, error: %v", written, err)
 	}
-
-	log.Debug("Start writing compressed backup now")
-	worker(reader, file)
 
 	log.Info("Data is written, waiting for file.Sync()")
 	file.Sync()

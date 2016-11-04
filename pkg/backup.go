@@ -102,7 +102,7 @@ func (b *Backups) String() (backups string) {
 	return buf.String()
 }
 
-func (b *Backups) GetBackupsInDir(backupDir string) (backups []string) {
+func (b *Backups) GetBackupsInDir(backupDir string) {
 	*b = nil
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
@@ -111,7 +111,8 @@ func (b *Backups) GetBackupsInDir(backupDir string) (backups []string) {
 			log.Warn(err)
 		}
 	}
-	return backups
+	// Sort backups
+	b.Sort()
 }
 
 // Backups implements sort.Interface for []Person based on Backup.Created
@@ -119,12 +120,17 @@ func (b *Backups) Len() int           { return len(*b) }
 func (b *Backups) Swap(i, j int)      { (*b)[i], (*b)[j] = (*b)[j], (*b)[i] }
 func (b *Backups) Less(i, j int) bool { return (*b)[i].Created.Before((*b)[j].Created) }
 
+func (b *Backups) Sort() {
+	// Sort, the newest first
+	sort.Sort(sort.Reverse(b))
+}
+
 // SeparateBackupsByAge separates the backups by age
 // The newest "countNew" backups are put in newBackups
 // The older backups are put in oldBackups
 func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBackups Backups) {
-	// Sort, the newest first
-	sort.Sort(sort.Reverse(b))
+	// Sort backups first
+	b.Sort()
 
 	// If there are not enough backups, return all
 	if (*b).Len() <= int(countNew) {
@@ -142,7 +148,6 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 }
 
 func (b *Backups) DeleteAll() (count int, err error) {
-
 	for _, backup := range *b {
 		err = os.Remove(backup.Path)
 		if err != nil {

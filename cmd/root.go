@@ -130,7 +130,7 @@ func init() {
 	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups go")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
-	RootCmd.PersistentFlags().String("connection", "user=postgres dbname=postgres", "Connection string to connect to the database")
+	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
 	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel, default depends on cores ")
 
 	// Bind flags to viper
