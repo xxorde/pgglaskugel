@@ -32,8 +32,8 @@ import (
 	"text/tabwriter"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/dustin/go-humanize"
-	"github.com/siddontang/go/log"
 )
 
 const (
@@ -41,6 +41,7 @@ const (
 	saneMinSize      = 4 * 1000000 // ~ 4MB
 )
 
+// Backup stores information about a backup
 type Backup struct {
 	Name      string
 	Extension string
@@ -57,6 +58,7 @@ func (b Backup) IsSane() (sane bool) {
 	return true
 }
 
+// Backups represents an array of "Backup"
 type Backups []Backup
 
 // IsSane returns false if at leased one backups seams not sane
@@ -89,6 +91,7 @@ func (b *Backups) Insane() (insane Backups) {
 	return insane
 }
 
+// Add adds a new backup to Backups
 func (b *Backups) Add(path string) (err error) {
 	var newBackup Backup
 	// Make a relative path absolute
@@ -124,6 +127,7 @@ func (b *Backups) Add(path string) (err error) {
 	return nil
 }
 
+// String returns an overview of the backups as string
 func (b *Backups) String() (backups string) {
 	buf := new(bytes.Buffer)
 	row := 0
@@ -144,6 +148,7 @@ func (b *Backups) String() (backups string) {
 	return buf.String()
 }
 
+// GetBackupsInDir includes all backups in given directory
 func (b *Backups) GetBackupsInDir(backupDir string) {
 	*b = nil
 	files, _ := ioutil.ReadDir(backupDir)
@@ -162,6 +167,7 @@ func (b *Backups) Len() int           { return len(*b) }
 func (b *Backups) Swap(i, j int)      { (*b)[i], (*b)[j] = (*b)[j], (*b)[i] }
 func (b *Backups) Less(i, j int) bool { return (*b)[i].Created.Before((*b)[j].Created) }
 
+// Sort sorts all backups in place
 func (b *Backups) Sort() {
 	// Sort, the newest first
 	sort.Sort(sort.Reverse(b))
@@ -184,7 +190,7 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 	oldBackups = (*b)[countNew:]
 
 	if newBackups.IsSane() != true {
-		return nil, nil, errors.New("Not all backups (newBackups) are sane!")
+		return nil, nil, errors.New("Not all backups (newBackups) are sane!" + newBackups.String())
 	}
 
 	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
@@ -193,6 +199,7 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 	return newBackups, oldBackups, nil
 }
 
+// DeleteAll deletes all backups in the struct
 func (b *Backups) DeleteAll() (count int, err error) {
 	for _, backup := range *b {
 		err = os.Remove(backup.Path)

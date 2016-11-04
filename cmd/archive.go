@@ -83,7 +83,7 @@ func archiveWithLz4Command(walSource string, walName string) (err error) {
 		return err
 	}
 
-	archiveCmd := exec.Command("/usr/bin/lz4", walSource, walTarget)
+	archiveCmd := exec.Command("lz4", walSource, walTarget)
 	err = archiveCmd.Run()
 	return err
 }

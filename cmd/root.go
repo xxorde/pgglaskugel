@@ -37,7 +37,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/kardianos/osext"
-	"github.com/pierrec/lz4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -89,15 +88,6 @@ var (
 
 	// Store time of programm start
 	startTime time.Time
-
-	// Set lz4 parameter
-	lz4Header = lz4.Header{
-		BlockDependency: false,
-		BlockChecksum:   false,
-		BlockMaxSize:    lz4BlockMaxSizeDefault,
-		NoChecksum:      false,
-		HighCompression: false,
-	}
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{

@@ -60,10 +60,11 @@ var (
 			err := testTools(baseBackupTools)
 			check(err)
 
-			// Connect to database
-			//conString := viper.GetString("connection")
-			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
-			backupCmd := exec.Command("pg_basebackup", "-Ft", "--checkpoint", "fast", "-D", "-")
+			backupTime := startTime.Format(pkg.BackupTimeFormat)
+			backupName := "bb@" + backupTime
+			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".zstd"
+
+			backupCmd := exec.Command("pg_basebackup", "-Ft", "-l", backupName, "--checkpoint", "fast", "-D", "-")
 			//backupCmd.Env = []string{"PGOPTIONS='--client-min-messages=WARNING'"}
 
 			// attach pipe to the command
@@ -93,10 +94,6 @@ var (
 
 			// Pipe the backup in the compression
 			compressCmd.Stdin = backupStdout
-
-			backupTime := startTime.Format(pkg.BackupTimeFormat)
-			backupName := "bb@" + backupTime + ".zstd"
-			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName
 
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)

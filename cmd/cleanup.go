@@ -55,6 +55,7 @@ var cleanupCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
+
 		if uint(keep.Len()) < retain {
 			log.Warn("Not enough backups for retention policy!")
 		}
