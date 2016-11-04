@@ -21,6 +21,7 @@
 package cmd
 
 import (
+	"bufio"
 	"io"
 	"os"
 	"os/exec"
@@ -63,6 +64,7 @@ var (
 			//conString := viper.GetString("connection")
 			//			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-d", "'"+conString+"'", "-D", viper.GetString("archivedir")+"/basebackup", "--format", "tar", "--gzip", "--checkpoint", "fast")
 			backupCmd := exec.Command("/usr/bin/pg_basebackup", "-D", "-", "-Ft", "--checkpoint", "fast")
+			backupCmd.Env = []string{"client-min-messages=WARNING"}
 
 			// attach pipe to the command
 			backupStdout, err := backupCmd.StdoutPipe()
@@ -70,14 +72,24 @@ var (
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
 
+			// Watch stderror
+			backupStderror, err := backupCmd.StderrPipe()
+			check(err)
+			go watchOutput(backupStderror, log.Info)
+
 			// This command is used to take the backup and compress it
-			compressCmd := exec.Command("zstd", "--stdout")
+			compressCmd := exec.Command("zstd")
 
 			// attach pipe to the command
 			compressStdout, err := compressCmd.StdoutPipe()
 			if err != nil {
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
+
+			// Watch stderror
+			compressStderror, err := compressCmd.StderrPipe()
+			check(err)
+			go watchOutput(compressStderror, log.Info)
 
 			// Pipe the backup in the compression
 			compressCmd.Stdin = backupStdout
@@ -109,12 +121,14 @@ var (
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)
 			}
+			log.Debug("backupCmd done")
 
 			// Wait for compression to finish
 			err = compressCmd.Wait()
 			if err != nil {
 				log.Fatal("compression failed after startup, ", err)
 			}
+			log.Debug("compressCmd done")
 
 			// Wait for workers to finish
 			wg.Wait()
@@ -136,24 +150,27 @@ func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup)
 	defer file.Close()
 
 	log.Debug("Start writing to file")
-	if written, err := io.Copy(file, input); err != nil {
-		log.Fatalf("Error while compressing input, written %d, error: %v", written, err)
+	written, err := io.Copy(file, input)
+	if err != nil {
+		log.Fatalf("Error while writing to %s, written %d, error: %v", filename, written, err)
 	}
 
-	log.Info("Data is written, waiting for file.Sync()")
+	log.Infof("%d bytes were written, waiting for file.Sync()", written)
 	file.Sync()
+}
+
+func watchOutput(input io.Reader, outputFunc func(args ...interface{})) {
+	log.Debug("watchOutput started")
+	scanner := bufio.NewScanner(input)
+	for scanner.Scan() {
+		outputFunc(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		outputFunc("reading standard input:", err)
+	}
+	log.Debug("watchOutput end")
 }
 
 func init() {
 	RootCmd.AddCommand(basebackupCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// basebackupCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// basebackupCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
