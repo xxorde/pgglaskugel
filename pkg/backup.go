@@ -44,11 +44,13 @@ const (
 
 // Backup stores information about a backup
 type Backup struct {
-	Name      string
-	Extension string
-	Path      string
-	Size      int64
-	Created   time.Time
+	Name             string
+	Extension        string
+	Path             string
+	Size             int64
+	Created          time.Time
+	BackupLabel      string
+	StartWalLocation string
 }
 
 // IsSane returns true if the backup seams sane
@@ -59,11 +61,15 @@ func (b *Backup) IsSane() (sane bool) {
 	return true
 }
 
-// GetMinWalFile returns the oldest needed WAL file
+// GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b Backup) GetMinWalFile(archiveDir string) (minWal string, err error) {
+func (b *Backup) GetStartWalLocation(archiveDir string) (startWalLocation string, err error) {
+	// Regex to identify a backup label file
 	// 000000010000001200000062.00000028.backup, make better regex
-	reg := regexp.MustCompile(`.*\.backup`)
+	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
+
+	// Regex to identify the right file
+	regLabel := regexp.MustCompile(`.*LABEL: ` + b.Name)
 
 	files, _ := ioutil.ReadDir(archiveDir)
 	// find all backup labels
@@ -72,30 +78,61 @@ func (b Backup) GetMinWalFile(archiveDir string) (minWal string, err error) {
 			// size is to big for backup label
 			continue
 		}
-		if reg.MatchString(f.Name()) {
-			log.Debug(f.Name(), " => seems to be a backup Label, by size")
+		if regBackupLabelFile.MatchString(f.Name()) {
+			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
 
-			catCmd := exec.Command("/usr/bin/zstdcat", f.Name())
+			catCmd := exec.Command("/usr/bin/zstdcat", archiveDir+"/"+f.Name())
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
 				// if we can not open the file we continue with next
+				log.Warn("catCmd.StdoutPipe(), ", err)
 				continue
 			}
 
-			err = catCmd.Run()
+			err = catCmd.Start()
 			if err != nil {
-				// if we can not open the file we continue with next
+				log.Warn("catCmd.Start(), ", err)
 				continue
 			}
 
-			buf := new(bytes.Buffer)
-			buf.ReadFrom(catCmdStdout)
-			label := buf.String()
+			buf, err := ioutil.ReadAll(catCmdStdout)
+			if err != nil {
+				log.Warn("Reading from command: ", err)
+				continue
+			}
 
-			log.Warn((label))
+			err = catCmd.Wait()
+			if err != nil {
+				log.Warn("catCmd.Wait(), ", err)
+				continue
+			}
+
+			if len(regLabel.Find(buf)) > 1 {
+				log.Debug("Found matching backup label")
+				b.parseBackupLabel(buf)
+				return b.StartWalLocation, nil
+			}
 		}
 	}
-	return "", err
+	return "", errors.New("START WAL LOCATION found")
+}
+
+func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
+	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9]{24}\)`)
+	regStartWal := regexp.MustCompile(`[0-9]{24}`)
+
+	startWalLine := regStartWalLine.Find(backupLabel)
+	if len(startWalLine) < 1 {
+		return errors.New("Can not find line with START WAL LOCATION")
+	}
+
+	startWal := regStartWal.Find(startWalLine)
+	if len(startWal) < 1 {
+		return errors.New("Can not find START WAL.")
+	}
+
+	b.StartWalLocation = string(startWal)
+	return nil
 }
 
 // Backups represents an array of "Backup"

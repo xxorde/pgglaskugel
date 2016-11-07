@@ -23,6 +23,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -95,6 +96,15 @@ var cleanupCmd = &cobra.Command{
 		log.Info(strconv.Itoa(count) + " backups were removed.")
 		backups.GetBackupsInDir(backupDir)
 		log.Info("Backups left: " + backups.String())
+		oldestBackup := backups[0]
+		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
+		check(err)
+		log.Warn(oldestNeededWal)
+		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zstd", viper.GetString("archivedir")+"/wal", oldestNeededWal)
+		err = cleanWal.Run()
+		if err != nil {
+			log.Fatal(err)
+		}
 	},
 }
 
