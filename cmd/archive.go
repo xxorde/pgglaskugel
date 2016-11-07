@@ -50,7 +50,7 @@ var (
 				err := testWalSource(walSource)
 				check(err)
 				walName := filepath.Base(walSource)
-				err = archiveWithLz4Command(walSource, walName)
+				err = archiveWithZstdCommand(walSource, walName)
 				if err != nil {
 					log.Fatal("archive failed ", err)
 				}
@@ -99,8 +99,8 @@ func archiveToS3(walSource string, walName string) (err error) {
 }
 
 // archiveWithLz4Command uses the shell command lz4 to archive WAL files
-func archiveWithLz4Command(walSource string, walName string) (err error) {
-	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".lz4"
+func archiveWithZstdCommand(walSource string, walName string) (err error) {
+	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zstd"
 	log.Debug("archiveWithLz4Command, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
 
 	// Check if WAL file is already in archive
@@ -109,7 +109,7 @@ func archiveWithLz4Command(walSource string, walName string) (err error) {
 		return err
 	}
 
-	archiveCmd := exec.Command("/usr/bin/lz4", walSource, walTarget)
+	archiveCmd := exec.Command("/usr/bin/zstd", walSource, "-o", walTarget)
 	err = archiveCmd.Run()
 	return err
 }

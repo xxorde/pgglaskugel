@@ -40,6 +40,8 @@ var lsCmd = &cobra.Command{
 		backups.GetBackupsInDir(backupDir)
 
 		log.Info(backups.String())
+
+		log.Warn(backups[0].GetMinWalFile(archiveDir + "/wal"))
 	},
 }
 

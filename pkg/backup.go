@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -51,11 +52,50 @@ type Backup struct {
 }
 
 // IsSane returns true if the backup seams sane
-func (b Backup) IsSane() (sane bool) {
+func (b *Backup) IsSane() (sane bool) {
 	if b.Size < saneMinSize {
 		return false
 	}
 	return true
+}
+
+// GetMinWalFile returns the oldest needed WAL file
+// Every older WAL file is not required to use this backup
+func (b Backup) GetMinWalFile(archiveDir string) (minWal string, err error) {
+	// 000000010000001200000062.00000028.backup, make better regex
+	reg := regexp.MustCompile(`.*\.backup`)
+
+	files, _ := ioutil.ReadDir(archiveDir)
+	// find all backup labels
+	for _, f := range files {
+		if f.Size() > 500 {
+			// size is to big for backup label
+			continue
+		}
+		if reg.MatchString(f.Name()) {
+			log.Debug(f.Name(), " => seems to be a backup Label, by size")
+
+			catCmd := exec.Command("/usr/bin/zstdcat", f.Name())
+			catCmdStdout, err := catCmd.StdoutPipe()
+			if err != nil {
+				// if we can not open the file we continue with next
+				continue
+			}
+
+			err = catCmd.Run()
+			if err != nil {
+				// if we can not open the file we continue with next
+				continue
+			}
+
+			buf := new(bytes.Buffer)
+			buf.ReadFrom(catCmdStdout)
+			label := buf.String()
+
+			log.Warn((label))
+		}
+	}
+	return "", err
 }
 
 // Backups represents an array of "Backup"
