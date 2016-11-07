@@ -64,7 +64,7 @@ var (
 			backupName := "bb@" + backupTime
 			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".zstd"
 
-			backupCmd := exec.Command("pg_basebackup", "-Ft", "-l", backupName, "--checkpoint", "fast", "-D", "-")
+			backupCmd := exec.Command("pg_basebackup", "-Ft", "--verbose", "-l", backupName, "--checkpoint", "fast", "-D", "-")
 			//backupCmd.Env = []string{"PGOPTIONS='--client-min-messages=WARNING'"}
 
 			// attach pipe to the command

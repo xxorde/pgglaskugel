@@ -47,8 +47,10 @@ var (
 
 			count := 0
 			for _, walSource := range args {
+				err := testWalSource(walSource)
+				check(err)
 				walName := filepath.Base(walSource)
-				err := archiveWithLz4Command(walSource, walName)
+				err = archiveWithLz4Command(walSource, walName)
 				if err != nil {
 					log.Fatal("archive failed ", err)
 				}
@@ -59,6 +61,30 @@ var (
 		},
 	}
 )
+
+func testWalSource(walSource string) (err error) {
+	// Get size of backup
+	file, err := os.Open(walSource)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	fi, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	if fi.Size() < 100 {
+		return errors.New("Input file to small!")
+	}
+
+	if fi.Size() > 16777216 {
+		return errors.New("Input file to big!")
+	}
+
+	return nil
+}
 
 // archiveToFile archives to a local file (implemented in Go)
 func archiveToFile(walSource string, walName string) (err error) {
@@ -75,7 +101,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 // archiveWithLz4Command uses the shell command lz4 to archive WAL files
 func archiveWithLz4Command(walSource string, walName string) (err error) {
 	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".lz4"
-	log.Debug("archiveWithLz4Command ", walSource, walName, walTarget)
+	log.Debug("archiveWithLz4Command, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
 
 	// Check if WAL file is already in archive
 	if _, err := os.Stat(walTarget); err == nil {
@@ -83,7 +109,7 @@ func archiveWithLz4Command(walSource string, walName string) (err error) {
 		return err
 	}
 
-	archiveCmd := exec.Command("lz4", walSource, walTarget)
+	archiveCmd := exec.Command("/usr/bin/lz4", walSource, walTarget)
 	err = archiveCmd.Run()
 	return err
 }

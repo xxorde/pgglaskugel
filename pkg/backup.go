@@ -105,11 +105,11 @@ func (b *Backups) Add(path string) (err error) {
 
 	// Get size of backup
 	file, err := os.Open(path)
-	defer file.Close()
-
 	if err != nil {
 		return err
 	}
+	defer file.Close()
+
 	fi, err := file.Stat()
 	if err != nil {
 		return err
@@ -143,7 +143,7 @@ func (b *Backups) String() (backups string) {
 		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.IsSane())
 	}
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Total backups: ", b.Len(), " Not sane backups: ", notSane)
+	fmt.Fprintln(w, "Total backups:", b.Len(), " Not sane backups:", notSane)
 	w.Flush()
 	return buf.String()
 }

@@ -111,8 +111,6 @@ var (
 				"pgDataVersion":    pgDataVersion,
 			}).Debug("Variables")
 
-			log.Warn(myExecutable)
-
 			log.Debug(pgSettings)
 
 			if dryRun == true {
