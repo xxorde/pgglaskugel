@@ -112,6 +112,10 @@ var (
 			// Start worker
 			go writeStreamToFile(compressStdout, backupPath, &wg)
 
+			// Wait for workers to finish
+			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
+			wg.Wait()
+
 			// Wait for backup to finish
 			err = backupCmd.Wait()
 			if err != nil {
@@ -126,8 +130,6 @@ var (
 			}
 			log.Debug("compressCmd done")
 
-			// Wait for workers to finish
-			wg.Wait()
 			elapsed := time.Since(startTime)
 			log.Info("Backup done in ", elapsed)
 		},
