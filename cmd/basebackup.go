@@ -21,7 +21,6 @@
 package cmd
 
 import (
-	"bufio"
 	"io"
 	"os"
 	"os/exec"
@@ -76,7 +75,7 @@ var (
 			// Watch stderror
 			backupStderror, err := backupCmd.StderrPipe()
 			check(err)
-			go watchOutput(backupStderror, log.Info)
+			go pkg.WatchOutput(backupStderror, log.Info)
 
 			// This command is used to take the backup and compress it
 			compressCmd := exec.Command("zstd")
@@ -90,16 +89,13 @@ var (
 			// Watch stderror
 			compressStderror, err := compressCmd.StderrPipe()
 			check(err)
-			go watchOutput(compressStderror, log.Info)
+			go pkg.WatchOutput(compressStderror, log.Info)
 
 			// Pipe the backup in the compression
 			compressCmd.Stdin = backupStdout
 
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
-
-			// Start worker
-			go writeStreamToFile(compressStdout, backupPath, &wg)
 
 			// Start the process (in the background)
 			if err := backupCmd.Start(); err != nil {
@@ -112,6 +108,9 @@ var (
 				log.Fatal("pg_basebackup failed on startup, ", err)
 			}
 			log.Info("Compression started")
+
+			// Start worker
+			go writeStreamToFile(compressStdout, backupPath, &wg)
 
 			// Wait for backup to finish
 			err = backupCmd.Wait()
@@ -140,7 +139,7 @@ func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup)
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
-	file, err := os.Create(filename)
+	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
 	if err != nil {
 		log.Fatal("Can not create output file, ", err)
 	}
@@ -149,23 +148,11 @@ func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup)
 	log.Debug("Start writing to file")
 	written, err := io.Copy(file, input)
 	if err != nil {
-		log.Fatalf("Error while writing to %s, written %d, error: %v", filename, written, err)
+		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", filename, written, err)
 	}
 
 	log.Infof("%d bytes were written, waiting for file.Sync()", written)
 	file.Sync()
-}
-
-func watchOutput(input io.Reader, outputFunc func(args ...interface{})) {
-	log.Debug("watchOutput started")
-	scanner := bufio.NewScanner(input)
-	for scanner.Scan() {
-		outputFunc(scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		outputFunc("reading standard input:", err)
-	}
-	log.Debug("watchOutput end")
 }
 
 func init() {

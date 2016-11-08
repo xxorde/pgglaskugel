@@ -1,9 +1,13 @@
 package pkg
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
+
+	"github.com/siddontang/go/log"
 )
 
 func AnswerConfirmation() (confirmed bool, err error) {
@@ -37,4 +41,16 @@ func MustAnswerConfirmation() (confirmed bool) {
 		return confirmed
 	}
 	return MustAnswerConfirmation()
+}
+
+func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {
+	log.Debug("watchOutput started")
+	scanner := bufio.NewScanner(input)
+	for scanner.Scan() {
+		outputFunc(scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		outputFunc("reading standard input:", err)
+	}
+	log.Debug("watchOutput end")
 }

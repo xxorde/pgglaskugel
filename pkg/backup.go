@@ -49,6 +49,7 @@ type Backup struct {
 	Path             string
 	Size             int64
 	Created          time.Time
+	LabelFile        string
 	BackupLabel      string
 	StartWalLocation string
 }
@@ -81,7 +82,8 @@ func (b *Backup) GetStartWalLocation(archiveDir string) (startWalLocation string
 		if regBackupLabelFile.MatchString(f.Name()) {
 			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
 
-			catCmd := exec.Command("/usr/bin/zstdcat", archiveDir+"/"+f.Name())
+			labelFile := archiveDir + "/" + f.Name()
+			catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
 				// if we can not open the file we continue with next
@@ -109,20 +111,32 @@ func (b *Backup) GetStartWalLocation(archiveDir string) (startWalLocation string
 
 			if len(regLabel.Find(buf)) > 1 {
 				log.Debug("Found matching backup label")
-				b.parseBackupLabel(buf)
-				return b.StartWalLocation, nil
+				err = b.parseBackupLabel(buf)
+				if err == nil {
+					b.LabelFile = labelFile
+				}
+				return b.StartWalLocation, err
 			}
 		}
 	}
-	return "", errors.New("START WAL LOCATION found")
+	return "", errors.New("START WAL LOCATION not found")
+}
+
+func (b *Backup) GetLabelFile(archiveDir string) (labelFile string, err error) {
+	_, err = b.GetStartWalLocation(archiveDir)
+	if err != nil {
+		return "", err
+	}
+	return b.LabelFile, nil
 }
 
 func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
-	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9]{24}\)`)
-	regStartWal := regexp.MustCompile(`[0-9]{24}`)
+	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9A-Fa-f]{24}\)`)
+	regStartWal := regexp.MustCompile(`[0-9A-Fa-f]{24}`)
 
 	startWalLine := regStartWalLine.Find(backupLabel)
 	if len(startWalLine) < 1 {
+		log.Debug(string(backupLabel))
 		return errors.New("Can not find line with START WAL LOCATION")
 	}
 

@@ -91,7 +91,7 @@ var cleanupCmd = &cobra.Command{
 
 		count, err := discard.DeleteAll()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("DeleteAll()", err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
 		backups.GetBackupsInDir(backupDir)
@@ -99,18 +99,23 @@ var cleanupCmd = &cobra.Command{
 		oldestBackup := backups[0]
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
 		check(err)
-		log.Warn(oldestNeededWal)
 		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zstd", viper.GetString("archivedir")+"/wal", oldestNeededWal)
+
+		// Watch stderror
+		cleanWalStderror, err := cleanWal.StderrPipe()
+		check(err)
+		go pkg.WatchOutput(cleanWalStderror, log.Info)
+
 		err = cleanWal.Run()
 		if err != nil {
-			log.Fatal(err)
+			log.Fatal("cleanWal.Run()", err)
 		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
-	cleanupCmd.PersistentFlags().Uint("retain", 0, "How many backups should we keep?")
+	cleanupCmd.PersistentFlags().Uint("retain", 0, "Number of (new) backups to keep?")
 	cleanupCmd.PersistentFlags().Bool("force-retain", false, "Force the deletion of old backups, without asking!")
 
 	// Bind flags to viper
