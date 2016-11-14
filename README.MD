@@ -1,3 +1,5 @@
+![logo](docs/glaskugel.png "glaskugel logo")
+
 pgGlaskugel
 ===========
 This should become decentralized and easy to use (backup) tool for PostgreSQL.

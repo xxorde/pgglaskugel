@@ -40,10 +40,6 @@ const (
 )
 
 var (
-	baseBackupTools = []string{
-		"pg_basebackup",
-		"zstd",
-	}
 
 	// WaitGroup for workers
 	wg sync.WaitGroup
@@ -54,10 +50,6 @@ var (
 		Long:  `Creates a new basebackup from the database with the given method.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Perform basebackup")
-
-			// Check if needed tools are available
-			err := testTools(baseBackupTools)
-			check(err)
 
 			backupTime := startTime.Format(pkg.BackupTimeFormat)
 			backupName := "bb@" + backupTime

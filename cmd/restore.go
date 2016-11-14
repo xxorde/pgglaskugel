@@ -21,9 +21,11 @@
 package cmd
 
 import (
-	"github.com/siddontang/go/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 // restoreCmd represents the restore command
@@ -33,18 +35,42 @@ var restoreCmd = &cobra.Command{
 	Long:  `Restore a given backup to a given location.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Debug("restore called")
+		checkNeededParameter("backup", "restore-to")
+		backupName := viper.GetString("arcbackuphivedir")
+		backupDestination := viper.GetString("restore-to")
 
+		force := viper.GetBool("force-restore")
+
+		var backups pkg.Backups
+
+		backups.GetBackupsInDir(viper.GetString("archivedir") + "/basebackup/")
+
+		backup, err := backups.Find(backupName)
+		if err != nil {
+			log.Fatal("Can not find backup: ", backupName)
+		}
+
+		log.Info("Going to restore:", backupName, "in:", backup.Path, "to:", backupDestination)
+
+		if force != true {
+			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
+			var err error
+			force, err = pkg.AnswerConfirmation()
+			if err != nil {
+				log.Error(err)
+			}
+		}
 	},
 }
 
 func init() {
 	RootCmd.AddCommand(restoreCmd)
-	restoreCmd.PersistentFlags().StringP("backup", "S", "myBackup@2016-11-04T21:52:57", "The backup tor restore")
-	restoreCmd.PersistentFlags().StringP("destination", "D", "/var/lib/postgres/pgGlaskugel-restore", "The destination to restored to")
+	restoreCmd.PersistentFlags().StringP("backup", "B", "myBackup@2016-11-04T21:52:57", "The backup tor restore")
+	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgres/pgGlaskugel-restore", "The destination to restore to")
 	restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
 
 	// Bind flags to viper
 	viper.BindPFlag("backup", restoreCmd.PersistentFlags().Lookup("backup"))
-	viper.BindPFlag("destination", restoreCmd.PersistentFlags().Lookup("destination"))
+	viper.BindPFlag("restore-to", restoreCmd.PersistentFlags().Lookup("restore-to"))
 	viper.BindPFlag("force-restore", restoreCmd.PersistentFlags().Lookup("force-restore"))
 }

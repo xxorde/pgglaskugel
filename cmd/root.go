@@ -73,6 +73,12 @@ var (
 	pgMaxVersion           = 90699
 	supportedMajorVersions = [...]string{"9.5", "9.6"}
 
+	baseBackupTools = []string{
+		"tar",
+		"pg_basebackup",
+		"zstd",
+	}
+
 	// Maximum PID
 	maxPID = 32768
 
@@ -93,7 +99,7 @@ var (
 	RootCmd = &cobra.Command{
 		Use:   myName,
 		Short: "A tool to backup PostgreSQL databases",
-		Long:  `A tool that helps you to manage your PostgreSQL backups and strategies.` + logo,
+		Long:  `A tool that helps you to manage your PostgreSQL backups.` + logo,
 	}
 )
 
@@ -169,6 +175,10 @@ func initConfig() {
 	// Set archiveDir var
 	archiveDir = viper.GetString("archivedir")
 	log.Debug("archiveDir: ", archiveDir)
+
+	// Check if needed tools are available
+	err := testTools(baseBackupTools)
+	check(err)
 }
 
 // Global needed functions
@@ -347,4 +357,18 @@ func checkPgVersion(db *sql.DB) (pgVersion pgVersion, err error) {
 	}
 
 	return pgVersion, err
+}
+
+func checkNeededParameter(parameter ...string) (err error) {
+	errCount := 0
+	for _, p := range parameter {
+		if viper.GetString(p) <= "" {
+			errCount++
+			log.Warn(p, " ist not set")
+		}
+	}
+	if errCount > 0 {
+		return errors.New("No all parameters are set")
+	}
+	return nil
 }

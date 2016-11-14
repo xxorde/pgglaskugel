@@ -302,3 +302,13 @@ func (b *Backups) DeleteAll() (count int, err error) {
 	}
 	return count, err
 }
+
+// Find finds a backup by name and returns is
+func (b *Backups) Find(name string) (backup *Backup, err error) {
+	for _, backup := range *b {
+		if backup.Name == name {
+			return &backup, nil
+		}
+	}
+	return nil, errors.New("Backup not found: " + name)
+}
