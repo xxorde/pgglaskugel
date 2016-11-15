@@ -53,7 +53,7 @@ var (
 
 			backupTime := startTime.Format(pkg.BackupTimeFormat)
 			backupName := "bb@" + backupTime
-			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".zstd"
+			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".zst"
 
 			backupCmd := exec.Command("pg_basebackup", "-Ft", "--verbose", "-l", backupName, "--checkpoint", "fast", "-D", "-")
 			//backupCmd.Env = []string{"PGOPTIONS='--client-min-messages=WARNING'"}

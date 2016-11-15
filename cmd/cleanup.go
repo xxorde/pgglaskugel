@@ -99,7 +99,7 @@ var cleanupCmd = &cobra.Command{
 		oldestBackup := backups[0]
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
 		check(err)
-		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zstd", viper.GetString("archivedir")+"/wal", oldestNeededWal)
+		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zst", viper.GetString("archivedir")+"/wal", oldestNeededWal)
 
 		// Watch stderror
 		cleanWalStderror, err := cleanWal.StderrPipe()

@@ -21,6 +21,9 @@
 package cmd
 
 import (
+	"os/exec"
+	"time"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
@@ -36,7 +39,7 @@ var restoreCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Debug("restore called")
 		checkNeededParameter("backup", "restore-to")
-		backupName := viper.GetString("arcbackuphivedir")
+		backupName := viper.GetString("backup")
 		backupDestination := viper.GetString("restore-to")
 
 		force := viper.GetBool("force-restore")
@@ -50,7 +53,7 @@ var restoreCmd = &cobra.Command{
 			log.Fatal("Can not find backup: ", backupName)
 		}
 
-		log.Info("Going to restore:", backupName, "in:", backup.Path, "to:", backupDestination)
+		log.Info("Going to restore: ", backupName, " in: ", backup.Path, " to: ", backupDestination)
 
 		if force != true {
 			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
@@ -59,6 +62,59 @@ var restoreCmd = &cobra.Command{
 			if err != nil {
 				log.Error(err)
 			}
+
+			inflateCmd := exec.Command("zstd", "-d", "--stdout", backup.Path)
+			untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
+
+			// attach pipe to the command
+			inflateStdout, err := inflateCmd.StdoutPipe()
+			if err != nil {
+				log.Fatal("Can not attach pipe to backup process, ", err)
+			}
+
+			// Watch stderror
+			inflateStderror, err := inflateCmd.StderrPipe()
+			check(err)
+			go pkg.WatchOutput(inflateStderror, log.Info)
+
+			// Watch stderror
+			untarStderror, err := untarCmd.StderrPipe()
+			check(err)
+			go pkg.WatchOutput(untarStderror, log.Info)
+
+			// Pipe the backup in the compression
+			untarCmd.Stdin = inflateStdout
+
+						// Start untar
+			if err := untarCmd.Start(); err != nil {
+				log.Fatal("untarCmd failed on startup, ", err)
+			}
+			log.Info("Untar started")
+
+						// Start inflate
+			if err := inflateCmd.Start(); err != nil {
+				log.Fatal("inflateCmd failed on startup, ", err)
+			}
+			log.Info("Inflation started")
+
+
+
+			// Wait for backup to finish
+			err = untarCmd.Wait()
+			if err != nil {
+				log.Fatal("untarCmd failed after startup, ", err)
+			}
+			log.Debug("untarCmd done")
+
+			// Wait for compression to finish
+			err = inflateCmd.Wait()
+			if err != nil {
+				log.Fatal("inflateCmd failed after startup, ", err)
+			}
+			log.Debug("inflateCmd done")
+
+			elapsed := time.Since(startTime)
+			log.Info("Restore done in ", elapsed)
 		}
 	},
 }

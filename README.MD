@@ -1,8 +1,17 @@
-![logo](docs/glaskugel.png "glaskugel logo")
+![logo](docs/glaskugel.png "
+     __________
+    /          \
+   /   ______   \
+  /   /     0\   \
+ /   /        \   \
+ \   \        /   /
+  \   \______/   /
+   \  /______\  /
+    \__________/")
 
 pgGlaskugel
 ===========
-This should become decentralized and easy to use (backup) tool for PostgreSQL.
+This should become a decentralized and easy to use (backup) tool for PostgreSQL.
 
 Design
 ======
@@ -10,7 +19,7 @@ The tool should have an easy to use CLI (like git / docker) and can also automat
 
 Configuration
 -------------
-The configuration is stored in pg_data and backup as well.
+The configuration should be easy to use and manage.
 
 Setup
 -----

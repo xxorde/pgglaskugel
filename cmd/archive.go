@@ -100,7 +100,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 
 // archiveWithLz4Command uses the shell command lz4 to archive WAL files
 func archiveWithZstdCommand(walSource string, walName string) (err error) {
-	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zstd"
+	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
 	log.Debug("archiveWithLz4Command, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
 
 	// Check if WAL file is already in archive
