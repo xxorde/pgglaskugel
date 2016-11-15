@@ -30,6 +30,7 @@ import (
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
+	minio "github.com/minio/minio-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -128,7 +129,7 @@ var (
 	}
 )
 
-// handle a stream and write to file
+// writeStreamToFile handles a stream and writes it to a local file
 func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
@@ -147,6 +148,42 @@ func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup)
 
 	log.Infof("%d bytes were written, waiting for file.Sync()", written)
 	file.Sync()
+}
+
+// writeStreamToS3 handles a stream and writes it to S3 storage
+func writeStreamToS3(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
+	// Tell the waiting group this process is done when function ends
+	defer wg.Done()
+
+	endpoint := "play.minio.io:9000"
+	accessKeyID := "Q3AM3UQ867SPQQA43P2F"
+	secretAccessKey := "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
+	ssl := true
+	bucket := "pgGlaskugel"
+	location := "us-east-1"
+
+	// Initialize minio client object.
+	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Creates bucket with name mybucket.
+	err = minioClient.MakeBucket(bucket, location)
+	if err != nil {
+		log.Warning(err)
+		return
+	}
+	log.Info("Successfully created mybucket.")
+
+	// Upload an object 'myobject.txt' with contents from '/home/joe/myfilename.txt'
+	n, err := minioClient.PutObject(bucket,filename,input,"application/octet-stream")
+		if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	log.Info("Written to bucket: ",n)
 }
 
 func init() {

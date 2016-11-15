@@ -34,6 +34,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+
 	"github.com/dustin/go-humanize"
 )
 
@@ -122,6 +123,7 @@ func (b *Backup) GetStartWalLocation(archiveDir string) (startWalLocation string
 	return "", errors.New("START WAL LOCATION not found")
 }
 
+// GetLabelFile returns the label file of a backup
 func (b *Backup) GetLabelFile(archiveDir string) (labelFile string, err error) {
 	_, err = b.GetStartWalLocation(archiveDir)
 	if err != nil {
