@@ -128,6 +128,15 @@ func init() {
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
 	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel, default depends on cores ")
+	RootCmd.PersistentFlags().String("backup_to", "file", "Backup destination (file|s3)")
+	RootCmd.PersistentFlags().String("wal_to", "file", "WAL destination (file|s3)")
+	RootCmd.PersistentFlags().String("s3_endpoint", "127.0.0.1:9000", "S3 endpoint")
+	RootCmd.PersistentFlags().String("s3_bucket_base", "pgglaskugel-basebackup", "Bucket name for base backups")
+	RootCmd.PersistentFlags().String("s3_bucket_wal", "pgglaskugel-wal", "Bucket name for WAL files")
+	RootCmd.PersistentFlags().String("s3_access_key", "TUMO1VCSJF7R2LC39A24", "access_key")
+	RootCmd.PersistentFlags().String("s3_secret_key", "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC", "secret_key")
+	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
+	RootCmd.PersistentFlags().Bool("s3_ssl", false, "If SSL (TLS) should be used for S3")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files

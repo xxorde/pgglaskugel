@@ -56,6 +56,8 @@ var (
 			backupName := "bb@" + backupTime
 			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".zst"
 
+			log.Debug("backupPath: ", backupPath)
+
 			backupCmd := exec.Command("pg_basebackup", "-Ft", "--verbose", "-l", backupName, "--checkpoint", "fast", "-D", "-")
 			//backupCmd.Env = []string{"PGOPTIONS='--client-min-messages=WARNING'"}
 
@@ -103,7 +105,8 @@ var (
 			log.Info("Compression started")
 
 			// Start worker
-			go writeStreamToFile(compressStdout, backupPath, &wg)
+			//go writeStreamToFile(compressStdout, backupPath, &wg)
+			go writeStreamToS3(compressStdout, backupName, &wg)
 
 			// Wait for workers to finish
 			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
@@ -155,11 +158,11 @@ func writeStreamToS3(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
-	endpoint := "play.minio.io:9000"
-	accessKeyID := "Q3AM3UQ867SPQQA43P2F"
-	secretAccessKey := "zuf+tfteSlswRu7BJ86wekitnifILbZam1KYY3TG"
-	ssl := true
-	bucket := "pgGlaskugel"
+	endpoint := "127.0.0.1:9000"
+	accessKeyID := "TUMO1VCSJF7R2LC39A24"
+	secretAccessKey := "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC"
+	ssl := false
+	bucket := "pgglaskugel"
 	location := "us-east-1"
 
 	// Initialize minio client object.
@@ -167,23 +170,29 @@ func writeStreamToS3(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	minioClient.SetAppInfo("pgGlaskugel", "0.0")
+	log.Infof("%v", minioClient)
 
 	// Creates bucket with name mybucket.
 	err = minioClient.MakeBucket(bucket, location)
 	if err != nil {
-		log.Warning(err)
-		return
+		// Check to see if we already own this bucket (which happens if you run this twice)
+		exists, err := minioClient.BucketExists(bucket)
+		if err == nil && exists {
+			log.Infof("We already own %s\n", bucket)
+		} else {
+			log.Fatal(err)
+		}
 	}
-	log.Info("Successfully created mybucket.")
+	log.Warn(filename)
 
-	// Upload an object 'myobject.txt' with contents from '/home/joe/myfilename.txt'
-	n, err := minioClient.PutObject(bucket,filename,input,"application/octet-stream")
-		if err != nil {
+	n, err := minioClient.PutObject(bucket, filename, input, "")
+	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	log.Info("Written to bucket: ",n)
+	log.Info("Written to bucket: ", n)
 }
 
 func init() {
