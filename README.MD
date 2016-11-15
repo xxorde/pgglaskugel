@@ -1,13 +1,4 @@
-![logo](docs/glaskugel.png "
-     __________
-    /          \
-   /   ______   \
-  /   /     0\   \
- /   /        \   \
- \   \        /   /
-  \   \______/   /
-   \  /______\  /
-    \__________/")
+![logo](docs/glaskugel.png)
 
 pgGlaskugel
 ===========
