@@ -52,22 +52,20 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Perform basebackup")
 
+			// Get time, name and path for basebackup
 			backupTime := startTime.Format(pkg.BackupTimeFormat)
-			backupName := "bb@" + backupTime
-			backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName + ".zst"
+			backupName := "bb@" + backupTime + ".zst"
 
-			log.Debug("backupPath: ", backupPath)
-
-			backupCmd := exec.Command("pg_basebackup", "-Ft", "--verbose", "-l", backupName, "--checkpoint", "fast", "-D", "-")
-			//backupCmd.Env = []string{"PGOPTIONS='--client-min-messages=WARNING'"}
-
+			// Command to use pg_basebackup
+			// Tar format, set backupName as label, make fast checkpoints, return output on standardout
+			backupCmd := exec.Command("pg_basebackup", "-Ft", "-l", backupName, "--checkpoint", "fast", "-D", "-")
 			// attach pipe to the command
 			backupStdout, err := backupCmd.StdoutPipe()
 			if err != nil {
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
 
-			// Watch stderror
+			// Watch output on stderror
 			backupStderror, err := backupCmd.StderrPipe()
 			check(err)
 			go pkg.WatchOutput(backupStderror, log.Info)
@@ -81,16 +79,13 @@ var (
 				log.Fatal("Can not attach pipe to backup process, ", err)
 			}
 
-			// Watch stderror
+			// Watch output on stderror
 			compressStderror, err := compressCmd.StderrPipe()
 			check(err)
 			go pkg.WatchOutput(compressStderror, log.Info)
 
 			// Pipe the backup in the compression
 			compressCmd.Stdin = backupStdout
-
-			// Add one worker to our waiting group (for waiting later)
-			wg.Add(1)
 
 			// Start the process (in the background)
 			if err := backupCmd.Start(); err != nil {
@@ -105,14 +100,16 @@ var (
 			log.Info("Compression started")
 
 			// Start worker
-			//go writeStreamToFile(compressStdout, backupPath, &wg)
-			go writeStreamToS3(compressStdout, backupName, &wg)
+			// Add one worker to our waiting group (for waiting later)
+			wg.Add(1)
+			go handleBackupStream(compressStdout, backupName, &wg)
 
 			// Wait for workers to finish
 			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
 			wg.Wait()
 
 			// Wait for backup to finish
+			// If there is still data in the output pipe it can be lost!
 			err = backupCmd.Wait()
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)
@@ -120,6 +117,7 @@ var (
 			log.Debug("backupCmd done")
 
 			// Wait for compression to finish
+			// If there is still data in the output pipe it can be lost!
 			err = compressCmd.Wait()
 			if err != nil {
 				log.Fatal("compression failed after startup, ", err)
@@ -132,12 +130,28 @@ var (
 	}
 )
 
-// writeStreamToFile handles a stream and writes it to a local file
-func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
+// handleBackupStream takes a stream and persists it with the configured method
+func handleBackupStream(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
-	file, err := os.OpenFile(filename, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
+	backupTo := viper.GetString("backup_to")
+
+	switch backupTo {
+	case "file":
+		writeStreamToFile(input, filename)
+	case "s3":
+		writeStreamToS3(input, filename)
+	default:
+		log.Fatal(backupTo, " no valid value for backupTo")
+	}
+}
+
+// writeStreamToFile handles a stream and writes it to a local file
+func writeStreamToFile(input io.ReadCloser, backupName string) {
+	backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName
+
+	file, err := os.OpenFile(backupPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
 	if err != nil {
 		log.Fatal("Can not create output file, ", err)
 	}
@@ -146,7 +160,7 @@ func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup)
 	log.Debug("Start writing to file")
 	written, err := io.Copy(file, input)
 	if err != nil {
-		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", filename, written, err)
+		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", backupPath, written, err)
 	}
 
 	log.Infof("%d bytes were written, waiting for file.Sync()", written)
@@ -154,10 +168,7 @@ func writeStreamToFile(input io.ReadCloser, filename string, wg *sync.WaitGroup)
 }
 
 // writeStreamToS3 handles a stream and writes it to S3 storage
-func writeStreamToS3(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
-	// Tell the waiting group this process is done when function ends
-	defer wg.Done()
-
+func writeStreamToS3(input io.ReadCloser, backupName string) {
 	endpoint := "127.0.0.1:9000"
 	accessKeyID := "TUMO1VCSJF7R2LC39A24"
 	secretAccessKey := "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC"
@@ -184,9 +195,8 @@ func writeStreamToS3(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
 			log.Fatal(err)
 		}
 	}
-	log.Warn(filename)
 
-	n, err := minioClient.PutObject(bucket, filename, input, "")
+	n, err := minioClient.PutObject(bucket, backupName, input, "")
 	if err != nil {
 		log.Fatal(err)
 		return

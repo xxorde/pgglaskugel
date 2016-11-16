@@ -56,8 +56,6 @@ const (
    \  /______\  /
     \__________/
 	`
-
-	lz4BlockMaxSizeDefault = 4 << 20
 )
 
 var (
@@ -131,7 +129,7 @@ func init() {
 	RootCmd.PersistentFlags().String("backup_to", "file", "Backup destination (file|s3)")
 	RootCmd.PersistentFlags().String("wal_to", "file", "WAL destination (file|s3)")
 	RootCmd.PersistentFlags().String("s3_endpoint", "127.0.0.1:9000", "S3 endpoint")
-	RootCmd.PersistentFlags().String("s3_bucket_base", "pgglaskugel-basebackup", "Bucket name for base backups")
+	RootCmd.PersistentFlags().String("s3_bucket_backup", "pgglaskugel-basebackup", "Bucket name for base backups")
 	RootCmd.PersistentFlags().String("s3_bucket_wal", "pgglaskugel-wal", "Bucket name for WAL files")
 	RootCmd.PersistentFlags().String("s3_access_key", "TUMO1VCSJF7R2LC39A24", "access_key")
 	RootCmd.PersistentFlags().String("s3_secret_key", "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC", "secret_key")
@@ -147,6 +145,15 @@ func init() {
 	viper.BindPFlag("json", RootCmd.PersistentFlags().Lookup("json"))
 	viper.BindPFlag("connection", RootCmd.PersistentFlags().Lookup("connection"))
 	viper.BindPFlag("jobs", RootCmd.PersistentFlags().Lookup("jobs"))
+	viper.BindPFlag("backup_to", RootCmd.PersistentFlags().Lookup("backup_to"))
+	viper.BindPFlag("wal_to", RootCmd.PersistentFlags().Lookup("wal_to"))
+	viper.BindPFlag("s3_endpoint", RootCmd.PersistentFlags().Lookup("s3_endpoint"))
+	viper.BindPFlag("s3_bucket_backup", RootCmd.PersistentFlags().Lookup("s3_bucket_backup"))
+	viper.BindPFlag("s3_bucket_wal", RootCmd.PersistentFlags().Lookup("s3_bucket_wal"))
+	viper.BindPFlag("s3_access_key", RootCmd.PersistentFlags().Lookup("s3_access_key"))
+	viper.BindPFlag("s3_secret_key", RootCmd.PersistentFlags().Lookup("s3_secret_key"))
+	viper.BindPFlag("s3_location", RootCmd.PersistentFlags().Lookup("s3_location"))
+	viper.BindPFlag("s3_ssl", RootCmd.PersistentFlags().Lookup("s3_ssl"))
 }
 
 // initConfig reads in config file and ENV variables if set.
