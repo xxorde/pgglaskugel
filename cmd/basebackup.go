@@ -136,7 +136,6 @@ func handleBackupStream(input io.ReadCloser, filename string, wg *sync.WaitGroup
 	defer wg.Done()
 
 	backupTo := viper.GetString("backup_to")
-
 	switch backupTo {
 	case "file":
 		writeStreamToFile(input, filename)
@@ -169,40 +168,43 @@ func writeStreamToFile(input io.ReadCloser, backupName string) {
 
 // writeStreamToS3 handles a stream and writes it to S3 storage
 func writeStreamToS3(input io.ReadCloser, backupName string) {
-	endpoint := "127.0.0.1:9000"
-	accessKeyID := "TUMO1VCSJF7R2LC39A24"
-	secretAccessKey := "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC"
-	ssl := false
-	bucket := "pgglaskugel"
-	location := "us-east-1"
+	endpoint := viper.GetString("s3_endpoint")
+	accessKeyID := viper.GetString("s3_access_key")
+	secretAccessKey := viper.GetString("s3_secret_key")
+	ssl := viper.GetBool("s3_ssl")
+	bucket := viper.GetString("s3_bucket_backup")
+	location := viper.GetString("s3_location")
 
 	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
 	if err != nil {
 		log.Fatal(err)
 	}
-	minioClient.SetAppInfo("pgGlaskugel", "0.0")
-	log.Infof("%v", minioClient)
+	minioClient.SetAppInfo(myName, myVersion)
+	log.Debugf("%v\n", minioClient)
 
-	// Creates bucket with name mybucket.
-	err = minioClient.MakeBucket(bucket, location)
+	// Test if bucket is there
+	exists, err := minioClient.BucketExists(bucket)
 	if err != nil {
-		// Check to see if we already own this bucket (which happens if you run this twice)
-		exists, err := minioClient.BucketExists(bucket)
-		if err == nil && exists {
-			log.Infof("We already own %s\n", bucket)
-		} else {
+		log.Fatal(err)
+	}
+	if exists {
+		log.Infof("Bucket already exists, we are using it: %s\n", bucket)
+	} else {
+		// Try to create bucket
+		err = minioClient.MakeBucket(bucket, location)
+		if err != nil {
 			log.Fatal(err)
 		}
+		log.Infof("Bucket %s created.\n", bucket)
 	}
-
 	n, err := minioClient.PutObject(bucket, backupName, input, "")
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	log.Info("Written to bucket: ", n)
+	log.Infof("Written %d bytes to %s in bucket %s.\n", n, backupName, bucket)
 }
 
 func init() {

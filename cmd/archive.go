@@ -28,6 +28,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	minio "github.com/minio/minio-go"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -50,7 +51,7 @@ var (
 				err := testWalSource(walSource)
 				check(err)
 				walName := filepath.Base(walSource)
-				err = archiveWithZstdCommand(walSource, walName)
+				err = archiveWal(walSource, walName)
 				if err != nil {
 					log.Fatal("archive failed ", err)
 				}
@@ -86,14 +87,63 @@ func testWalSource(walSource string) (err error) {
 	return nil
 }
 
-// archiveToFile archives to a local file (implemented in Go)
-func archiveToFile(walSource string, walName string) (err error) {
-	// TODO...
-	return err
+// archiveWal archives a WAL file with the configured method
+func archiveWal(walSource string, walName string) (err error) {
+	archiveTo := viper.GetString("archive_to")
+
+	switch archiveTo {
+	case "file":
+		return archiveWithZstdCommand(walSource, walName)
+	case "s3":
+		return archiveToS3(walSource, walName)
+	default:
+		log.Fatal(archiveTo, " no valid value for archiveTo")
+	}
+	return errors.New("This should never ben reached")
 }
 
 // archiveToS3 archives to a S3 compatible object store
 func archiveToS3(walSource string, walName string) (err error) {
+	endpoint := viper.GetString("s3_endpoint")
+	accessKeyID := viper.GetString("s3_access_key")
+	secretAccessKey := viper.GetString("s3_secret_key")
+	ssl := viper.GetBool("s3_ssl")
+	bucket := viper.GetString("s3_bucket_wal")
+	location := viper.GetString("s3_location")
+	walTarget := walName //+ ".zst"
+
+	// Initialize minio client object.
+	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	minioClient.SetAppInfo(myName, myVersion)
+	log.Debugf("%v", minioClient)
+
+	// Test if bucket is there
+	exists, err := minioClient.BucketExists(bucket)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if exists {
+		log.Infof("Bucket already exists, we are using it: %s", bucket)
+	} else {
+		// Try to create bucket
+		err = minioClient.MakeBucket(bucket, location)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Infof("Bucket %s created.", bucket)
+	}
+
+	n, err := minioClient.FPutObject(bucket, walTarget, walSource, "")
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	log.Infof("Written %d bytes to %s in bucket %s.", n, walTarget, bucket)
+
 	// TODO...
 	return err
 }

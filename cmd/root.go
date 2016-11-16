@@ -42,7 +42,8 @@ import (
 )
 
 const (
-	myName = "pgglaskugel"
+	myName    = "pgglaskugel"
+	myVersion = "0.0"
 
 	// Logo
 	logo = `
@@ -74,7 +75,7 @@ var (
 	baseBackupTools = []string{
 		"tar",
 		"pg_basebackup",
-		"zstd",
+		"/usr/bin/zstd",
 	}
 
 	// Maximum PID
@@ -127,7 +128,7 @@ func init() {
 	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
 	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel, default depends on cores ")
 	RootCmd.PersistentFlags().String("backup_to", "file", "Backup destination (file|s3)")
-	RootCmd.PersistentFlags().String("wal_to", "file", "WAL destination (file|s3)")
+	RootCmd.PersistentFlags().String("archive_to", "file", "WAL destination (file|s3)")
 	RootCmd.PersistentFlags().String("s3_endpoint", "127.0.0.1:9000", "S3 endpoint")
 	RootCmd.PersistentFlags().String("s3_bucket_backup", "pgglaskugel-basebackup", "Bucket name for base backups")
 	RootCmd.PersistentFlags().String("s3_bucket_wal", "pgglaskugel-wal", "Bucket name for WAL files")
@@ -146,7 +147,7 @@ func init() {
 	viper.BindPFlag("connection", RootCmd.PersistentFlags().Lookup("connection"))
 	viper.BindPFlag("jobs", RootCmd.PersistentFlags().Lookup("jobs"))
 	viper.BindPFlag("backup_to", RootCmd.PersistentFlags().Lookup("backup_to"))
-	viper.BindPFlag("wal_to", RootCmd.PersistentFlags().Lookup("wal_to"))
+	viper.BindPFlag("archive_to", RootCmd.PersistentFlags().Lookup("archive_to"))
 	viper.BindPFlag("s3_endpoint", RootCmd.PersistentFlags().Lookup("s3_endpoint"))
 	viper.BindPFlag("s3_bucket_backup", RootCmd.PersistentFlags().Lookup("s3_bucket_backup"))
 	viper.BindPFlag("s3_bucket_wal", RootCmd.PersistentFlags().Lookup("s3_bucket_wal"))
