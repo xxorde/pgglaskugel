@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 	"time"
 
+	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 
@@ -76,11 +78,11 @@ func testWalSource(walSource string) (err error) {
 		return err
 	}
 
-	if fi.Size() < 100 {
+	if fi.Size() < minArchiveSize {
 		return errors.New("Input file to small!")
 	}
 
-	if fi.Size() > 16777216 {
+	if fi.Size() > maxWalSize {
 		return errors.New("Input file to big!")
 	}
 
@@ -110,7 +112,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 	ssl := viper.GetBool("s3_ssl")
 	bucket := viper.GetString("s3_bucket_wal")
 	location := viper.GetString("s3_location")
-	walTarget := walName //+ ".zst"
+	walTarget := walName + ".zst"
 
 	// Initialize minio client object.
 	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
@@ -136,15 +138,38 @@ func archiveToS3(walSource string, walName string) (err error) {
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	n, err := minioClient.FPutObject(bucket, walTarget, walSource, "")
+	// This command is used to take the backup and compress it
+	compressCmd := exec.Command("/usr/bin/zstd", "--stdout", walSource)
+
+	// attach pipe to the command
+	compressStdout, err := compressCmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("Can not attach pipe to backup process, ", err)
+	}
+
+	// Watch output on stderror
+	compressStderror, err := compressCmd.StderrPipe()
+	check(err)
+	go pkg.WatchOutput(compressStderror, log.Info)
+
+	// Start backup and compression
+	if err := compressCmd.Start(); err != nil {
+		log.Fatal("zstd failed on startup, ", err)
+	}
+	log.Debug("Compression started")
+
+	n, err := minioClient.PutObject(bucket, walTarget, compressStdout, "")
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-
 	log.Infof("Written %d bytes to %s in bucket %s.", n, walTarget, bucket)
 
-	// TODO...
+	// If there is still data in the output pipe it can be lost!
+	err = compressCmd.Wait()
+	if err != nil {
+		log.Fatal("compression failed after startup, ", err)
+	}
 	return err
 }
 

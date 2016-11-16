@@ -95,7 +95,7 @@ var (
 
 			// Start backup and compression
 			if err := compressCmd.Start(); err != nil {
-				log.Fatal("pg_basebackup failed on startup, ", err)
+				log.Fatal("zstd failed on startup, ", err)
 			}
 			log.Info("Compression started")
 
