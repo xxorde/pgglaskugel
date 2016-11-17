@@ -30,7 +30,6 @@ import (
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
-	minio "github.com/minio/minio-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -168,20 +167,11 @@ func writeStreamToFile(input io.ReadCloser, backupName string) {
 
 // writeStreamToS3 handles a stream and writes it to S3 storage
 func writeStreamToS3(input io.ReadCloser, backupName string) {
-	endpoint := viper.GetString("s3_endpoint")
-	accessKeyID := viper.GetString("s3_access_key")
-	secretAccessKey := viper.GetString("s3_secret_key")
-	ssl := viper.GetBool("s3_ssl")
 	bucket := viper.GetString("s3_bucket_backup")
 	location := viper.GetString("s3_location")
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	minioClient.SetAppInfo(myName, myVersion)
-	log.Debugf("%v\n", minioClient)
+	minioClient := getS3Connection()
 
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)
@@ -189,14 +179,14 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		log.Fatal(err)
 	}
 	if exists {
-		log.Infof("Bucket already exists, we are using it: %s\n", bucket)
+		log.Infof("Bucket already exists, we are using it: %s", bucket)
 	} else {
 		// Try to create bucket
 		err = minioClient.MakeBucket(bucket, location)
 		if err != nil {
 			log.Fatal(err)
 		}
-		log.Infof("Bucket %s created.\n", bucket)
+		log.Infof("Bucket %s created.", bucket)
 	}
 	n, err := minioClient.PutObject(bucket, backupName, input, "")
 	if err != nil {
@@ -204,7 +194,7 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		return
 	}
 
-	log.Infof("Written %d bytes to %s in bucket %s.\n", n, backupName, bucket)
+	log.Infof("Written %d bytes to %s in bucket %s.", n, backupName, bucket)
 }
 
 func init() {

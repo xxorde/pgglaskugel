@@ -36,6 +36,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 
 	"github.com/dustin/go-humanize"
+	minio "github.com/minio/minio-go"
 )
 
 const (
@@ -48,6 +49,7 @@ type Backup struct {
 	Name             string
 	Extension        string
 	Path             string
+	Bucket           string
 	Size             int64
 	Created          time.Time
 	LabelFile        string
@@ -60,7 +62,26 @@ func (b *Backup) IsSane() (sane bool) {
 	if b.Size < saneMinSize {
 		return false
 	}
+
+	if b.StorageType() == "" {
+		return false
+	}
+
 	return true
+}
+
+// StorageType returns the type of storage the backup is on
+func (b *Backup) StorageType() (storageType string) {
+	if b.Path > "" {
+		return "file"
+	}
+
+	if b.Bucket > "" {
+		return "S3"
+	}
+
+	// Not defined
+	return ""
 }
 
 // GetStartWalLocation returns the oldest needed WAL file
@@ -152,11 +173,14 @@ func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
 }
 
 // Backups represents an array of "Backup"
-type Backups []Backup
+type Backups struct {
+	Backup      []Backup
+	MinioClient *minio.Client
+}
 
 // IsSane returns false if at leased one backups seams not sane
 func (b *Backups) IsSane() (sane bool) {
-	for _, backup := range *b {
+	for _, backup := range b.Backup {
 		if backup.IsSane() != true {
 			return false
 		}
@@ -164,28 +188,28 @@ func (b *Backups) IsSane() (sane bool) {
 	return true
 }
 
-// Sane returns all backups that seem not sane
+// Sane returns all backups that seem sane
 func (b *Backups) Sane() (sane Backups) {
-	for _, backup := range *b {
+	for _, backup := range b.Backup {
 		if backup.IsSane() == true {
-			sane = append(sane, backup)
+			sane.Backup = append(sane.Backup, backup)
 		}
 	}
 	return sane
 }
 
-// Insane returns all backups that seem sane
+// Insane returns all backups that seem not sane
 func (b *Backups) Insane() (insane Backups) {
-	for _, backup := range *b {
+	for _, backup := range b.Backup {
 		if backup.IsSane() != true {
-			insane = append(insane, backup)
+			insane.Backup = append(insane.Backup, backup)
 		}
 	}
 	return insane
 }
 
-// Add adds a new backup to Backups
-func (b *Backups) Add(path string) (err error) {
+// AddFile adds a new backup to Backups
+func (b *Backups) AddFile(path string) (err error) {
 	var newBackup Backup
 	// Make a relative path absolute
 	newBackup.Path, err = filepath.Abs(path)
@@ -216,7 +240,28 @@ func (b *Backups) Add(path string) (err error) {
 	if err != nil {
 		return err
 	}
-	*b = append(*b, newBackup)
+	b.Backup = append(b.Backup, newBackup)
+	return nil
+}
+
+// AddObject adds a new backup to Backups
+func (b *Backups) AddObject(object minio.ObjectInfo, bucket string) (err error) {
+	var newBackup Backup
+	newBackup.Bucket = bucket
+	newBackup.Extension = filepath.Ext(object.Key)
+
+	// Get Name without suffix
+	newBackup.Name = strings.TrimSuffix(object.Key, newBackup.Extension)
+	newBackup.Size = object.Size
+
+	// Remove anything before the '@'
+	reg := regexp.MustCompile(`.*@`)
+	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
+	newBackup.Created, err = time.Parse(BackupTimeFormat, backupTimeRaw)
+	if err != nil {
+		return err
+	}
+	b.Backup = append(b.Backup, newBackup)
 	return nil
 }
 
@@ -227,13 +272,13 @@ func (b *Backups) String() (backups string) {
 	notSane := 0
 	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "Backups")
-	fmt.Fprintln(w, "# \tName \tExt \tSize \t Sane")
-	for _, backup := range *b {
+	fmt.Fprintln(w, "# \tName \tExt \tSize \tStorage \t Sane")
+	for _, backup := range b.Backup {
 		row++
 		if !backup.IsSane() {
 			notSane++
 		}
-		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.IsSane())
+		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.StorageType(), "\t", backup.IsSane())
 	}
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Total backups:", b.Len(), " Not sane backups:", notSane)
@@ -243,10 +288,10 @@ func (b *Backups) String() (backups string) {
 
 // GetBackupsInDir includes all backups in given directory
 func (b *Backups) GetBackupsInDir(backupDir string) {
-	*b = nil
+	b.Backup = nil
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
-		err := b.Add(backupDir + "/" + f.Name())
+		err := b.AddFile(backupDir + "/" + f.Name())
 		if err != nil {
 			log.Warn(err)
 		}
@@ -255,10 +300,37 @@ func (b *Backups) GetBackupsInDir(backupDir string) {
 	b.Sort()
 }
 
+// GetBackupsInBucket includes all backups in given bucket
+func (b *Backups) GetBackupsInBucket(bucket string) {
+	b.Backup = nil
+
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+
+	// Indicate to our routine to exit cleanly upon return.
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := b.MinioClient.ListObjects(bucket, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+		log.Debug(object)
+		err := b.AddObject(object, bucket)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+
+	// Sort backups
+	b.Sort()
+}
+
 // Backups implements sort.Interface for []Person based on Backup.Created
-func (b *Backups) Len() int           { return len(*b) }
-func (b *Backups) Swap(i, j int)      { (*b)[i], (*b)[j] = (*b)[j], (*b)[i] }
-func (b *Backups) Less(i, j int) bool { return (*b)[i].Created.Before((*b)[j].Created) }
+func (b *Backups) Len() int           { return len(b.Backup) }
+func (b *Backups) Swap(i, j int)      { (b.Backup)[i], (b.Backup)[j] = (b.Backup)[j], (b.Backup)[i] }
+func (b *Backups) Less(i, j int) bool { return (b.Backup)[i].Created.Before((b.Backup)[j].Created) }
 
 // Sort sorts all backups in place
 func (b *Backups) Sort() {
@@ -275,15 +347,15 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 
 	// If there are not enough backups, return all
 	if (*b).Len() <= int(countNew) {
-		return *b, nil, nil
+		return *b, Backups{}, nil
 	}
 
 	// Putt the newest in newBackups
-	newBackups = (*b)[:countNew]
-	oldBackups = (*b)[countNew:]
+	newBackups.Backup = (b.Backup)[:countNew]
+	oldBackups.Backup = (b.Backup)[countNew:]
 
 	if newBackups.IsSane() != true {
-		return nil, nil, errors.New("Not all backups (newBackups) are sane!" + newBackups.String())
+		return Backups{}, Backups{}, errors.New("Not all backups (newBackups) are sane!" + newBackups.String())
 	}
 
 	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
@@ -294,12 +366,17 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 
 // DeleteAll deletes all backups in the struct
 func (b *Backups) DeleteAll() (count int, err error) {
-	for _, backup := range *b {
-		err = os.Remove(backup.Path)
-		if err != nil {
-			log.Warn(err)
-		} else {
-			count++
+	for _, backup := range b.Backup {
+		if backup.Path != "" {
+			err = os.Remove(backup.Path)
+			if err != nil {
+				log.Warn(err)
+			} else {
+				count++
+			}
+		}
+		if backup.Bucket != "" {
+
 		}
 	}
 	return count, err
@@ -307,7 +384,7 @@ func (b *Backups) DeleteAll() (count int, err error) {
 
 // Find finds a backup by name and returns is
 func (b *Backups) Find(name string) (backup *Backup, err error) {
-	for _, backup := range *b {
+	for _, backup := range b.Backup {
 		if backup.Name == name {
 			return &backup, nil
 		}

@@ -35,6 +35,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	minio "github.com/minio/minio-go"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -176,6 +177,8 @@ func initConfig() {
 	viper.AddConfigPath("/etc/pgglaskugel") // adding /etc/pgglaskugel as first search path
 	viper.AddConfigPath("$HOME/.config/pgglaskugel")
 	viper.AddConfigPath("$HOME/.pgglaskugel")
+	viper.AddConfigPath("$PWD/.pgglaskugel")
+	viper.AddConfigPath("$PGDATA/.pgglaskugel")
 	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
@@ -396,4 +399,21 @@ func checkNeededParameter(parameter ...string) (err error) {
 		return errors.New("No all parameters are set")
 	}
 	return nil
+}
+
+func getS3Connection() (minioClient *minio.Client) {
+	endpoint := viper.GetString("s3_endpoint")
+	accessKeyID := viper.GetString("s3_access_key")
+	secretAccessKey := viper.GetString("s3_secret_key")
+	ssl := viper.GetBool("s3_ssl")
+
+	// Initialize minio client object.
+	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+	if err != nil {
+		log.Fatal(err)
+	}
+	minioClient.SetAppInfo(myName, myVersion)
+	log.Debugf("%v", minioClient)
+
+	return minioClient
 }

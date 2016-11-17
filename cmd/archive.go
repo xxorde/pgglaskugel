@@ -30,7 +30,6 @@ import (
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
-	minio "github.com/minio/minio-go"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -106,21 +105,12 @@ func archiveWal(walSource string, walName string) (err error) {
 
 // archiveToS3 archives to a S3 compatible object store
 func archiveToS3(walSource string, walName string) (err error) {
-	endpoint := viper.GetString("s3_endpoint")
-	accessKeyID := viper.GetString("s3_access_key")
-	secretAccessKey := viper.GetString("s3_secret_key")
-	ssl := viper.GetBool("s3_ssl")
 	bucket := viper.GetString("s3_bucket_wal")
 	location := viper.GetString("s3_location")
 	walTarget := walName + ".zst"
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	minioClient.SetAppInfo(myName, myVersion)
-	log.Debugf("%v", minioClient)
+	minioClient := getS3Connection()
 
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)

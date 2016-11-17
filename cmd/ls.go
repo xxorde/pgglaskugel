@@ -21,9 +21,12 @@
 package cmd
 
 import (
+	"time"
+
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -34,13 +37,32 @@ var lsCmd = &cobra.Command{
 	Short: "Shows existing backups",
 	Long:  `Shows you all backups already made with meta information.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		backupDir := archiveDir + "/basebackup"
-		var backups pkg.Backups
-		backups.GetBackupsInDir(backupDir)
-
-		log.Info(backups.String())
+		showBackups()
+		elapsed := time.Since(startTime)
+		log.Info("Time to compleat: ", elapsed)
 	},
+}
+
+func showBackups() {
+	// TODO: Work your own magic here
+	var backups pkg.Backups
+
+	backupTo := viper.GetString("backup_to")
+	switch backupTo {
+	case "file":
+		backupDir := archiveDir + "/basebackup"
+		log.Debug("Get backups from folder: ", backupDir)
+		backups.GetBackupsInDir(backupDir)
+	case "s3":
+		log.Debug("Get backups from S3")
+		// Initialize minio client object.
+		backups.MinioClient = getS3Connection()
+		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
+	default:
+		log.Fatal(backupTo, " no valid value for backupTo")
+	}
+
+	log.Info(backups.String())
 }
 
 func init() {

@@ -96,7 +96,7 @@ var cleanupCmd = &cobra.Command{
 		log.Info(strconv.Itoa(count) + " backups were removed.")
 		backups.GetBackupsInDir(backupDir)
 		log.Info("Backups left: " + backups.String())
-		oldestBackup := backups[0]
+		oldestBackup := backups.Backup[0]
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
 		check(err)
 		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zst", viper.GetString("archivedir")+"/wal", oldestNeededWal)
