@@ -37,6 +37,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 
+	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -401,19 +403,36 @@ func checkNeededParameter(parameter ...string) (err error) {
 	return nil
 }
 
-func getS3Connection() (minioClient *minio.Client) {
+func getS3Connection() (minioClient minio.Client) {
 	endpoint := viper.GetString("s3_endpoint")
 	accessKeyID := viper.GetString("s3_access_key")
 	secretAccessKey := viper.GetString("s3_secret_key")
 	ssl := viper.GetBool("s3_ssl")
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+	tmp, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
 	if err != nil {
 		log.Fatal(err)
 	}
-	minioClient.SetAppInfo(myName, myVersion)
+
+	tmp.SetAppInfo(myName, myVersion)
 	log.Debugf("%v", minioClient)
 
-	return minioClient
+	return *tmp
+}
+
+func getMyBackups() (backups pkg.Backups) {
+	backupDir := archiveDir + "/basebackup"
+
+	log.Debug("Get backups from folder: ", backupDir)
+	backups.GetBackupsInDir(backupDir)
+
+	if viper.GetString("backup_to") == "s3" {
+		log.Debug("Get backups from S3")
+
+		// Initialize minio client object.
+		backups.MinioClient = getS3Connection()
+		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
+	}
+	return backups
 }

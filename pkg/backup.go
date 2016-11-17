@@ -175,7 +175,7 @@ func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
 // Backups represents an array of "Backup"
 type Backups struct {
 	Backup      []Backup
-	MinioClient *minio.Client
+	MinioClient minio.Client
 }
 
 // IsSane returns false if at leased one backups seams not sane
@@ -288,7 +288,6 @@ func (b *Backups) String() (backups string) {
 
 // GetBackupsInDir includes all backups in given directory
 func (b *Backups) GetBackupsInDir(backupDir string) {
-	b.Backup = nil
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
 		err := b.AddFile(backupDir + "/" + f.Name())
@@ -302,8 +301,6 @@ func (b *Backups) GetBackupsInDir(backupDir string) {
 
 // GetBackupsInBucket includes all backups in given bucket
 func (b *Backups) GetBackupsInBucket(bucket string) {
-	b.Backup = nil
-
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 
@@ -332,10 +329,22 @@ func (b *Backups) Len() int           { return len(b.Backup) }
 func (b *Backups) Swap(i, j int)      { (b.Backup)[i], (b.Backup)[j] = (b.Backup)[j], (b.Backup)[i] }
 func (b *Backups) Less(i, j int) bool { return (b.Backup)[i].Created.Before((b.Backup)[j].Created) }
 
-// Sort sorts all backups in place
+// SortDesc sorts all backups in place
 func (b *Backups) Sort() {
 	// Sort, the newest first
+	b.SortDesc()
+}
+
+// SortDesc sorts all backups in place
+func (b *Backups) SortDesc() {
+	// Sort, the newest first
 	sort.Sort(sort.Reverse(b))
+}
+
+// SortAsc sorts all backups in place
+func (b *Backups) SortAsc() {
+	// Sort, the newest first
+	sort.Sort(b)
 }
 
 // SeparateBackupsByAge separates the backups by age
@@ -349,6 +358,10 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 	if (*b).Len() <= int(countNew) {
 		return *b, Backups{}, nil
 	}
+
+	// Give the additional vars to the ne sets
+	newBackups.MinioClient = b.MinioClient
+	oldBackups.MinioClient = b.MinioClient
 
 	// Putt the newest in newBackups
 	newBackups.Backup = (b.Backup)[:countNew]
@@ -366,6 +379,8 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 
 // DeleteAll deletes all backups in the struct
 func (b *Backups) DeleteAll() (count int, err error) {
+	// We delete all backups, but start with the oldest just in case
+	b.SortAsc()
 	for _, backup := range b.Backup {
 		if backup.Path != "" {
 			err = os.Remove(backup.Path)
@@ -376,7 +391,12 @@ func (b *Backups) DeleteAll() (count int, err error) {
 			}
 		}
 		if backup.Bucket != "" {
-
+			err = b.MinioClient.RemoveObject(backup.Bucket, backup.Name+backup.Extension)
+			if err != nil {
+				log.Warn(err)
+			} else {
+				count++
+			}
 		}
 	}
 	return count, err

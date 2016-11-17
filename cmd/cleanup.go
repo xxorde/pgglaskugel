@@ -43,9 +43,7 @@ var cleanupCmd = &cobra.Command{
 		// TODO: Work your own magic here
 		fmt.Println("cleanup called")
 
-		backupDir := archiveDir + "/basebackup"
-		var backups pkg.Backups
-		backups.GetBackupsInDir(backupDir)
+		backups := getMyBackups()
 
 		retain := uint(viper.GetInt("retain"))
 		if retain <= 0 {
@@ -94,7 +92,8 @@ var cleanupCmd = &cobra.Command{
 			log.Fatal("DeleteAll()", err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
-		backups.GetBackupsInDir(backupDir)
+		backups = getMyBackups()
+
 		log.Info("Backups left: " + backups.String())
 		oldestBackup := backups.Backup[0]
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
