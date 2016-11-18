@@ -426,6 +426,7 @@ func getMyBackups() (backups pkg.Backups) {
 
 	log.Debug("Get backups from folder: ", backupDir)
 	backups.GetBackupsInDir(backupDir)
+	backups.WalDir = viper.GetString("archivedir") + "/wal"
 
 	if viper.GetString("backup_to") == "s3" {
 		log.Debug("Get backups from S3")
@@ -433,6 +434,7 @@ func getMyBackups() (backups pkg.Backups) {
 		// Initialize minio client object.
 		backups.MinioClient = getS3Connection()
 		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
+		backups.WalBucket = viper.GetString("s3_bucket_wal")
 	}
 	return backups
 }

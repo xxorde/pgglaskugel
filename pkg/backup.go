@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -42,6 +43,8 @@ import (
 const (
 	BackupTimeFormat = "2006-01-02T15:04:05"
 	saneMinSize      = 4 * 1000000 // ~ 4MB
+
+	maxBackupLabelSize = 1024
 )
 
 // Backup stores information about a backup
@@ -78,7 +81,7 @@ func (b *Backup) StorageType() (storageType string) {
 	}
 
 	if b.Bucket > "" {
-		return "S3"
+		return "s3"
 	}
 
 	// Not defined
@@ -90,16 +93,16 @@ func (b *Backup) StorageType() (storageType string) {
 func (b *Backup) GetStartWalLocation(archiveLocation string) (startWalLocation string, err error) {
 	switch b.StorageType() {
 	case "file":
-		return b.GetStartWalLocationFromFile(archiveLocation)
+		return b.GetStartWalLocationFromFile()
 	case "s3":
-		return b.GetStartWalLocationFromS3(archiveLocation)
+		return b.GetStartWalLocationFromS3()
 	}
 	return "", errors.New("Not supported StorageType: " + b.StorageType())
 }
 
 // GetStartWalLocationFromFile returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b *Backup) GetStartWalLocationFromFile(archiveDir string) (startWalLocation string, err error) {
+func (b *Backup) GetStartWalLocationFromFile() (startWalLocation string, err error) {
 	// Regex to identify a backup label file
 	// 000000010000001200000062.00000028.backup, make better regex
 	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
@@ -107,17 +110,17 @@ func (b *Backup) GetStartWalLocationFromFile(archiveDir string) (startWalLocatio
 	// Regex to identify the right file
 	regLabel := regexp.MustCompile(`.*LABEL: ` + b.Name)
 
-	files, _ := ioutil.ReadDir(archiveDir)
+	files, _ := ioutil.ReadDir(b.Backups.WalDir)
 	// find all backup labels
 	for _, f := range files {
-		if f.Size() > 500 {
+		if f.Size() > maxBackupLabelSize {
 			// size is to big for backup label
 			continue
 		}
 		if regBackupLabelFile.MatchString(f.Name()) {
 			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
 
-			labelFile := archiveDir + "/" + f.Name()
+			labelFile := b.Backups.WalDir + "/" + f.Name()
 			catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
@@ -159,7 +162,7 @@ func (b *Backup) GetStartWalLocationFromFile(archiveDir string) (startWalLocatio
 
 // GetStartWalLocationFromS3 returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b *Backup) GetStartWalLocationFromS3(archiveBucket string) (startWalLocation string, err error) {
+func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error) {
 	// Regex to identify a backup label file
 	// 000000010000001200000062.00000028.backup, make better regex
 	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
@@ -170,19 +173,16 @@ func (b *Backup) GetStartWalLocationFromS3(archiveBucket string) (startWalLocati
 
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
-
-	// Indicate to our routine to exit cleanly upon return.
 	defer close(doneCh)
 
 	isRecursive := true
-	objectCh := b.Backups.MinioClient.ListObjects(archiveBucket, "", isRecursive, doneCh)
+	objectCh := b.Backups.MinioClient.ListObjects(b.Backups.WalBucket, "", isRecursive, doneCh)
 	for object := range objectCh {
 		if object.Err != nil {
 			log.Error(object.Err)
 		}
-		log.Debug(object)
-		//err := b.AddObject(object, archiveBucket)
-		if object.Size > 1000 {
+
+		if object.Size > maxBackupLabelSize {
 			// size is to big for backup label
 			continue
 		}
@@ -190,7 +190,21 @@ func (b *Backup) GetStartWalLocationFromS3(archiveBucket string) (startWalLocati
 		if regBackupLabelFile.MatchString(object.Key) {
 			log.Debug(object.Key, " => seems to be a backup Label, by size and name")
 
-			/*catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
+			backupLabel, err := b.Backups.MinioClient.GetObject(b.Backups.WalBucket, object.Key)
+			if err != nil {
+				log.Warn("Can not get backupLabel, ", err)
+				continue
+			}
+
+			buf := make([]byte, maxBackupLabelSize)
+			readCount, err := backupLabel.Read(buf)
+			if err != nil && err != io.EOF {
+				log.Warn("Can not read backupLabel, ", err)
+				continue
+			}
+			log.Debug("Read ", readCount, " from backupLabel")
+
+			catCmd := exec.Command("zstd", "-d", "--stdout")
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
 				// if we can not open the file we continue with next
@@ -198,13 +212,18 @@ func (b *Backup) GetStartWalLocationFromS3(archiveBucket string) (startWalLocati
 				continue
 			}
 
+			// Use backupLabel as input for catCmd
+			catCmd.Stdin = bytes.NewReader(buf)
+			catCmdStderror, err := catCmd.StderrPipe()
+			go WatchOutput(catCmdStderror, log.Debug)
+
 			err = catCmd.Start()
 			if err != nil {
 				log.Warn("catCmd.Start(), ", err)
 				continue
 			}
 
-			buf, err := ioutil.ReadAll(catCmdStdout)
+			buf2, err := ioutil.ReadAll(catCmdStdout)
 			if err != nil {
 				log.Warn("Reading from command: ", err)
 				continue
@@ -212,18 +231,20 @@ func (b *Backup) GetStartWalLocationFromS3(archiveBucket string) (startWalLocati
 
 			err = catCmd.Wait()
 			if err != nil {
-				log.Warn("catCmd.Wait(), ", err)
-				continue
+				// We ignore errors here, zstd returns 1 even if everything is fine here
+				log.Debug("catCmd.Wait(), ", err)
 			}
 
-			if len(regLabel.Find(buf)) > 1 {
+			log.Warn(string(buf2))
+
+			if len(regLabel.Find(buf2)) > 1 {
 				log.Debug("Found matching backup label")
 				err = b.parseBackupLabel(buf)
 				if err == nil {
-					b.LabelFile = labelFile
+					b.LabelFile = object.Key
 				}
 				return b.StartWalLocation, err
-			}*/
+			}
 		}
 	}
 	return "", errors.New("START WAL LOCATION not found")
@@ -260,6 +281,8 @@ func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
 // Backups represents an array of "Backup"
 type Backups struct {
 	Backup      []Backup
+	WalDir      string
+	WalBucket   string
 	MinioClient minio.Client
 }
 
@@ -325,6 +348,8 @@ func (b *Backups) AddFile(path string) (err error) {
 	if err != nil {
 		return err
 	}
+	// Add back reference to the list od backups
+	newBackup.Backups = b
 	b.Backup = append(b.Backup, newBackup)
 	return nil
 }
@@ -346,6 +371,8 @@ func (b *Backups) AddObject(object minio.ObjectInfo, bucket string) (err error) 
 	if err != nil {
 		return err
 	}
+	// Add back reference to the list od backups
+	newBackup.Backups = b
 	b.Backup = append(b.Backup, newBackup)
 	return nil
 }
@@ -414,19 +441,19 @@ func (b *Backups) Len() int           { return len(b.Backup) }
 func (b *Backups) Swap(i, j int)      { (b.Backup)[i], (b.Backup)[j] = (b.Backup)[j], (b.Backup)[i] }
 func (b *Backups) Less(i, j int) bool { return (b.Backup)[i].Created.Before((b.Backup)[j].Created) }
 
-// SortDesc sorts all backups in place
+// Sort sorts all backups in place
 func (b *Backups) Sort() {
 	// Sort, the newest first
 	b.SortDesc()
 }
 
-// SortDesc sorts all backups in place
+// SortDesc sorts all backups in place DESC
 func (b *Backups) SortDesc() {
 	// Sort, the newest first
 	sort.Sort(sort.Reverse(b))
 }
 
-// SortAsc sorts all backups in place
+// SortAsc sorts all backups in place ASC
 func (b *Backups) SortAsc() {
 	// Sort, the newest first
 	sort.Sort(b)
@@ -447,6 +474,10 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 	// Give the additional vars to the ne sets
 	newBackups.MinioClient = b.MinioClient
 	oldBackups.MinioClient = b.MinioClient
+	newBackups.WalDir = b.WalDir
+	oldBackups.WalDir = b.WalDir
+	newBackups.WalBucket = b.WalBucket
+	oldBackups.WalBucket = b.WalBucket
 
 	// Putt the newest in newBackups
 	newBackups.Backup = (b.Backup)[:countNew]
