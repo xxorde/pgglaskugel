@@ -55,6 +55,7 @@ type Backup struct {
 	LabelFile        string
 	BackupLabel      string
 	StartWalLocation string
+	Backups          *Backups
 }
 
 // IsSane returns true if the backup seams sane
@@ -86,7 +87,19 @@ func (b *Backup) StorageType() (storageType string) {
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b *Backup) GetStartWalLocation(archiveDir string) (startWalLocation string, err error) {
+func (b *Backup) GetStartWalLocation(archiveLocation string) (startWalLocation string, err error) {
+	switch b.StorageType() {
+	case "file":
+		return b.GetStartWalLocationFromFile(archiveLocation)
+	case "s3":
+		return b.GetStartWalLocationFromS3(archiveLocation)
+	}
+	return "", errors.New("Not supported StorageType: " + b.StorageType())
+}
+
+// GetStartWalLocationFromFile returns the oldest needed WAL file
+// Every older WAL file is not required to use this backup
+func (b *Backup) GetStartWalLocationFromFile(archiveDir string) (startWalLocation string, err error) {
 	// Regex to identify a backup label file
 	// 000000010000001200000062.00000028.backup, make better regex
 	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
@@ -139,6 +152,78 @@ func (b *Backup) GetStartWalLocation(archiveDir string) (startWalLocation string
 				}
 				return b.StartWalLocation, err
 			}
+		}
+	}
+	return "", errors.New("START WAL LOCATION not found")
+}
+
+// GetStartWalLocationFromS3 returns the oldest needed WAL file
+// Every older WAL file is not required to use this backup
+func (b *Backup) GetStartWalLocationFromS3(archiveBucket string) (startWalLocation string, err error) {
+	// Regex to identify a backup label file
+	// 000000010000001200000062.00000028.backup, make better regex
+	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
+
+	// Regex to identify the right file
+	regLabel := regexp.MustCompile(`.*LABEL: ` + b.Name)
+	log.Debug("regLabel: ", regLabel)
+
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+
+	// Indicate to our routine to exit cleanly upon return.
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := b.Backups.MinioClient.ListObjects(archiveBucket, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+		log.Debug(object)
+		//err := b.AddObject(object, archiveBucket)
+		if object.Size > 1000 {
+			// size is to big for backup label
+			continue
+		}
+
+		if regBackupLabelFile.MatchString(object.Key) {
+			log.Debug(object.Key, " => seems to be a backup Label, by size and name")
+
+			/*catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
+			catCmdStdout, err := catCmd.StdoutPipe()
+			if err != nil {
+				// if we can not open the file we continue with next
+				log.Warn("catCmd.StdoutPipe(), ", err)
+				continue
+			}
+
+			err = catCmd.Start()
+			if err != nil {
+				log.Warn("catCmd.Start(), ", err)
+				continue
+			}
+
+			buf, err := ioutil.ReadAll(catCmdStdout)
+			if err != nil {
+				log.Warn("Reading from command: ", err)
+				continue
+			}
+
+			err = catCmd.Wait()
+			if err != nil {
+				log.Warn("catCmd.Wait(), ", err)
+				continue
+			}
+
+			if len(regLabel.Find(buf)) > 1 {
+				log.Debug("Found matching backup label")
+				err = b.parseBackupLabel(buf)
+				if err == nil {
+					b.LabelFile = labelFile
+				}
+				return b.StartWalLocation, err
+			}*/
 		}
 	}
 	return "", errors.New("START WAL LOCATION not found")
