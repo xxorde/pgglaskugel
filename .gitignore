@@ -4,3 +4,5 @@ pgGlaskugel
 *.lzo
 *.lz4
 *.zst
+*.exe
+*.app

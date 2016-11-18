@@ -22,22 +22,13 @@ package pkg
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
-	"os"
 	"os/exec"
-	"path/filepath"
 	"regexp"
-	"sort"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-
-	"github.com/dustin/go-humanize"
-	minio "github.com/minio/minio-go"
 )
 
 const (
@@ -190,14 +181,14 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 		if regBackupLabelFile.MatchString(object.Key) {
 			log.Debug(object.Key, " => seems to be a backup Label, by size and name")
 
-			backupLabel, err := b.Backups.MinioClient.GetObject(b.Backups.WalBucket, object.Key)
+			backupLabelFile, err := b.Backups.MinioClient.GetObject(b.Backups.WalBucket, object.Key)
 			if err != nil {
 				log.Warn("Can not get backupLabel, ", err)
 				continue
 			}
 
-			buf := make([]byte, maxBackupLabelSize)
-			readCount, err := backupLabel.Read(buf)
+			bufCompressed := make([]byte, maxBackupLabelSize)
+			readCount, err := backupLabelFile.Read(bufCompressed)
 			if err != nil && err != io.EOF {
 				log.Warn("Can not read backupLabel, ", err)
 				continue
@@ -213,7 +204,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 			}
 
 			// Use backupLabel as input for catCmd
-			catCmd.Stdin = bytes.NewReader(buf)
+			catCmd.Stdin = bytes.NewReader(bufCompressed)
 			catCmdStderror, err := catCmd.StderrPipe()
 			go WatchOutput(catCmdStderror, log.Debug)
 
@@ -223,7 +214,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 				continue
 			}
 
-			buf2, err := ioutil.ReadAll(catCmdStdout)
+			bufPlain, err := ioutil.ReadAll(catCmdStdout)
 			if err != nil {
 				log.Warn("Reading from command: ", err)
 				continue
@@ -235,14 +226,13 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 				log.Debug("catCmd.Wait(), ", err)
 			}
 
-			log.Warn(string(buf2))
-
-			if len(regLabel.Find(buf2)) > 1 {
+			if len(regLabel.Find(bufPlain)) > 1 {
 				log.Debug("Found matching backup label")
-				err = b.parseBackupLabel(buf)
-				if err == nil {
-					b.LabelFile = object.Key
+				err = b.parseBackupLabel(bufPlain)
+				if err != nil {
+					log.Error(err)
 				}
+				b.LabelFile = object.Key
 				return b.StartWalLocation, err
 			}
 		}
@@ -276,254 +266,4 @@ func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
 
 	b.StartWalLocation = string(startWal)
 	return nil
-}
-
-// Backups represents an array of "Backup"
-type Backups struct {
-	Backup      []Backup
-	WalDir      string
-	WalBucket   string
-	MinioClient minio.Client
-}
-
-// IsSane returns false if at leased one backups seams not sane
-func (b *Backups) IsSane() (sane bool) {
-	for _, backup := range b.Backup {
-		if backup.IsSane() != true {
-			return false
-		}
-	}
-	return true
-}
-
-// Sane returns all backups that seem sane
-func (b *Backups) Sane() (sane Backups) {
-	for _, backup := range b.Backup {
-		if backup.IsSane() == true {
-			sane.Backup = append(sane.Backup, backup)
-		}
-	}
-	return sane
-}
-
-// Insane returns all backups that seem not sane
-func (b *Backups) Insane() (insane Backups) {
-	for _, backup := range b.Backup {
-		if backup.IsSane() != true {
-			insane.Backup = append(insane.Backup, backup)
-		}
-	}
-	return insane
-}
-
-// AddFile adds a new backup to Backups
-func (b *Backups) AddFile(path string) (err error) {
-	var newBackup Backup
-	// Make a relative path absolute
-	newBackup.Path, err = filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	newBackup.Extension = filepath.Ext(path)
-	// Get the name of the backup file without the extension
-	newBackup.Name = strings.TrimSuffix(filepath.Base(path), newBackup.Extension)
-
-	// Get size of backup
-	file, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	fi, err := file.Stat()
-	if err != nil {
-		return err
-	}
-	newBackup.Size = fi.Size()
-
-	// Remove anything before the '@'
-	reg := regexp.MustCompile(`.*@`)
-	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
-	newBackup.Created, err = time.Parse(BackupTimeFormat, backupTimeRaw)
-	if err != nil {
-		return err
-	}
-	// Add back reference to the list od backups
-	newBackup.Backups = b
-	b.Backup = append(b.Backup, newBackup)
-	return nil
-}
-
-// AddObject adds a new backup to Backups
-func (b *Backups) AddObject(object minio.ObjectInfo, bucket string) (err error) {
-	var newBackup Backup
-	newBackup.Bucket = bucket
-	newBackup.Extension = filepath.Ext(object.Key)
-
-	// Get Name without suffix
-	newBackup.Name = strings.TrimSuffix(object.Key, newBackup.Extension)
-	newBackup.Size = object.Size
-
-	// Remove anything before the '@'
-	reg := regexp.MustCompile(`.*@`)
-	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
-	newBackup.Created, err = time.Parse(BackupTimeFormat, backupTimeRaw)
-	if err != nil {
-		return err
-	}
-	// Add back reference to the list od backups
-	newBackup.Backups = b
-	b.Backup = append(b.Backup, newBackup)
-	return nil
-}
-
-// String returns an overview of the backups as string
-func (b *Backups) String() (backups string) {
-	buf := new(bytes.Buffer)
-	row := 0
-	notSane := 0
-	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
-	fmt.Fprintln(w, "Backups")
-	fmt.Fprintln(w, "# \tName \tExt \tSize \tStorage \t Sane")
-	for _, backup := range b.Backup {
-		row++
-		if !backup.IsSane() {
-			notSane++
-		}
-		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.StorageType(), "\t", backup.IsSane())
-	}
-	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Total backups:", b.Len(), " Not sane backups:", notSane)
-	w.Flush()
-	return buf.String()
-}
-
-// GetBackupsInDir includes all backups in given directory
-func (b *Backups) GetBackupsInDir(backupDir string) {
-	files, _ := ioutil.ReadDir(backupDir)
-	for _, f := range files {
-		err := b.AddFile(backupDir + "/" + f.Name())
-		if err != nil {
-			log.Warn(err)
-		}
-	}
-	// Sort backups
-	b.Sort()
-}
-
-// GetBackupsInBucket includes all backups in given bucket
-func (b *Backups) GetBackupsInBucket(bucket string) {
-	// Create a done channel to control 'ListObjects' go routine.
-	doneCh := make(chan struct{})
-
-	// Indicate to our routine to exit cleanly upon return.
-	defer close(doneCh)
-
-	isRecursive := true
-	objectCh := b.MinioClient.ListObjects(bucket, "", isRecursive, doneCh)
-	for object := range objectCh {
-		if object.Err != nil {
-			log.Error(object.Err)
-		}
-		log.Debug(object)
-		err := b.AddObject(object, bucket)
-		if err != nil {
-			log.Error(err)
-		}
-	}
-
-	// Sort backups
-	b.Sort()
-}
-
-// Backups implements sort.Interface for []Person based on Backup.Created
-func (b *Backups) Len() int           { return len(b.Backup) }
-func (b *Backups) Swap(i, j int)      { (b.Backup)[i], (b.Backup)[j] = (b.Backup)[j], (b.Backup)[i] }
-func (b *Backups) Less(i, j int) bool { return (b.Backup)[i].Created.Before((b.Backup)[j].Created) }
-
-// Sort sorts all backups in place
-func (b *Backups) Sort() {
-	// Sort, the newest first
-	b.SortDesc()
-}
-
-// SortDesc sorts all backups in place DESC
-func (b *Backups) SortDesc() {
-	// Sort, the newest first
-	sort.Sort(sort.Reverse(b))
-}
-
-// SortAsc sorts all backups in place ASC
-func (b *Backups) SortAsc() {
-	// Sort, the newest first
-	sort.Sort(b)
-}
-
-// SeparateBackupsByAge separates the backups by age
-// The newest "countNew" backups are put in newBackups
-// The older backups are put in oldBackups
-func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBackups Backups, err error) {
-	// Sort backups first
-	b.Sort()
-
-	// If there are not enough backups, return all
-	if (*b).Len() <= int(countNew) {
-		return *b, Backups{}, nil
-	}
-
-	// Give the additional vars to the ne sets
-	newBackups.MinioClient = b.MinioClient
-	oldBackups.MinioClient = b.MinioClient
-	newBackups.WalDir = b.WalDir
-	oldBackups.WalDir = b.WalDir
-	newBackups.WalBucket = b.WalBucket
-	oldBackups.WalBucket = b.WalBucket
-
-	// Putt the newest in newBackups
-	newBackups.Backup = (b.Backup)[:countNew]
-	oldBackups.Backup = (b.Backup)[countNew:]
-
-	if newBackups.IsSane() != true {
-		return Backups{}, Backups{}, errors.New("Not all backups (newBackups) are sane!" + newBackups.String())
-	}
-
-	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
-		panic("No new backups, only old. Not sane! ")
-	}
-	return newBackups, oldBackups, nil
-}
-
-// DeleteAll deletes all backups in the struct
-func (b *Backups) DeleteAll() (count int, err error) {
-	// We delete all backups, but start with the oldest just in case
-	b.SortAsc()
-	for _, backup := range b.Backup {
-		if backup.Path != "" {
-			err = os.Remove(backup.Path)
-			if err != nil {
-				log.Warn(err)
-			} else {
-				count++
-			}
-		}
-		if backup.Bucket != "" {
-			err = b.MinioClient.RemoveObject(backup.Bucket, backup.Name+backup.Extension)
-			if err != nil {
-				log.Warn(err)
-			} else {
-				count++
-			}
-		}
-	}
-	return count, err
-}
-
-// Find finds a backup by name and returns is
-func (b *Backups) Find(name string) (backup *Backup, err error) {
-	for _, backup := range b.Backup {
-		if backup.Name == name {
-			return &backup, nil
-		}
-	}
-	return nil, errors.New("Backup not found: " + name)
 }

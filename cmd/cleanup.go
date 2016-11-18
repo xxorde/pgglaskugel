@@ -71,18 +71,18 @@ var cleanupCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		delete := viper.GetBool("force-retain")
+		confirmDelete := viper.GetBool("force-retain")
 
-		if delete != true {
+		if confirmDelete != true {
 			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
 			var err error
-			delete, err = pkg.AnswerConfirmation()
+			confirmDelete, err = pkg.AnswerConfirmation()
 			if err != nil {
 				log.Error(err)
 			}
 		}
 
-		if delete != true {
+		if confirmDelete != true {
 			log.Warn("Deletion was not confirmed, ending now.")
 			os.Exit(1)
 		}
@@ -95,7 +95,7 @@ var cleanupCmd = &cobra.Command{
 		backups = getMyBackups()
 
 		log.Info("Backups left: " + backups.String())
-		oldestBackup := backups.Backup[0]
+		oldestBackup := backups.OldestBackup()
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
 		check(err)
 		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zst", viper.GetString("archivedir")+"/wal", oldestNeededWal)
