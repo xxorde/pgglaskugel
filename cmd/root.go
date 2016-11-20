@@ -78,19 +78,12 @@ var (
 	baseBackupTools = []string{
 		"tar",
 		"pg_basebackup",
+		"pg_archivecleanup",
 		"/usr/bin/zstd",
 	}
 
 	// Maximum PID
 	maxPID = 32768
-
-	// maximum size a WAL can have
-	maxWalSize = int64(16777216)
-
-	// Minimal size for files to archive
-	// WAL min size would be equal to maxWalSize
-	// but backup labels are archived too.
-	minArchiveSize = int64(100)
 
 	// Default number of parallel jobs
 	defaultJobs = int((runtime.NumCPU() + 2) / 3)

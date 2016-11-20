@@ -21,9 +21,7 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
-	"os/exec"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -40,9 +38,6 @@ var cleanupCmd = &cobra.Command{
 	Long: `Enforces your retention policy by deleting backups and WAL files.
 	Use with care.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: Work your own magic here
-		fmt.Println("cleanup called")
-
 		backups := getMyBackups()
 
 		retain := uint(viper.GetInt("retain"))
@@ -52,7 +47,7 @@ var cleanupCmd = &cobra.Command{
 
 		keep, discard, err := backups.SeparateBackupsByAge(retain)
 		if err != nil {
-			log.Fatal(err)
+			log.Error(err)
 		}
 
 		if uint(keep.Len()) < retain {
@@ -89,7 +84,7 @@ var cleanupCmd = &cobra.Command{
 
 		count, err := discard.DeleteAll()
 		if err != nil {
-			log.Fatal("DeleteAll()", err)
+			log.Warn("DeleteAll()", err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
 		backups = getMyBackups()
@@ -98,16 +93,17 @@ var cleanupCmd = &cobra.Command{
 		oldestBackup := backups.OldestBackup()
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
 		check(err)
-		cleanWal := exec.Command("pg_archivecleanup", "-x", ".zst", viper.GetString("archivedir")+"/wal", oldestNeededWal)
 
-		// Watch stderror
-		cleanWalStderror, err := cleanWal.StderrPipe()
-		check(err)
-		go pkg.WatchOutput(cleanWalStderror, log.Info)
+		var oldWal pkg.Wal
+		oldWal.Name = oldestNeededWal
 
-		err = cleanWal.Run()
-		if err != nil {
-			log.Fatal("cleanWal.Run()", err)
+		walArchive := pkg.WalArchive{Path: viper.GetString("archivedir") + "/wal"}
+		walArchive.DeleteOldWalFromFolder(oldWal)
+
+		// Clean WAL in S3
+		bucketAwailable, err := backups.MinioClient.BucketExists(backups.WalBucket)
+		if bucketAwailable && err != nil {
+			backups.MinioClient.RemoveObject(backups.WalBucket, "object")
 		}
 	},
 }
