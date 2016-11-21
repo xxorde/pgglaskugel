@@ -97,13 +97,18 @@ var cleanupCmd = &cobra.Command{
 		var oldWal pkg.Wal
 		oldWal.Name = oldestNeededWal
 
-		walArchive := pkg.WalArchive{Path: viper.GetString("archivedir") + "/wal"}
-		walArchive.DeleteOldWalFromFolder(oldWal)
+		walArchiveFile := pkg.WalArchive{Path: viper.GetString("archivedir") + "/wal"}
+		count, err = walArchiveFile.DeleteOldWal(oldWal)
+		check(err)
+		log.Infof("Deleted %d WAL files from: %s", count, viper.GetString("archivedir")+"/wal")
 
 		// Clean WAL in S3
 		bucketAwailable, err := backups.MinioClient.BucketExists(backups.WalBucket)
-		if bucketAwailable && err != nil {
-			backups.MinioClient.RemoveObject(backups.WalBucket, "object")
+		if bucketAwailable && err == nil {
+			walArchiveS3 := pkg.WalArchive{Bucket: backups.WalBucket, MinioClient: backups.MinioClient}
+			count, err = walArchiveS3.DeleteOldWal(oldWal)
+			log.Infof("Deleted %d WAL files from: s3://%s", count, backups.WalBucket)
+			check(err)
 		}
 	},
 }

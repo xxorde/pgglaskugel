@@ -25,8 +25,8 @@ import (
 	"os"
 	"regexp"
 
+	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
-	"github.com/siddontang/go/log"
 )
 
 const (
@@ -73,11 +73,9 @@ func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 	if w.Timeline() != newWal.Timeline() {
 		return false, errors.New("Timeline does not match")
 	}
-
 	if newWal.Counter() > w.Counter() {
 		return true, nil
 	}
-
 	return false, nil
 }
 
@@ -88,10 +86,16 @@ func (w *Wal) Delete() (err error) {
 		if err != nil {
 			log.Warn(err)
 		}
+		return err
 	case "s3":
-
+		err = w.WalArchive.MinioClient.RemoveObject(w.WalArchive.Bucket, w.Name)
+	default:
+		return errors.New("Not supported StorageType: " + w.WalArchive.StorageType())
 	}
-	return errors.New("Not supported StorageType: " + w.WalArchive.StorageType())
+	if err != nil {
+		log.Warn(err)
+	}
+	return err
 }
 
 type WalArchive struct {
@@ -102,30 +106,28 @@ type WalArchive struct {
 }
 
 // StorageType returns the type of storage the backup is on
-func (b *WalArchive) StorageType() (storageType string) {
-	if b.Path > "" {
+func (w *WalArchive) StorageType() (storageType string) {
+	if w.Path > "" {
 		return "file"
 	}
-
-	if b.Bucket > "" {
+	if w.Bucket > "" {
 		return "s3"
 	}
-
 	// Not defined
 	return ""
 }
 
-func (w *WalArchive) DeleteOldWalFromFolder(lastWalToKeep Wal) (count int, err error) {
+func (w *WalArchive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
 	files, _ := ioutil.ReadDir(w.Path)
 	for _, f := range files {
-		wal := Wal{Name: f.Name()}
+		wal := Wal{Name: f.Name(), WalArchive: w}
 		old, err := wal.OlderThan(lastWalToKeep)
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
 		if old {
-			log.Warnf("%s older than %s", wal.Name, lastWalToKeep.Name)
+			log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
 			err := wal.Delete()
 			if err != nil {
 				log.Warn(err)
@@ -135,4 +137,45 @@ func (w *WalArchive) DeleteOldWalFromFolder(lastWalToKeep Wal) (count int, err e
 		}
 	}
 	return count, nil
+}
+
+func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := w.MinioClient.ListObjects(w.Bucket, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+		wal := Wal{Name: object.Key, WalArchive: w}
+		old, err := wal.OlderThan(lastWalToKeep)
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		if old {
+			log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
+			err := wal.Delete()
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+			count++
+		}
+	}
+	return count, nil
+}
+
+func (w *WalArchive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
+	switch w.StorageType() {
+	case "file":
+		return w.DeleteOldWalFromFile(lastWalToKeep)
+	case "s3":
+		return w.DeleteOldWalFromS3(lastWalToKeep)
+	default:
+		return 0, errors.New("Not supported StorageType: " + w.StorageType())
+	}
 }

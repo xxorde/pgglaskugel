@@ -177,8 +177,6 @@ func (b *Backups) GetBackupsInDir(backupDir string) {
 func (b *Backups) GetBackupsInBucket(bucket string) {
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
-
-	// Indicate to our routine to exit cleanly upon return.
 	defer close(doneCh)
 
 	isRecursive := true
