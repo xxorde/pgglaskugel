@@ -78,7 +78,6 @@ var (
 	baseBackupTools = []string{
 		"tar",
 		"pg_basebackup",
-		"pg_archivecleanup",
 		"/usr/bin/zstd",
 	}
 
@@ -139,7 +138,7 @@ func init() {
 	RootCmd.PersistentFlags().String("s3_access_key", "TUMO1VCSJF7R2LC39A24", "access_key")
 	RootCmd.PersistentFlags().String("s3_secret_key", "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC", "secret_key")
 	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
-	RootCmd.PersistentFlags().Bool("s3_ssl", false, "If SSL (TLS) should be used for S3")
+	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files

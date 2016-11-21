@@ -71,6 +71,18 @@ var (
 			err := testTools(setupTools)
 			check(err)
 
+			// When no archive command set, set it
+			if viper.GetString("archive_command") == "" {
+				// Include config file in potential archive command
+				configOption := ""
+				if viper.ConfigFileUsed() != "" {
+					configOption = " --config " + viper.ConfigFileUsed()
+				}
+
+				// Preset archive_command
+				viper.Set("archive_command", myExecutable+configOption+" archive %p")
+			}
+
 			// Check if we perform a dry run
 			dryRun = viper.GetBool("check")
 			if dryRun == true {
@@ -152,12 +164,9 @@ var (
 func init() {
 	RootCmd.AddCommand(setupCmd)
 
-	// Preset archive_command
-	archiveCommand := myExecutable + " archive %p"
-
 	// Cobra supports Persistent Flags which will work for this command
 	// and all subcommands, e.g.:
-	setupCmd.PersistentFlags().String("archive_command", archiveCommand, "The command to archive WAL files")
+	setupCmd.PersistentFlags().String("archive_command", "", "The command to archive WAL files")
 	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
 	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
 	setupCmd.PersistentFlags().String("max_wal_senders", "3", "The max number of walsender processes")

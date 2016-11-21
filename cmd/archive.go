@@ -46,7 +46,6 @@ var (
 			if len(args) < 1 {
 				log.Fatal("No WAL file was defined!")
 			}
-
 			count := 0
 			for _, walSource := range args {
 				err := testWalSource(walSource)

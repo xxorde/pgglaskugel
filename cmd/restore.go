@@ -85,19 +85,17 @@ var restoreCmd = &cobra.Command{
 			// Pipe the backup in the compression
 			untarCmd.Stdin = inflateStdout
 
-						// Start untar
+			// Start untar
 			if err := untarCmd.Start(); err != nil {
 				log.Fatal("untarCmd failed on startup, ", err)
 			}
 			log.Info("Untar started")
 
-						// Start inflate
+			// Start inflate
 			if err := inflateCmd.Start(); err != nil {
 				log.Fatal("inflateCmd failed on startup, ", err)
 			}
 			log.Info("Inflation started")
-
-
 
 			// Wait for backup to finish
 			err = untarCmd.Wait()
@@ -121,7 +119,7 @@ var restoreCmd = &cobra.Command{
 
 func init() {
 	RootCmd.AddCommand(restoreCmd)
-	restoreCmd.PersistentFlags().StringP("backup", "B", "myBackup@2016-11-04T21:52:57", "The backup tor restore")
+	restoreCmd.PersistentFlags().StringP("backup", "B", "myBackup@2016-11-04T21:52:57", "The backup to restore")
 	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgres/pgGlaskugel-restore", "The destination to restore to")
 	restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
 

@@ -50,6 +50,20 @@ type Wal struct {
 	WalArchive *WalArchive
 }
 
+func (w *Wal) Sane() (sane bool) {
+	return w.SaneName()
+}
+
+func (w *Wal) SaneName() (saneName bool) {
+	// Regex to identify the right file
+	fulWalValidator := regexp.MustCompile(regFullWal)
+
+	if fulWalValidator.MatchString(w.Name) {
+		return true
+	}
+	return false
+}
+
 func (w *Wal) Timeline() (timeline string) {
 	timelineFinder := regexp.MustCompile(regTimeline)
 	timelineRaw := timelineFinder.Find([]byte(w.Name))
@@ -70,8 +84,16 @@ func (w *Wal) Counter() (counter string) {
 }
 
 func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
+	if w.Sane() != true {
+		return false, errors.New("Wal not sane: " + w.Name)
+	}
+
+	if newWal.Sane() != true {
+		return false, errors.New("Wal not sane: " + newWal.Name)
+	}
+
 	if w.Timeline() != newWal.Timeline() {
-		return false, errors.New("Timeline does not match")
+		return false, errors.New("Timeline does not match " + w.Name + " not in same timeline as " + newWal.Name)
 	}
 	if newWal.Counter() > w.Counter() {
 		return true, nil

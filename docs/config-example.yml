@@ -1,0 +1,36 @@
+---
+# general
+pgdata: $PGDATA
+pgdata-auto: true
+archivedir: /var/lib/postgresql/backup/pgglaskugel
+debug: false
+json: false
+connection: host=/var/run/postgresql user=postgres dbname=postgres
+# jobs: 4 # Concurrent threads, default: calculateted based on cores
+
+backup_to: file # (file|s3)
+archive_to: file # (file|s3)
+
+s3_endpoint: 127.0.0.1:9000
+s3_bucket_backup: pgglaskugel-basebackup
+s3_bucket_wal: pgglaskugel-wal
+s3_access_key: TUMO1VCSJF7R2LC39A24
+s3_secret_key: yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC
+s3_location: us-east-1
+s3_ssl: true
+
+# cleanup
+retain: 0
+force-retain: false
+
+# restore
+backup: "myBackup@2016-11-04T21:52:57" # The backup to restore"
+restore-to: "/var/lib/postgres/pgGlaskugel-restore" # The destination to restore to
+force-restore: false # "Force the deletion of existing data (danger zone)!"
+
+# setup
+archive_command: "" # "The command to archive WAL files
+archive_mode: on # The archive mode (should be 'on' to archive)
+wal_level: hot_standby # The level of information to include in WAL files
+max_wal_senders: 3 # The max number of walsender processes
+check: false # "Perform only a dry run without doing changes")
