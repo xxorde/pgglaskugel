@@ -157,6 +157,7 @@ var (
 				}
 			}
 			log.Info("PostgreSQL is configured for archiving.")
+			printDone()
 		},
 	}
 )

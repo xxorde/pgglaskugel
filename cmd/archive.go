@@ -117,7 +117,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 		log.Fatal(err)
 	}
 	if exists {
-		log.Infof("Bucket already exists, we are using it: %s", bucket)
+		log.Debugf("Bucket already exists, we are using it: %s", bucket)
 	} else {
 		// Try to create bucket
 		err = minioClient.MakeBucket(bucket, location)
@@ -162,10 +162,10 @@ func archiveToS3(walSource string, walName string) (err error) {
 	return err
 }
 
-// archiveWithLz4Command uses the shell command lz4 to archive WAL files
+// archiveWithZstdCommand uses the shell command lz4 to archive WAL files
 func archiveWithZstdCommand(walSource string, walName string) (err error) {
 	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
-	log.Debug("archiveWithLz4Command, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
+	log.Debug("archiveWithZstdCommand, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
 
 	// Check if WAL file is already in archive
 	if _, err := os.Stat(walTarget); err == nil {

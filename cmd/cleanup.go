@@ -110,6 +110,7 @@ var cleanupCmd = &cobra.Command{
 			log.Infof("Deleted %d WAL files from: s3://%s", count, backups.WalBucket)
 			check(err)
 		}
+		printDone()
 	},
 }
 

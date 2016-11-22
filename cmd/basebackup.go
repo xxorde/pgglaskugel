@@ -25,7 +25,6 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"time"
 
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
 
@@ -50,7 +49,6 @@ var (
 		Long:  `Creates a new basebackup from the database with the given method.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Perform basebackup")
-
 			// Get time, name and path for basebackup
 			backupTime := startTime.Format(pkg.BackupTimeFormat)
 			backupName := "bb@" + backupTime + ".zst"
@@ -122,9 +120,7 @@ var (
 				log.Fatal("compression failed after startup, ", err)
 			}
 			log.Debug("compressCmd done")
-
-			elapsed := time.Since(startTime)
-			log.Info("Backup done in ", elapsed)
+			printDone()
 		},
 	}
 )
@@ -179,7 +175,7 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		log.Fatal(err)
 	}
 	if exists {
-		log.Infof("Bucket already exists, we are using it: %s", bucket)
+		log.Debugf("Bucket already exists, we are using it: %s", bucket)
 	} else {
 		// Try to create bucket
 		err = minioClient.MakeBucket(bucket, location)

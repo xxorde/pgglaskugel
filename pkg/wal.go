@@ -24,6 +24,8 @@ import (
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sync"
+	"sync/atomic"
 
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
@@ -38,9 +40,10 @@ const (
 	// but backup labels are archived too.
 	MinArchiveSize = int64(100)
 
-	regFullWal  = `^[0-9A-Za-z]{24}`
-	regTimeline = `^[0-9A-Za-z]{8}`
-	regCounter  = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
+	regFullWal    = `^[0-9A-Za-z]{24}`
+	regWalWithExt = `^([0-9A-Za-z]{24})(.*)`
+	regTimeline   = `^[0-9A-Za-z]{8}`
+	regCounter    = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
 )
 
 type Wal struct {
@@ -48,6 +51,22 @@ type Wal struct {
 	Extension  string
 	Size       int64
 	WalArchive *WalArchive
+}
+
+func (w *Wal) ImportName(nameWithExtension string) (err error) {
+	nameFinder := regexp.MustCompile(regWalWithExt)
+	nameRaw := nameFinder.FindStringSubmatch(nameWithExtension)
+
+	if len(nameRaw) < 2 {
+		return errors.New("WAL name does not parse: " + nameWithExtension)
+	}
+
+	// 0 contains full string
+	// 1 contains name
+	// 2 contains extension
+	w.Name = string(nameRaw[1])
+	w.Extension = string(nameRaw[2])
+	return nil
 }
 
 func (w *Wal) Sane() (sane bool) {
@@ -85,17 +104,14 @@ func (w *Wal) Counter() (counter string) {
 
 func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 	if w.Sane() != true {
-		return false, errors.New("Wal not sane: " + w.Name)
+		return false, errors.New("WAL not sane: " + w.Name)
 	}
 
 	if newWal.Sane() != true {
-		return false, errors.New("Wal not sane: " + newWal.Name)
+		return false, errors.New("WAL not sane: " + newWal.Name)
 	}
 
-	if w.Timeline() != newWal.Timeline() {
-		return false, errors.New("Timeline does not match " + w.Name + " not in same timeline as " + newWal.Name)
-	}
-	if newWal.Counter() > w.Counter() {
+	if newWal.Name > w.Name {
 		return true, nil
 	}
 	return false, nil
@@ -104,13 +120,13 @@ func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 func (w *Wal) Delete() (err error) {
 	switch w.WalArchive.StorageType() {
 	case "file":
-		err = os.Remove(w.WalArchive.Path + "/" + w.Name)
+		err = os.Remove(w.WalArchive.Path + "/" + w.Name + w.Extension)
 		if err != nil {
 			log.Warn(err)
 		}
 		return err
 	case "s3":
-		err = w.WalArchive.MinioClient.RemoveObject(w.WalArchive.Bucket, w.Name)
+		err = w.WalArchive.MinioClient.RemoveObject(w.WalArchive.Bucket, w.Name+w.Extension)
 	default:
 		return errors.New("Not supported StorageType: " + w.WalArchive.StorageType())
 	}
@@ -140,55 +156,85 @@ func (w *WalArchive) StorageType() (storageType string) {
 }
 
 func (w *WalArchive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
+	// Channel to count deletions
+	atomicCounter := int32(0)
+	var wg sync.WaitGroup
+
 	files, _ := ioutil.ReadDir(w.Path)
 	for _, f := range files {
-		wal := Wal{Name: f.Name(), WalArchive: w}
-		old, err := wal.OlderThan(lastWalToKeep)
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-		if old {
-			log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
-			err := wal.Delete()
+		go func(fileName string, lastWalToKeep Wal) {
+			wg.Add(1)
+			defer wg.Done()
+			wal := Wal{WalArchive: w}
+			err := wal.ImportName(fileName)
 			if err != nil {
 				log.Warn(err)
-				continue
+				return
 			}
-			count++
-		}
+			old, err := wal.OlderThan(lastWalToKeep)
+			if err != nil {
+				log.Warn(err)
+				return
+			}
+			if old {
+				log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
+				err := wal.Delete()
+				if err != nil {
+					log.Warn(err)
+					return
+				}
+				// Count up
+				atomic.AddInt32(&atomicCounter, 1)
+			}
+		}(f.Name(), lastWalToKeep)
 	}
-	return count, nil
+	// Wait for all goroutines to finish
+	wg.Wait()
+	return int(atomicCounter), nil
 }
 
 func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
+	atomicCounter := int32(0)
+	var wg sync.WaitGroup
 
 	isRecursive := true
 	objectCh := w.MinioClient.ListObjects(w.Bucket, "", isRecursive, doneCh)
 	for object := range objectCh {
-		if object.Err != nil {
-			log.Error(object.Err)
-		}
-		wal := Wal{Name: object.Key, WalArchive: w}
-		old, err := wal.OlderThan(lastWalToKeep)
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-		if old {
-			log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
-			err := wal.Delete()
+		go func(object minio.ObjectInfo) {
+			wg.Add(1)
+			defer wg.Done()
+			if object.Err != nil {
+				log.Error(object.Err)
+			}
+			wal := Wal{WalArchive: w}
+			err := wal.ImportName(object.Key)
 			if err != nil {
 				log.Warn(err)
-				continue
+				return
 			}
-			count++
-		}
+			old, err := wal.OlderThan(lastWalToKeep)
+			if err != nil {
+				log.Warn(err)
+				return
+			}
+			if old {
+				log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
+				err := wal.Delete()
+				if err != nil {
+					log.Warn(err)
+					return
+				}
+				// Count up
+				atomic.AddInt32(&atomicCounter, 1)
+			}
+		}(object)
 	}
-	return count, nil
+	// Wait for all goroutines to finish
+	wg.Wait()
+	return int(atomicCounter), nil
 }
 
 func (w *WalArchive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {

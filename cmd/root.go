@@ -162,10 +162,6 @@ func init() {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
-	if cfgFile != "" { // enable ability to specify config file via flag
-		viper.SetConfigFile(cfgFile)
-	}
-
 	// Set the priority / chain where to look for configuration files
 	viper.SetConfigName("config")           // name of config file (without extension)
 	viper.AddConfigPath("/etc/pgglaskugel") // adding /etc/pgglaskugel as first search path
@@ -174,6 +170,10 @@ func initConfig() {
 	viper.AddConfigPath("$PWD/.pgglaskugel")
 	viper.AddConfigPath("$PGDATA/.pgglaskugel")
 	viper.AutomaticEnv() // read in environment variables that match
+
+	if cfgFile != "" { // enable ability to specify config file via flag
+		viper.SetConfigFile(cfgFile)
+	}
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
@@ -204,6 +204,11 @@ func initConfig() {
 }
 
 // Global needed functions
+
+func printDone() {
+	elapsed := time.Since(startTime)
+	log.Info("Done in ", elapsed)
+}
 
 // testTools test if all tools in tools are installed by trying to run them
 func testTools(tools []string) (err error) {

@@ -22,7 +22,6 @@ package cmd
 
 import (
 	"os/exec"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -110,9 +109,7 @@ var restoreCmd = &cobra.Command{
 				log.Fatal("inflateCmd failed after startup, ", err)
 			}
 			log.Debug("inflateCmd done")
-
-			elapsed := time.Since(startTime)
-			log.Info("Restore done in ", elapsed)
+			printDone()
 		}
 	},
 }

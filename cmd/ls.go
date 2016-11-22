@@ -21,8 +21,6 @@
 package cmd
 
 import (
-	"time"
-
 	"github.com/spf13/cobra"
 
 	log "github.com/Sirupsen/logrus"
@@ -35,8 +33,7 @@ var lsCmd = &cobra.Command{
 	Long:  `Shows you all backups already made with meta information.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		showBackups()
-		elapsed := time.Since(startTime)
-		log.Info("Time to compleat: ", elapsed)
+		printDone()
 	},
 }
 
