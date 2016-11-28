@@ -93,6 +93,7 @@ var cleanupCmd = &cobra.Command{
 		oldestBackup := backups.OldestBackup()
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
 		check(err)
+		log.Debug("oldestNeededWal: ", oldestNeededWal)
 
 		var oldWal pkg.Wal
 		oldWal.Name = oldestNeededWal

@@ -156,44 +156,39 @@ func (w *WalArchive) StorageType() (storageType string) {
 }
 
 func (w *WalArchive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
-	// Channel to count deletions
-	atomicCounter := int32(0)
-	var wg sync.WaitGroup
-
+	// WAL files are deleted sequential from file system.
+	// Due to the file system architecture parallel delete
+	// from the filesystem will not bring great benefit.
 	files, _ := ioutil.ReadDir(w.Path)
 	for _, f := range files {
-		go func(fileName string, lastWalToKeep Wal) {
-			wg.Add(1)
-			defer wg.Done()
-			wal := Wal{WalArchive: w}
-			err := wal.ImportName(fileName)
+		wal := Wal{WalArchive: w}
+		err := wal.ImportName(f.Name())
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		old, err := wal.OlderThan(lastWalToKeep)
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		if old {
+			log.Debugf("Older than %s => going to delete: %s", lastWalToKeep.Name, wal.Name)
+			err := wal.Delete()
 			if err != nil {
 				log.Warn(err)
-				return
+				continue
 			}
-			old, err := wal.OlderThan(lastWalToKeep)
-			if err != nil {
-				log.Warn(err)
-				return
-			}
-			if old {
-				log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
-				err := wal.Delete()
-				if err != nil {
-					log.Warn(err)
-					return
-				}
-				// Count up
-				atomic.AddInt32(&atomicCounter, 1)
-			}
-		}(f.Name(), lastWalToKeep)
+			count++
+		}
 	}
-	// Wait for all goroutines to finish
-	wg.Wait()
-	return int(atomicCounter), nil
+	return count, nil
 }
 
 func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
+	// Object storage has the potential to process operations parallel.
+	// Therefor we are going to delete WAL files in parallel.
+
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
@@ -221,7 +216,7 @@ func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error
 				return
 			}
 			if old {
-				log.Debugf("%s older than %s", wal.Name, lastWalToKeep.Name)
+				log.Debugf("Older than %s => going to delete: %s", lastWalToKeep.Name, wal.Name)
 				err := wal.Delete()
 				if err != nil {
 					log.Warn(err)

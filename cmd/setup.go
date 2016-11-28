@@ -50,8 +50,7 @@ var (
 
 	// Tools that should be installed
 	setupTools = []string{
-		"lzop",
-		"lz4",
+		"zstd",
 	}
 
 	// If enabled: dry run

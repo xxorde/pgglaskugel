@@ -32,7 +32,7 @@ var versionCmd = &cobra.Command{
 	Short: "Shows the version you are using",
 	Long:  `You can look online if you find a newer version of this software.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Info("pg_gobackup version -0, OMG do not use this!!!")
+		log.Info("pg_gobackup version " + myVersion + ", OMG do not use this!!!")
 	},
 }
 

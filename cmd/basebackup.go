@@ -52,10 +52,17 @@ var (
 			// Get time, name and path for basebackup
 			backupTime := startTime.Format(pkg.BackupTimeFormat)
 			backupName := "bb@" + backupTime + ".zst"
+			conString := "'" + viper.GetString("connection") + "'"
 
 			// Command to use pg_basebackup
 			// Tar format, set backupName as label, make fast checkpoints, return output on standardout
-			backupCmd := exec.Command("pg_basebackup", "-Ft", "-l", backupName, "--checkpoint", "fast", "-D", "-")
+			backupCmd := exec.Command("pg_basebackup", "--pgdata", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
+			if viper.GetBool("standalone") {
+				// Set command to include WAL files
+				backupCmd = exec.Command("pg_basebackup", "--pgdata", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
+			}
+			log.Debug("backupCmd: ", backupCmd)
+
 			// attach pipe to the command
 			backupStdout, err := backupCmd.StdoutPipe()
 			if err != nil {
@@ -195,4 +202,7 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 
 func init() {
 	RootCmd.AddCommand(basebackupCmd)
+	RootCmd.PersistentFlags().Bool("standalone", false, "Include WAL files in backup so it can be used stand alone")
+	// Bind flags to viper
+	viper.BindPFlag("standalone", RootCmd.PersistentFlags().Lookup("standalone"))
 }

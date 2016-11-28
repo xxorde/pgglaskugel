@@ -139,7 +139,7 @@ func (b *Backup) GetStartWalLocationFromFile() (startWalLocation string, err err
 			}
 
 			if len(regLabel.Find(buf)) > 1 {
-				log.Debug("Found matching backup label")
+				log.Debug("Found matching backup label file: ", f.Name())
 				err = b.parseBackupLabel(buf)
 				if err == nil {
 					b.LabelFile = labelFile

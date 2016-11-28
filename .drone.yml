@@ -6,4 +6,4 @@ build:
     - go test
     - tar cfJ pgGlaskugel.tar.xz pgglaskugel
     - GOOS=darwin GOARCH=amd64 go build -o pgGlaskugel.app main.go
-    - GOOS=windows GOARCH=amd64 go build -o pgGlaskugel.exe main.go
+#    - GOOS=windows GOARCH=amd64 go build -o pgGlaskugel.exe main.go
