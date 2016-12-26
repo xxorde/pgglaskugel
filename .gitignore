@@ -6,3 +6,4 @@ pgGlaskugel
 *.zst
 *.exe
 *.app
+.minio.sys/
