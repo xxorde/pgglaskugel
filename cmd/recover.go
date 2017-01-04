@@ -95,10 +95,6 @@ func recoverWithZstdCommand(walTarget string, walName string) (err error) {
 	return err
 }
 
-func init() {
-	RootCmd.AddCommand(archiveCmd)
-}
-
 // recoverFromS3 recover from a S3 compatible object store
 func recoverFromS3(walTarget string, walName string) (err error) {
 	bucket := viper.GetString("s3_bucket_wal")
@@ -128,7 +124,6 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
-
 	if stat.Size <= 0 {
 		log.Fatal("WAL object has size <= 0")
 	}
