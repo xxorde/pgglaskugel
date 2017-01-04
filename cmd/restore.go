@@ -52,7 +52,8 @@ var restoreCmd = &cobra.Command{
 			log.Fatal("Can not find backup: ", backupName)
 		}
 
-		log.Info("Going to restore: ", backupName, " in: ", backup.Path, " to: ", backupDestination)
+		log.Info("Going to restore: ", backupName,
+			" in: ", backup.Path, " to: ", backupDestination)
 
 		if force != true {
 			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
@@ -62,7 +63,7 @@ var restoreCmd = &cobra.Command{
 				log.Error(err)
 			}
 
-			inflateCmd := exec.Command("zstd", "-d", "--stdout", backup.Path)
+			inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", backup.Path)
 			untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
 
 			// attach pipe to the command
@@ -117,7 +118,7 @@ var restoreCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(restoreCmd)
 	restoreCmd.PersistentFlags().StringP("backup", "B", "myBackup@2016-11-04T21:52:57", "The backup to restore")
-	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgres/pgGlaskugel-restore", "The destination to restore to")
+	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgresql/pgGlaskugel-restore", "The destination to restore to")
 	restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
 
 	// Bind flags to viper

@@ -7,3 +7,5 @@ pgGlaskugel
 *.exe
 *.app
 .minio.sys/
+.#*
+*#*#

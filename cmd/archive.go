@@ -38,9 +38,9 @@ import (
 var (
 	// archiveCmd represents the archive command
 	archiveCmd = &cobra.Command{
-		Use:   "archive",
-		Short: "Archive a WAL file",
-		Long: `This command archives a given WAL file. This command can be used as an archive_command.
+		Use:   "archive WAL_FILE...",
+		Short: "Archives given WAL file(s)",
+		Long: `This command archives given WAL file(s). This command can be used as an archive_command. The command to recover is "recover". 
 	Example: archive_command = "` + myName + ` archive %p"`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
@@ -99,7 +99,23 @@ func archiveWal(walSource string, walName string) (err error) {
 	default:
 		log.Fatal(archiveTo, " no valid value for archiveTo")
 	}
-	return errors.New("This should never ben reached")
+	return errors.New("This should never be reached")
+}
+
+// archiveWithZstdCommand uses the shell command lz4 to archive WAL files
+func archiveWithZstdCommand(walSource string, walName string) (err error) {
+	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
+	log.Debug("archiveWithZstdCommand, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
+
+	// Check if WAL file is already in archive
+	if _, err := os.Stat(walTarget); err == nil {
+		err := errors.New("WAL file is already in archive: " + walTarget)
+		return err
+	}
+
+	archiveCmd := exec.Command(cmdZstd, walSource, "-o", walTarget)
+	err = archiveCmd.Run()
+	return err
 }
 
 // archiveToS3 archives to a S3 compatible object store
@@ -128,7 +144,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 	}
 
 	// This command is used to take the backup and compress it
-	compressCmd := exec.Command("/usr/bin/zstd", "--stdout", walSource)
+	compressCmd := exec.Command(cmdZstd, "--stdout", walSource)
 
 	// attach pipe to the command
 	compressStdout, err := compressCmd.StdoutPipe()
@@ -159,22 +175,6 @@ func archiveToS3(walSource string, walName string) (err error) {
 	if err != nil {
 		log.Fatal("compression failed after startup, ", err)
 	}
-	return err
-}
-
-// archiveWithZstdCommand uses the shell command lz4 to archive WAL files
-func archiveWithZstdCommand(walSource string, walName string) (err error) {
-	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
-	log.Debug("archiveWithZstdCommand, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
-
-	// Check if WAL file is already in archive
-	if _, err := os.Stat(walTarget); err == nil {
-		err := errors.New("WAL file is already in archive: " + walTarget)
-		return err
-	}
-
-	archiveCmd := exec.Command("/usr/bin/zstd", walSource, "-o", walTarget)
-	err = archiveCmd.Run()
 	return err
 }
 

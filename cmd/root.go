@@ -75,10 +75,17 @@ var (
 	pgMaxVersion           = 90699
 	supportedMajorVersions = [...]string{"9.5", "9.6"}
 
+	// commands
+	cmdTar        = "tar"
+	cmdBasebackup = "pg_basebackup"
+	cmdZstd       = "/usr/bin/zstd"
+	cmdZstdcat    = "/usr/bin/zstdcat"
+
 	baseBackupTools = []string{
-		"tar",
-		"pg_basebackup",
-		"/usr/bin/zstd",
+		cmdTar,
+		cmdBasebackup,
+		cmdZstd,
+		cmdZstdcat,
 	}
 
 	// Maximum PID
