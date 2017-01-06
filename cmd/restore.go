@@ -22,6 +22,7 @@ package cmd
 
 import (
 	"errors"
+	"io/ioutil"
 	"os/exec"
 
 	"github.com/spf13/cobra"
@@ -44,6 +45,7 @@ var restoreCmd = &cobra.Command{
 		checkNeededParameter("backup", "restore-to")
 		backupName := viper.GetString("backup")
 		backupDestination := viper.GetString("restore-to")
+		writeRecoveryConf := viper.GetBool("write-recovery-conf")
 		force := viper.GetBool("force-restore")
 
 		// If target directory does not exists ...
@@ -70,20 +72,49 @@ var restoreCmd = &cobra.Command{
 		if err != nil {
 			log.Fatal(err)
 		}
+
+		if writeRecoveryConf {
+			// When no restore_command command set, set it
+			if viper.GetString("restore_command") == "" {
+				// Include config file in potential restore_command command
+				configOption := ""
+				if viper.ConfigFileUsed() != "" {
+					configOption = " --config " + viper.ConfigFileUsed()
+				}
+
+				// Preset restore_command
+				viper.Set("restore_command", myExecutable+configOption+" recover %f %p")
+			}
+			restoreCommand := viper.GetString("restore_command")
+			recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"
+
+			err = ioutil.WriteFile(backupDestination+"/recovery.conf", []byte(recoveryConf), 0600)
+			if err != nil {
+				panic(err)
+			}
+		}
+
 		printDone()
 	},
 }
 
 func restoreBasebackup(backupDestination string, backupName string) (err error) {
-	restoreTo := viper.GetString("backup_to")
+	backups := getMyBackups()
 
-	switch restoreTo {
+	backup, err := backups.Find(backupName)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	storageType := backup.StorageType()
+
+	switch storageType {
 	case "file":
 		return restoreFromFile(backupDestination, backupName)
 	case "s3":
 		//		return restoreFromS3(backupDestination, backupName)
 	default:
-		log.Fatal(restoreTo, " no valid value for backup_to")
+		log.Fatal(storageType, " no valid value for backup_to")
 	}
 	return errors.New("This should never be reached")
 }
@@ -151,10 +182,12 @@ func init() {
 	RootCmd.AddCommand(restoreCmd)
 	restoreCmd.PersistentFlags().StringP("backup", "B", "myBackup@2016-11-04T21:52:57", "The backup to restore")
 	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgresql/pgGlaskugel-restore", "The destination to restore to")
+	restoreCmd.PersistentFlags().Bool("write-recovery-conf", true, "Automatic create a recovery.conf to replay WAL from archive")
 	restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
 
 	// Bind flags to viper
 	viper.BindPFlag("backup", restoreCmd.PersistentFlags().Lookup("backup"))
 	viper.BindPFlag("restore-to", restoreCmd.PersistentFlags().Lookup("restore-to"))
+	viper.BindPFlag("write-recovery-conf", restoreCmd.PersistentFlags().Lookup("write-recovery-conf"))
 	viper.BindPFlag("force-restore", restoreCmd.PersistentFlags().Lookup("force-restore"))
 }

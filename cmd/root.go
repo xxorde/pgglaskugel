@@ -228,11 +228,12 @@ func testTools(tools []string) (err error) {
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		err := cmd.Run()
-		if err != nil {
-			log.Debug("Output of tool: ", tool, " is: ", out.String())
-			log.Warning("It seems that tool: ", tool, " is not working correctly: ", err)
+		if err == nil {
+			log.Debug("Tool ", tool, " seems to be functional")
+			return nil
 		}
-		log.Debug("Tool ", tool, " seems to be functional")
+		log.Debug("Output of tool: ", tool, " is: ", out.String())
+		log.Warning("It seems that tool: ", tool, " is not working correctly: ", err)
 	}
 	return err
 }
