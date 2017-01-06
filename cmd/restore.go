@@ -21,11 +21,15 @@
 package cmd
 
 import (
+	"errors"
 	"os/exec"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
 	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+
+	"os"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -40,79 +44,107 @@ var restoreCmd = &cobra.Command{
 		checkNeededParameter("backup", "restore-to")
 		backupName := viper.GetString("backup")
 		backupDestination := viper.GetString("restore-to")
-
 		force := viper.GetBool("force-restore")
 
-		var backups pkg.Backups
-
-		backups.GetBackupsInDir(viper.GetString("archivedir") + "/basebackup/")
-
-		backup, err := backups.Find(backupName)
-		if err != nil {
-			log.Fatal("Can not find backup: ", backupName)
+		// If target directory does not exists ...
+		if exists, err := pkg.Exists(backupDestination); !exists || err != nil {
+			// ... create it
+			err := os.MkdirAll(backupDestination, 0700)
+			log.Fatal(err)
 		}
 
-		log.Info("Going to restore: ", backupName,
-			" in: ", backup.Path, " to: ", backupDestination)
-
-		if force != true {
-			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
-			var err error
-			force, err = pkg.AnswerConfirmation()
+		// If backup folder is not empty ask what to do
+		if empty, err := pkg.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
+			force, err := pkg.AnswerConfirmation()
 			if err != nil {
 				log.Error(err)
 			}
 
-			inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", backup.Path)
-			untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
-
-			// attach pipe to the command
-			inflateStdout, err := inflateCmd.StdoutPipe()
-			if err != nil {
-				log.Fatal("Can not attach pipe to backup process, ", err)
+			if force != true {
+				log.Fatal(backupDestination + " is not an empty directory, you need to use force")
 			}
-
-			// Watch stderror
-			inflateStderror, err := inflateCmd.StderrPipe()
-			check(err)
-			go pkg.WatchOutput(inflateStderror, log.Info)
-
-			// Watch stderror
-			untarStderror, err := untarCmd.StderrPipe()
-			check(err)
-			go pkg.WatchOutput(untarStderror, log.Info)
-
-			// Pipe the backup in the compression
-			untarCmd.Stdin = inflateStdout
-
-			// Start untar
-			if err := untarCmd.Start(); err != nil {
-				log.Fatal("untarCmd failed on startup, ", err)
-			}
-			log.Info("Untar started")
-
-			// Start inflate
-			if err := inflateCmd.Start(); err != nil {
-				log.Fatal("inflateCmd failed on startup, ", err)
-			}
-			log.Info("Inflation started")
-
-			// Wait for backup to finish
-			err = untarCmd.Wait()
-			if err != nil {
-				log.Fatal("untarCmd failed after startup, ", err)
-			}
-			log.Debug("untarCmd done")
-
-			// Wait for compression to finish
-			err = inflateCmd.Wait()
-			if err != nil {
-				log.Fatal("inflateCmd failed after startup, ", err)
-			}
-			log.Debug("inflateCmd done")
-			printDone()
 		}
+
+		log.Info("Going to restore backup '", backupName, "' to: ", backupDestination)
+		err := restoreBasebackup(backupDestination, backupName)
+		if err != nil {
+			log.Fatal(err)
+		}
+		printDone()
 	},
+}
+
+func restoreBasebackup(backupDestination string, backupName string) (err error) {
+	restoreTo := viper.GetString("backup_to")
+
+	switch restoreTo {
+	case "file":
+		return restoreFromFile(backupDestination, backupName)
+	case "s3":
+		//		return restoreFromS3(backupDestination, backupName)
+	default:
+		log.Fatal(restoreTo, " no valid value for backup_to")
+	}
+	return errors.New("This should never be reached")
+}
+
+func restoreFromFile(backupDestination string, backupName string) (err error) {
+	var backups pkg.Backups
+	backups.GetBackupsInDir(viper.GetString("archivedir") + subDirBasebackup)
+
+	backup, err := backups.Find(backupName)
+	if err != nil {
+		log.Fatal("Can not find backup: ", backupName)
+	}
+
+	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", backup.Path)
+	untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
+
+	// attach pipe to the command
+	inflateStdout, err := inflateCmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("Can not attach pipe to backup process, ", err)
+	}
+
+	// Watch stderror
+	inflateStderror, err := inflateCmd.StderrPipe()
+	check(err)
+	go pkg.WatchOutput(inflateStderror, log.Info)
+
+	// Watch stderror
+	untarStderror, err := untarCmd.StderrPipe()
+	check(err)
+	go pkg.WatchOutput(untarStderror, log.Info)
+
+	// Pipe the backup in the compression
+	untarCmd.Stdin = inflateStdout
+
+	// Start untar
+	if err := untarCmd.Start(); err != nil {
+		log.Fatal("untarCmd failed on startup, ", err)
+	}
+	log.Info("Untar started")
+
+	// Start inflate
+	if err := inflateCmd.Start(); err != nil {
+		log.Fatal("inflateCmd failed on startup, ", err)
+	}
+	log.Info("Inflation started")
+
+	// Wait for backup to finish
+	err = untarCmd.Wait()
+	if err != nil {
+		log.Fatal("untarCmd failed after startup, ", err)
+	}
+	log.Debug("untarCmd done")
+
+	// Wait for compression to finish
+	err = inflateCmd.Wait()
+	if err != nil {
+		log.Fatal("inflateCmd failed after startup, ", err)
+	}
+	log.Debug("inflateCmd done")
+	return err
 }
 
 func init() {

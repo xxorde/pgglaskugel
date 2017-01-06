@@ -93,7 +93,7 @@ func archiveWal(walSource string, walName string) (err error) {
 
 	switch archiveTo {
 	case "file":
-		return archiveWithZstdCommand(walSource, walName)
+		return archiveToFile(walSource, walName)
 	case "s3":
 		return archiveToS3(walSource, walName)
 	default:
@@ -102,8 +102,8 @@ func archiveWal(walSource string, walName string) (err error) {
 	return errors.New("This should never be reached")
 }
 
-// archiveWithZstdCommand uses the shell command lz4 to archive WAL files
-func archiveWithZstdCommand(walSource string, walName string) (err error) {
+// archiveToFile uses the shell command lz4 to archive WAL files
+func archiveToFile(walSource string, walName string) (err error) {
 	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
 	log.Debug("archiveWithZstdCommand, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
 

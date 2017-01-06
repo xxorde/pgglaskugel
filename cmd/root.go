@@ -75,6 +75,10 @@ var (
 	pgMaxVersion           = 90699
 	supportedMajorVersions = [...]string{"9.5", "9.6"}
 
+	// sub folders
+	subDirBasebackup = "/basebackup/"
+	subDirWal        = "/wal/"
+
 	// commands
 	cmdTar        = "tar"
 	cmdBasebackup = "pg_basebackup"

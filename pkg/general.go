@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"os"
 	"strings"
 
 	"github.com/siddontang/go/log"
@@ -72,4 +73,32 @@ func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {
 		outputFunc("reading standard input:", err)
 	}
 	log.Debug("watchOutput end")
+}
+
+// Exists returns whether the given file or directory exists or not
+func Exists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return true, err
+}
+
+// IsEmpty returns true if the given dir is empty
+func IsEmpty(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+
+	// Readdirnames returns at most n names, or io.EOF if not enough are available
+	_, err = f.Readdirnames(1)
+	if err == io.EOF {
+		return true, nil
+	}
+	return false, err
 }

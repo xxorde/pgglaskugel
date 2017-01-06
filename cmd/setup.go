@@ -50,14 +50,14 @@ var (
 
 	// Tools that should be installed
 	setupTools = []string{
-		"zstd",
+		cmdZstd,
 	}
 
 	// If enabled: dry run
 	dryRun = false
 
 	// All directories that should be created if missing
-	subDirs = []string{"basebackup", "wal"}
+	subDirs = []string{subDirBasebackup, subDirWal}
 
 	setupCmd = &cobra.Command{
 		Use:   "setup",

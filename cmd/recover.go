@@ -70,7 +70,7 @@ func recoverWal(walTarget string, walName string) (err error) {
 
 	switch archiveTo {
 	case "file":
-		return recoverWithZstdCommand(walTarget, walName)
+		return recoverFromFile(walTarget, walName)
 	case "s3":
 		return recoverFromS3(walTarget, walName)
 	default:
@@ -79,8 +79,8 @@ func recoverWal(walTarget string, walName string) (err error) {
 	return errors.New("This should never be reached")
 }
 
-// recoverWithZstdCommand uses the shell command lz4 to recover WAL files
-func recoverWithZstdCommand(walTarget string, walName string) (err error) {
+// recoverFromFile uses the shell command lz4 to recover WAL files
+func recoverFromFile(walTarget string, walName string) (err error) {
 	walSource := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
 	log.Debug("recoverWithZstdCommand, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 
