@@ -1,4 +1,4 @@
-![logo](docs/glaskugel.png)
+![logo](docs/img/glaskugel.png)
 
 pgGlaskugel
 ===========
@@ -24,5 +24,18 @@ Can be used to achieve to:
 * S3 / minio
 
 
+Example architecture
+====================
+
+Decentralized or Single Node
+============================
+![decentralized](docs/img/arch_overview_decentralized.png)
+
+Centralized Backup Server
+=========================
+![decentralized](docs/img/arch_overview_centralized.png)
+
+
 Usage
 =====
+
