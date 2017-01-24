@@ -52,10 +52,12 @@ var restoreCmd = &cobra.Command{
 		if exists, err := pkg.Exists(backupDestination); !exists || err != nil {
 			// ... create it
 			err := os.MkdirAll(backupDestination, 0700)
-			log.Fatal(err)
+			if err != nil {
+				log.Fatal(err)
+			}
 		}
 
-		// If backup folder is not empty ask what to do
+		// If backup folder is not empty ask what to do (and force is not set)
 		if empty, err := pkg.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
 			force, err := pkg.AnswerConfirmation()
 			if err != nil {
@@ -88,6 +90,7 @@ var restoreCmd = &cobra.Command{
 			restoreCommand := viper.GetString("restore_command")
 			recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"
 
+			log.Info("Going to write recovery.conf to: ", backupDestination)
 			err = ioutil.WriteFile(backupDestination+"/recovery.conf", []byte(recoveryConf), 0600)
 			if err != nil {
 				panic(err)
@@ -110,44 +113,36 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 
 	switch storageType {
 	case "file":
-		return restoreFromFile(backupDestination, backupName)
+		return restoreFromFile(backupDestination, backup)
 	case "s3":
-		//		return restoreFromS3(backupDestination, backupName)
+		//		return restoreFromS3(backupDestination, backup)
 	default:
 		log.Fatal(storageType, " no valid value for backup_to")
 	}
 	return errors.New("This should never be reached")
 }
 
-func restoreFromFile(backupDestination string, backupName string) (err error) {
-	var backups pkg.Backups
-	backups.GetBackupsInDir(viper.GetString("archivedir") + subDirBasebackup)
-
-	backup, err := backups.Find(backupName)
-	if err != nil {
-		log.Fatal("Can not find backup: ", backupName)
-	}
-
+func restoreFromFile(backupDestination string, backup *pkg.Backup) (err error) {
 	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", backup.Path)
 	untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
 
-	// attach pipe to the command
+	// Attach pipe to the inflation command
 	inflateStdout, err := inflateCmd.StdoutPipe()
 	if err != nil {
 		log.Fatal("Can not attach pipe to backup process, ", err)
 	}
 
-	// Watch stderror
+	// Watch stderror of inflation
 	inflateStderror, err := inflateCmd.StderrPipe()
 	check(err)
 	go pkg.WatchOutput(inflateStderror, log.Info)
 
-	// Watch stderror
+	// Watch stderror of untar
 	untarStderror, err := untarCmd.StderrPipe()
 	check(err)
 	go pkg.WatchOutput(untarStderror, log.Info)
 
-	// Pipe the backup in the compression
+	// Pipe the backup in the inflation
 	untarCmd.Stdin = inflateStdout
 
 	// Start untar
@@ -162,6 +157,7 @@ func restoreFromFile(backupDestination string, backupName string) (err error) {
 	}
 	log.Info("Inflation started")
 
+	// WAIT! If there is still data in the output pipe it can be lost!
 	// Wait for backup to finish
 	err = untarCmd.Wait()
 	if err != nil {
@@ -175,6 +171,95 @@ func restoreFromFile(backupDestination string, backupName string) (err error) {
 		log.Fatal("inflateCmd failed after startup, ", err)
 	}
 	log.Debug("inflateCmd done")
+	return err
+}
+
+func restoreFromS3(backupDestination string, backup *pkg.Backup) (err error) {
+	bucket := viper.GetString("s3_bucket_backup")
+
+	// Initialize minio client object.
+	minioClient := getS3Connection()
+
+	// Test if bucket is there
+	exists, err := minioClient.BucketExists(bucket)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if !exists {
+		log.Fatal("Bucket to restore from does not exists")
+	}
+
+	backupSource := backup.Name + backup.Extension
+	backupObject, err := minioClient.GetObject(bucket, backupSource)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	defer backupObject.Close()
+
+	// Test if the object is accessible
+	stat, err := backupObject.Stat()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if stat.Size <= 0 {
+		log.Fatal("Backup object has size <= 0")
+	}
+
+	// Command to inflate the data stream
+	// Read from stdin and write do stdout
+	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", "-")
+
+	// Command to untar the uncompressed data stream
+	untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
+
+	// Attach pipe to the inflation command
+	inflateStdout, err := inflateCmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("Can not attach pipe to backup process, ", err)
+	}
+
+	// Watch stderror of inflation
+	inflateStderror, err := inflateCmd.StderrPipe()
+	check(err)
+	go pkg.WatchOutput(inflateStderror, log.Info)
+
+	// Watch stderror of untar
+	untarStderror, err := untarCmd.StderrPipe()
+	check(err)
+	go pkg.WatchOutput(untarStderror, log.Info)
+
+	// Assign backupObject as Stdin for the inflate command
+	inflateCmd.Stdin = backupObject
+
+	// Pipe the the inflated backup in untar
+	untarCmd.Stdin = inflateStdout
+
+	// Start untar
+	if err := untarCmd.Start(); err != nil {
+		log.Fatal("untarCmd failed on startup, ", err)
+	}
+	log.Info("Untar started")
+
+	// Start WAL inflation
+	if err := inflateCmd.Start(); err != nil {
+		log.Fatal("zstd failed on startup, ", err)
+	}
+	log.Debug("Inflation started")
+
+	// WAIT! If there is still data in the output pipe it can be lost!
+	// Wait for backup to finish
+	err = untarCmd.Wait()
+	if err != nil {
+		log.Fatal("untarCmd failed after startup, ", err)
+	}
+	log.Debug("untarCmd done")
+
+	// Wait for compression to finish
+	err = inflateCmd.Wait()
+	if err != nil {
+		log.Fatal("inflateCmd failed after startup, ", err)
+	}
 	return err
 }
 
