@@ -1,3 +1,5 @@
+[![CircleCI](https://circleci.com/gh/xxorde/pgglaskugel.svg?style=svg&circle-token=cb916b323f139fb7097f26dfca10267b1c9701a4)](https://circleci.com/gh/xxorde/pgglaskugel)
+
 ![logo](docs/img/glaskugel.png)
 
 # Disclaimer
