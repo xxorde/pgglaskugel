@@ -77,11 +77,11 @@ func testWalSource(walSource string) (err error) {
 	}
 
 	if fi.Size() < pkg.MinArchiveSize {
-		return errors.New("Input file to small!")
+		return errors.New("Input file to small")
 	}
 
 	if fi.Size() > pkg.MaxWalSize {
-		return errors.New("Input file to big!")
+		return errors.New("Input file to big")
 	}
 
 	return nil

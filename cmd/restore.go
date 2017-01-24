@@ -37,16 +37,35 @@ import (
 
 // restoreCmd represents the restore command
 var restoreCmd = &cobra.Command{
-	Use:   "restore",
+	Use:   "restore [BACKUPNAME] [DESTINATION]",
 	Short: "Restore an existing backup to a given location",
 	Long:  `Restore a given backup to a given location.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Debug("restore called")
-		checkNeededParameter("backup", "restore-to")
+		checkNeededParameter("restore-to")
 		backupName := viper.GetString("backup")
 		backupDestination := viper.GetString("restore-to")
 		writeRecoveryConf := viper.GetBool("write-recovery-conf")
 		force := viper.GetBool("force-restore")
+
+		// Set backupName if given directly
+		if len(args) >= 1 {
+			backupName = args[0]
+		}
+
+		// Set backupDestination if given directly
+		if len(args) >= 2 {
+			backupDestination = args[1]
+		}
+
+		// Too many arguments
+		if len(args) > 2 {
+			log.Fatal("Too many arguments: ", args)
+		}
+
+		if backupName == "" {
+			log.Fatal("Backupname not set")
+		}
 
 		// If target directory does not exists ...
 		if exists, err := pkg.Exists(backupDestination); !exists || err != nil {
@@ -115,7 +134,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	case "file":
 		return restoreFromFile(backupDestination, backup)
 	case "s3":
-		//		return restoreFromS3(backupDestination, backup)
+		return restoreFromS3(backupDestination, backup)
 	default:
 		log.Fatal(storageType, " no valid value for backup_to")
 	}
@@ -265,7 +284,7 @@ func restoreFromS3(backupDestination string, backup *pkg.Backup) (err error) {
 
 func init() {
 	RootCmd.AddCommand(restoreCmd)
-	restoreCmd.PersistentFlags().StringP("backup", "B", "myBackup@2016-11-04T21:52:57", "The backup to restore")
+	restoreCmd.PersistentFlags().StringP("backup", "B", "", "The backup to restore")
 	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgresql/pgGlaskugel-restore", "The destination to restore to")
 	restoreCmd.PersistentFlags().Bool("write-recovery-conf", true, "Automatic create a recovery.conf to replay WAL from archive")
 	restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
