@@ -36,7 +36,7 @@ import (
 
 // recoverCmd represents the recover command
 var recoverCmd = &cobra.Command{
-	Use:   "recover WAL_FILE RECOVER_TO",
+	Use:   "recover <WAL_FILE> <RECOVER_TO>",
 	Short: "Recovers a given WAL file",
 	Long: `This command recovers a given WAL file.
 	Example: archive_command = "` + myName + ` recover %f %p"
@@ -81,6 +81,7 @@ func recoverWal(walTarget string, walName string) (err error) {
 
 // recoverFromFile uses the shell command lz4 to recover WAL files
 func recoverFromFile(walTarget string, walName string) (err error) {
+	log.Debug("recoverFromFile walTarget: ", walTarget, " walName: ", walName)
 	walSource := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
 	log.Debug("recoverWithZstdCommand, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 
@@ -97,6 +98,8 @@ func recoverFromFile(walTarget string, walName string) (err error) {
 
 // recoverFromS3 recover from a S3 compatible object store
 func recoverFromS3(walTarget string, walName string) (err error) {
+	log.Debug("recoverFromS3 walTarget: ", walTarget, " walName: ", walName)
+
 	bucket := viper.GetString("s3_bucket_wal")
 	walSource := walName + ".zst"
 
@@ -106,6 +109,7 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)
 	if err != nil {
+		log.Error("Can not test for S3 bucket")
 		log.Fatal(err)
 	}
 	if !exists {
@@ -114,14 +118,15 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 
 	walObject, err := minioClient.GetObject(bucket, walSource)
 	if err != nil {
+		log.Error("Can not get WAL file from S3")
 		log.Fatal(err)
-		return
 	}
 	defer walObject.Close()
 
 	// Test if the object is accessible
 	stat, err := walObject.Stat()
 	if err != nil {
+		log.Error("Can not get stats for WAL file from S3, does WAL file exists?")
 		log.Fatal(err)
 	}
 	if stat.Size <= 0 {
