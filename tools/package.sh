@@ -2,9 +2,8 @@
 # Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 set -e -x
 NAME=pgglaskugel
-TAG=$(git tag)
 DEST=$1
-XZ=pgGlaskugel$TAG.tar.xz
+XZ=pgGlaskugel.tar.xz
 
 go build -o $NAME
 cp $NAME $DEST/
