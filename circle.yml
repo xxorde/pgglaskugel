@@ -1,1 +1,5 @@
-general:
+dependencies:
+  pre:
+  override:
+  post:
+    - ./tools/package.sh $CIRCLE_ARTIFACTS
