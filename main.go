@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 package main
 
-import "gogs.xxor.de/xxorde/pgGlaskugel/cmd"
+import "github.com/xxorde/pgGlaskugel/cmd"
 
 func main() {
 	cmd.Execute()

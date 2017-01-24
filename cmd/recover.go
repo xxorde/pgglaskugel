@@ -26,7 +26,7 @@ import (
 	"os/exec"
 	"time"
 
-	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+	"github.com/xxorde/pgGlaskugel/pkg"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

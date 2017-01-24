@@ -37,7 +37,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 
-	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+	"github.com/xxorde/pgGlaskugel/pkg"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"

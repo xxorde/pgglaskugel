@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+	"github.com/xxorde/pgGlaskugel/pkg"
 
 	"os"
 

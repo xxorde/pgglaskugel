@@ -26,7 +26,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+	"github.com/xxorde/pgGlaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"

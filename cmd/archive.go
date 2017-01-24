@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"gogs.xxor.de/xxorde/pgGlaskugel/pkg"
+	"github.com/xxorde/pgGlaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
 
