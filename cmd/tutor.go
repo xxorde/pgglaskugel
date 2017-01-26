@@ -29,16 +29,16 @@ var tutorCmd = &cobra.Command{
 	Short: "A small tutorial to demonstrate the usage",
 	Long: `This opens a tutorial do show the capabilities of this tool.
 	This is not a full reference but will show you how to setup an example configuration.`,
-	Run: turor,
+	Run: tutor,
 }
 
 func init() {
 	RootCmd.AddCommand(tutorCmd)
 }
 
-func turor(cmd *cobra.Command, args []string) {
+func tutor(cmd *cobra.Command, args []string) {
 	fmt.Println(`
-Turor
+Tutor
 =====
 Requirements
 ------------
