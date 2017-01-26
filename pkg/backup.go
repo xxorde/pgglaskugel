@@ -33,7 +33,7 @@ import (
 
 const (
 	BackupTimeFormat  = "2006-01-02T15:04:05"
-	saneBackupMinSize = 4 * 1000000 // ~ 4MB
+	saneBackupMinSize = 2 * 1000000 // ~ 4MB
 
 	// Larger files are most likely no backup label
 	maxBackupLabelSize = 2048

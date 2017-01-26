@@ -131,11 +131,12 @@ Binaries are created by circleci for EVERY commit, expect them to be broken!
 * Compressed [pgGlaskugel.tar.xz](https://circleci.com/api/v1/project/xxorde/pgglaskugel/latest/artifacts/0/$CIRCLE_ARTIFACTS/pgGlaskugel.tar.xz?circle-token=cb916b323f139fb7097f26dfca10267b1c9701a4)
 
 # Build
-Have a look on https://golang.org/doc/code.html
+Have a look at https://golang.org/doc/code.html
 
 Setup go build environment.
 
 ```
+# install Go >= 1.7
 mkdir $HOME/work
 export GOPATH=$HOME/work
 export PATH=$PATH:$GOPATH/bin
@@ -145,4 +146,5 @@ Install pgglaskugel.
 
 ```
 go get -u github.com/xxorde/pgglaskugel
+go install github.com/xxorde/pgglaskugel
 ```
