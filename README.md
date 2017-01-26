@@ -76,6 +76,7 @@ If pgGlaskugel should not be installed the WAL segments can be compressed and tr
 
 
 # Usage
+```
 A tool that helps you to manage your PostgreSQL backups.
      __________
     /          \
@@ -132,11 +133,16 @@ Binaries are created by circleci for EVERY commit, expect them to be broken!
 # Build
 Have a look on https://golang.org/doc/code.html
 
+Setup go build environment.
+
 ```
 mkdir $HOME/work
 export GOPATH=$HOME/work
 export PATH=$PATH:$GOPATH/bin
+```
 
-mkdir -p $GOPATH/src/github.com/xxorde/pgglaskugel/
+Install pgglaskugel.
 
+```
+go get -u github.com/xxorde/pgglaskugel
 ```
