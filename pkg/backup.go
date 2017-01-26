@@ -32,10 +32,11 @@ import (
 )
 
 const (
-	BackupTimeFormat = "2006-01-02T15:04:05"
-	saneMinSize      = 4 * 1000000 // ~ 4MB
+	BackupTimeFormat  = "2006-01-02T15:04:05"
+	saneBackupMinSize = 4 * 1000000 // ~ 4MB
 
-	maxBackupLabelSize = 1024
+	// Larger files are most likely no backup label
+	maxBackupLabelSize = 2048
 )
 
 // Backup stores information about a backup
@@ -54,7 +55,7 @@ type Backup struct {
 
 // IsSane returns true if the backup seams sane
 func (b *Backup) IsSane() (sane bool) {
-	if b.Size < saneMinSize {
+	if b.Size < saneBackupMinSize {
 		return false
 	}
 

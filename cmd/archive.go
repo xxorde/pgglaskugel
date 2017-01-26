@@ -27,7 +27,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/xxorde/pgGlaskugel/pkg"
+	"github.com/xxorde/pgglaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
 
