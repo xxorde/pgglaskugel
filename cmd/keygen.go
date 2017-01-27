@@ -22,12 +22,10 @@ package cmd
 
 import (
 	"crypto/rand"
-	"crypto/rsa"
-	"os"
 	"path/filepath"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/xxorde/pgglaskugel/pkg"
+	pkg "github.com/xxorde/pgglaskugel/pkg"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -41,47 +39,24 @@ var keygenCmd = &cobra.Command{
 	WARNING: Who ever can access the private key can decrypt the backups!
 	WARNING: If the private key is lost, all encrypted backups are LOST too!`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Debug("keygen called")
-		generateKeys()
+		keyBits := viper.GetInt("keyBits")
+		keyOutputDir := viper.GetString("keyOutputDir")
+		keyPrefix := viper.GetString("keyPrefix")
+		keyPrivateFile := filepath.Join(keyOutputDir, keyPrefix+".privkey")
+		keyPublicFile := filepath.Join(keyOutputDir, keyPrefix+".pubkey")
+
+		log.Info("Generate key pair")
+		log.Info("keyBits: ", keyBits)
+		log.Info("keyOutputDir: ", keyOutputDir)
+		log.Info("keyPrefix: ", keyPrefix)
+		log.Info("keyPrivateFile: ", keyPrivateFile)
+		log.Info("keyPublicFile: ", keyPublicFile)
+
+		key := pkg.GenerateKeys(keyBits, keyOutputDir, keyPrefix, keyPrivateFile, keyPublicFile, rand.Reader)
+		pkg.WritePrivateKey(keyPrivateFile, key)
+		pkg.WritePublicKey(keyPublicFile, key)
 		printDone()
 	},
-}
-
-func generateKeys() {
-	log.Info("Generate key pair")
-	keyBits := viper.GetInt("keyBits")
-	keyOutputDir := viper.GetString("keyOutputDir")
-	keyPrefix := viper.GetString("keyPrefix")
-	keyPrivateFile := filepath.Join(keyOutputDir, keyPrefix+".privkey")
-	keyPublicFile := filepath.Join(keyOutputDir, keyPrefix+".pubkey")
-
-	log.Info("keyBits: ", keyBits)
-	log.Info("keyOutputDir: ", keyOutputDir)
-	log.Info("keyPrefix: ", keyPrefix)
-	log.Info("keyPrivateFile: ", keyPrivateFile)
-	log.Info("keyPublicFile: ", keyPublicFile)
-
-	key, err := rsa.GenerateKey(rand.Reader, keyBits)
-	if err != nil {
-		log.Fatal("Error generating RSA key: ", err)
-	}
-
-	// Create file an open write only, do NOT override existing keys!
-	priv, err := os.OpenFile(keyPrivateFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
-	if err != nil {
-		log.Fatal("Error writing private key file: ", err)
-	}
-	defer priv.Close()
-
-	// Create file an open write only, do NOT override existing keys!
-	pub, err := os.OpenFile(keyPublicFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
-	if err != nil {
-		log.Fatal("Error writing public key file: ", err)
-	}
-	defer pub.Close()
-
-	pkg.EncodePrivateKey(priv, key)
-	pkg.EncodePublicKey(pub, key)
 }
 
 func init() {
