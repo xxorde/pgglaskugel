@@ -247,9 +247,30 @@ func validatePgData(pgData string) (err error) {
 	return err
 }
 
+// Nice coating of indirection for error handling and logging
 func check(err error) error {
+	return checkFatal(err)
+}
+
+func checkFatal(err error) error {
+	return checkFatalCustom(err, "")
+}
+
+func checkError(err error) error {
+	return checkErrorCustom(err, "")
+}
+
+func checkFatalCustom(err error, output string) error {
 	if err != nil {
-		log.Fatal(err)
+		log.Fatal(output, err)
+		return err
+	}
+	return nil
+}
+
+func checkErrorCustom(err error, output string) error {
+	if err != nil {
+		log.Error(output, err)
 		return err
 	}
 	return nil
