@@ -36,8 +36,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
-
-	"github.com/xxorde/pgglaskugel/pkg"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	pkg "github.com/xxorde/pgglaskugel/pkg"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -211,7 +211,7 @@ func initConfig() {
 
 	// Check if needed tools are available
 	err := testTools(baseBackupTools)
-	check(err)
+	ec.Check(err)
 }
 
 // Global needed functions
@@ -247,40 +247,11 @@ func validatePgData(pgData string) (err error) {
 	return err
 }
 
-// Nice coating of indirection for error handling and logging
-func check(err error) error {
-	return checkFatal(err)
-}
-
-func checkFatal(err error) error {
-	return checkFatalCustom(err, "")
-}
-
-func checkError(err error) error {
-	return checkErrorCustom(err, "")
-}
-
-func checkFatalCustom(err error, output string) error {
-	if err != nil {
-		log.Fatal(output, err)
-		return err
-	}
-	return nil
-}
-
-func checkErrorCustom(err error, output string) error {
-	if err != nil {
-		log.Error(output, err)
-		return err
-	}
-	return nil
-}
-
 // reloadConfiguration reloads the PostgreSQL configuration
 func reloadConfiguration(db *sql.DB) (err error) {
 	query := "SELECT pg_reload_conf();"
 	_, err = db.Query(query)
-	check(err)
+	ec.Check(err)
 	return err
 }
 
@@ -288,7 +259,7 @@ func reloadConfiguration(db *sql.DB) (err error) {
 func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 	query := "SELECT setting FROM pg_settings WHERE name = $1;"
 	row := db.QueryRow(query, setting)
-	check(err)
+	ec.Check(err)
 	err = row.Scan(&value)
 	if err != nil {
 		log.Fatal("Can't get PostgreSQL setting: ", setting, " err:", err)

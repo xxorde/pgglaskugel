@@ -26,9 +26,10 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/xxorde/pgglaskugel/pkg"
-
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	pkg "github.com/xxorde/pgglaskugel/pkg"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -71,7 +72,7 @@ var (
 
 			// Watch output on stderror
 			backupStderror, err := backupCmd.StderrPipe()
-			check(err)
+			ec.Check(err)
 			go pkg.WatchOutput(backupStderror, log.Info)
 
 			// This command is used to take the backup and compress it
@@ -85,7 +86,7 @@ var (
 
 			// Watch output on stderror
 			compressStderror, err := compressCmd.StderrPipe()
-			check(err)
+			ec.Check(err)
 			go pkg.WatchOutput(compressStderror, log.Info)
 
 			// Pipe the backup in the compression

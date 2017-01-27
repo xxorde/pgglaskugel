@@ -26,12 +26,12 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/xxorde/pgglaskugel/pkg"
-
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	pkg "github.com/xxorde/pgglaskugel/pkg"
 )
 
 // recoverCmd represents the recover command
@@ -138,7 +138,7 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 
 	// Watch output on stderror
 	inflateStderror, err := inflateCmd.StderrPipe()
-	check(err)
+	ec.Check(err)
 	go pkg.WatchOutput(inflateStderror, log.Info)
 
 	// Assign walObject as Stdin for the inflate command
@@ -152,8 +152,6 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
-	if err != nil {
-		log.Fatal("inflation failed after startup, ", err)
-	}
+	ec.CheckCustom(err, "inflation failed after startup, ")
 	return err
 }

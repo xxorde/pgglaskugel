@@ -27,9 +27,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/xxorde/pgglaskugel/pkg"
-
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	pkg "github.com/xxorde/pgglaskugel/pkg"
+	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -49,7 +50,7 @@ var (
 			count := 0
 			for _, walSource := range args {
 				err := testWalSource(walSource)
-				check(err)
+				ec.Check(err)
 				walName := filepath.Base(walSource)
 				err = archiveWal(walSource, walName)
 				if err != nil {
@@ -76,11 +77,11 @@ func testWalSource(walSource string) (err error) {
 		return err
 	}
 
-	if fi.Size() < pkg.MinArchiveSize {
+	if fi.Size() < wal.MinArchiveSize {
 		return errors.New("Input file to small")
 	}
 
-	if fi.Size() > pkg.MaxWalSize {
+	if fi.Size() > wal.MaxWalSize {
 		return errors.New("Input file to big")
 	}
 
@@ -154,7 +155,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 
 	// Watch output on stderror
 	compressStderror, err := compressCmd.StderrPipe()
-	check(err)
+	ec.Check(err)
 	go pkg.WatchOutput(compressStderror, log.Info)
 
 	// Start backup and compression

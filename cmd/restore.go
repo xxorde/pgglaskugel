@@ -28,11 +28,11 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/xxorde/pgglaskugel/pkg"
-
 	"os"
 
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	pkg "github.com/xxorde/pgglaskugel/pkg"
 )
 
 // restoreCmd represents the restore command
@@ -153,12 +153,12 @@ func restoreFromFile(backupDestination string, backup *pkg.Backup) (err error) {
 
 	// Watch stderror of inflation
 	inflateStderror, err := inflateCmd.StderrPipe()
-	check(err)
+	ec.Check(err)
 	go pkg.WatchOutput(inflateStderror, log.Info)
 
 	// Watch stderror of untar
 	untarStderror, err := untarCmd.StderrPipe()
-	check(err)
+	ec.Check(err)
 	go pkg.WatchOutput(untarStderror, log.Info)
 
 	// Pipe the backup in the inflation
@@ -240,12 +240,12 @@ func restoreFromS3(backupDestination string, backup *pkg.Backup) (err error) {
 
 	// Watch stderror of inflation
 	inflateStderror, err := inflateCmd.StderrPipe()
-	check(err)
+	ec.Check(err)
 	go pkg.WatchOutput(inflateStderror, log.Info)
 
 	// Watch stderror of untar
 	untarStderror, err := untarCmd.StderrPipe()
-	check(err)
+	ec.Check(err)
 	go pkg.WatchOutput(untarStderror, log.Info)
 
 	// Assign backupObject as Stdin for the inflate command

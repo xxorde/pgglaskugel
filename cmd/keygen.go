@@ -23,16 +23,11 @@ package cmd
 import (
 	"crypto/rand"
 	"crypto/rsa"
-	"io"
 	"os"
 	"path/filepath"
-	"time"
-
-	"golang.org/x/crypto/openpgp"
-	"golang.org/x/crypto/openpgp/armor"
-	"golang.org/x/crypto/openpgp/packet"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/xxorde/pgglaskugel/pkg"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -41,10 +36,10 @@ import (
 // keygenCmd represents the keygen command
 var keygenCmd = &cobra.Command{
 	Use:   "keygen",
-	Short: "Generate RSA key for use with pgGlaskugel",
-	Long: `This command can generate keys for use with pgGlaskugel. Consider to use pre generated keys with other tools like GnuPG.
+	Short: "Generate RSA keys for use with pgGlaskugel",
+	Long: `This command can generate keys for use with pgGlaskugel. Consider to use pre-generated keys with other tools like GnuPG.
 	WARNING: Who ever can access the private key can decrypt the backups!
-	WARNING: If the private key is lost, all encrypted backups are LOST!`,
+	WARNING: If the private key is lost, all encrypted backups are LOST too!`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Debug("keygen called")
 		generateKeys()
@@ -85,26 +80,8 @@ func generateKeys() {
 	}
 	defer pub.Close()
 
-	encodePrivateKey(priv, key)
-	encodePublicKey(pub, key)
-}
-
-func encodePrivateKey(out io.Writer, key *rsa.PrivateKey) {
-	w, err := armor.Encode(out, openpgp.PrivateKeyType, make(map[string]string))
-	checkFatalCustom(err, "Error creating OpenPGP Armor:")
-
-	pgpKey := packet.NewRSAPrivateKey(time.Now(), key)
-	checkFatalCustom(pgpKey.Serialize(w), "Error serializing private key:")
-	checkFatalCustom(w.Close(), "Error serializing private key:")
-}
-
-func encodePublicKey(out io.Writer, key *rsa.PrivateKey) {
-	w, err := armor.Encode(out, openpgp.PublicKeyType, make(map[string]string))
-	checkFatalCustom(err, "Error creating OpenPGP Armor:")
-
-	pgpKey := packet.NewRSAPublicKey(time.Now(), &key.PublicKey)
-	checkFatalCustom(pgpKey.Serialize(w), "Error serializing public key:")
-	checkFatalCustom(w.Close(), "Error serializing public key:")
+	pkg.EncodePrivateKey(priv, key)
+	pkg.EncodePublicKey(pub, key)
 }
 
 func init() {
