@@ -61,7 +61,7 @@ var keygenCmd = &cobra.Command{
 		privKey := pkg.ReadPrivateKey(keyPrefix + ".privkey")
 		pubKey := pkg.ReadPublicKey(keyPrefix + ".pubkey")
 
-		pkg.Encrypt(os.Stdin, os.Stdout, privKey, pubKey)
+		pkg.Encrypt(os.Stdin, nil, privKey, pubKey)
 
 	},
 }

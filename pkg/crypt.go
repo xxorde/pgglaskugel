@@ -115,12 +115,13 @@ func Encrypt(in io.Reader, out io.Writer, privKey *packet.PrivateKey, pubKey *pa
 	ec.CheckFatalCustom(err, "Error creating entity for encryption")
 	defer plain.Close()
 
-	compressed, err := gzip.NewWriterLevel(plain, gzip.BestCompression)
-	ec.CheckFatalCustom(err, "Invalid compression level")
+	//compressed, err := gzip.NewWriterLevel(plain, gzip.BestCompression)
+	//ec.CheckFatalCustom(err, "Invalid compression level")
+	//defer compressed.Close()
 
-	written, err = io.Copy(compressed, in)
+	written, err = io.Copy(plain, in)
 	ec.CheckFatalCustom(err, "Error writing encrypted file")
-	compressed.Close()
+	log.Debug("written: ", written)
 
 	return written
 }
@@ -151,6 +152,7 @@ func Decrypt(privKey *packet.PrivateKey, pubKey *packet.PublicKey) {
 }
 
 func createEntityFromKeys(privKey *packet.PrivateKey, pubKey *packet.PublicKey) *openpgp.Entity {
+	log.Debug("createEntityFromKeys")
 	privBits, err := privKey.BitLength()
 	ec.Check(err)
 
@@ -162,6 +164,7 @@ func createEntityFromKeys(privKey *packet.PrivateKey, pubKey *packet.PublicKey) 
 		ec.Check(errors.New("BitLength of keys does not match"))
 	}
 	bits := int(privBits)
+	log.Debug("bits: ", bits)
 
 	config := packet.Config{
 		DefaultHash:            crypto.SHA256,
