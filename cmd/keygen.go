@@ -26,7 +26,7 @@ import (
 	"path/filepath"
 
 	log "github.com/Sirupsen/logrus"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	"github.com/xxorde/pgglaskugel/util"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -53,15 +53,15 @@ var keygenCmd = &cobra.Command{
 		log.Info("keyPrivateFile: ", keyPrivateFile)
 		log.Info("keyPublicFile: ", keyPublicFile)
 
-		key := pkg.GenerateKeys(keyBits, keyOutputDir, keyPrefix, keyPrivateFile, keyPublicFile, rand.Reader)
-		pkg.WritePrivateKey(keyPrivateFile, key)
-		pkg.WritePublicKey(keyPublicFile, key)
+		key := util.GenerateKeys(keyBits, keyOutputDir, keyPrefix, keyPrivateFile, keyPublicFile, rand.Reader)
+		util.WritePrivateKey(keyPrivateFile, key)
+		util.WritePublicKey(keyPublicFile, key)
 		printDone()
 
-		privKey := pkg.ReadPrivateKey(keyPrefix + ".privkey")
-		pubKey := pkg.ReadPublicKey(keyPrefix + ".pubkey")
+		privKey := util.ReadPrivateKey(keyPrefix + ".privkey")
+		pubKey := util.ReadPublicKey(keyPrefix + ".pubkey")
 
-		pkg.Encrypt(os.Stdin, nil, privKey, pubKey)
+		util.Encrypt(os.Stdin, nil, privKey, pubKey)
 
 	},
 }

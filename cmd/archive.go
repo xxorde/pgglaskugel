@@ -29,7 +29,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	util "github.com/xxorde/pgglaskugel/util"
 	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
@@ -156,7 +156,7 @@ func archiveToS3(walSource string, walName string) (err error) {
 	// Watch output on stderror
 	compressStderror, err := compressCmd.StderrPipe()
 	ec.Check(err)
-	go pkg.WatchOutput(compressStderror, log.Info)
+	go util.WatchOutput(compressStderror, log.Info)
 
 	// Start backup and compression
 	if err := compressCmd.Start(); err != nil {

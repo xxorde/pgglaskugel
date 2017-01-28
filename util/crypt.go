@@ -1,4 +1,4 @@
-package pkg
+package util
 
 import (
 	"compress/gzip"
@@ -8,8 +8,6 @@ import (
 	"io"
 	"os"
 	"time"
-
-	kingpin "gopkg.in/alecthomas/kingpin.v2"
 
 	log "github.com/siddontang/go/log"
 
@@ -130,25 +128,25 @@ func Decrypt(privKey *packet.PrivateKey, pubKey *packet.PublicKey) {
 	entity := createEntityFromKeys(privKey, pubKey)
 
 	block, err := armor.Decode(os.Stdin)
-	kingpin.FatalIfError(err, "Error reading OpenPGP Armor: %s", err)
+	ec.CheckCustom(err, "Error reading OpenPGP Armor:")
 
 	if block.Type != "Message" {
-		kingpin.FatalIfError(err, "Invalid message type")
+		ec.CheckCustom(err, "Invalid message type")
 	}
 
 	var entityList openpgp.EntityList
 	entityList = append(entityList, entity)
 
 	md, err := openpgp.ReadMessage(block.Body, entityList, nil, nil)
-	kingpin.FatalIfError(err, "Error reading message")
+	ec.CheckCustom(err, "Error reading message")
 
 	compressed, err := gzip.NewReader(md.UnverifiedBody)
-	kingpin.FatalIfError(err, "Invalid compression level")
+	ec.CheckCustom(err, "Invalid compression level")
 	defer compressed.Close()
 
 	n, err := io.Copy(os.Stdout, compressed)
-	kingpin.FatalIfError(err, "Error reading encrypted file")
-	kingpin.Errorf("Decrypted %d bytes", n)
+	ec.CheckCustom(err, "Error reading encrypted file")
+	log.Info("Decrypted %d bytes", n)
 }
 
 func createEntityFromKeys(privKey *packet.PrivateKey, pubKey *packet.PublicKey) *openpgp.Entity {

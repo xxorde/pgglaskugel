@@ -31,7 +31,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	util "github.com/xxorde/pgglaskugel/util"
 )
 
 // recoverCmd represents the recover command
@@ -139,7 +139,7 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 	// Watch output on stderror
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go pkg.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info)
 
 	// Assign walObject as Stdin for the inflate command
 	inflateCmd.Stdin = walObject

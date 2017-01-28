@@ -29,7 +29,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	util "github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
@@ -73,7 +73,7 @@ var cleanupCmd = &cobra.Command{
 		if confirmDelete != true {
 			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
 			var err error
-			confirmDelete, err = pkg.AnswerConfirmation()
+			confirmDelete, err = util.AnswerConfirmation()
 			ec.CheckError(err)
 		}
 

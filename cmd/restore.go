@@ -32,7 +32,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	util "github.com/xxorde/pgglaskugel/util"
 )
 
 // restoreCmd represents the restore command
@@ -68,7 +68,7 @@ var restoreCmd = &cobra.Command{
 		}
 
 		// If target directory does not exists ...
-		if exists, err := pkg.Exists(backupDestination); !exists || err != nil {
+		if exists, err := util.Exists(backupDestination); !exists || err != nil {
 			// ... create it
 			err := os.MkdirAll(backupDestination, 0700)
 			if err != nil {
@@ -77,8 +77,8 @@ var restoreCmd = &cobra.Command{
 		}
 
 		// If backup folder is not empty ask what to do (and force is not set)
-		if empty, err := pkg.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
-			force, err := pkg.AnswerConfirmation()
+		if empty, err := util.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
+			force, err := util.AnswerConfirmation()
 			if err != nil {
 				log.Error(err)
 			}
@@ -141,7 +141,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	return errors.New("This should never be reached")
 }
 
-func restoreFromFile(backupDestination string, backup *pkg.Backup) (err error) {
+func restoreFromFile(backupDestination string, backup *util.Backup) (err error) {
 	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", backup.Path)
 	untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
 
@@ -154,12 +154,12 @@ func restoreFromFile(backupDestination string, backup *pkg.Backup) (err error) {
 	// Watch stderror of inflation
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go pkg.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info)
 
 	// Watch stderror of untar
 	untarStderror, err := untarCmd.StderrPipe()
 	ec.Check(err)
-	go pkg.WatchOutput(untarStderror, log.Info)
+	go util.WatchOutput(untarStderror, log.Info)
 
 	// Pipe the backup in the inflation
 	untarCmd.Stdin = inflateStdout
@@ -193,7 +193,7 @@ func restoreFromFile(backupDestination string, backup *pkg.Backup) (err error) {
 	return err
 }
 
-func restoreFromS3(backupDestination string, backup *pkg.Backup) (err error) {
+func restoreFromS3(backupDestination string, backup *util.Backup) (err error) {
 	bucket := viper.GetString("s3_bucket_backup")
 
 	// Initialize minio client object.
@@ -241,12 +241,12 @@ func restoreFromS3(backupDestination string, backup *pkg.Backup) (err error) {
 	// Watch stderror of inflation
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go pkg.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info)
 
 	// Watch stderror of untar
 	untarStderror, err := untarCmd.StderrPipe()
 	ec.Check(err)
-	go pkg.WatchOutput(untarStderror, log.Info)
+	go util.WatchOutput(untarStderror, log.Info)
 
 	// Assign backupObject as Stdin for the inflate command
 	inflateCmd.Stdin = backupObject

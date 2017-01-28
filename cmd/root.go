@@ -37,7 +37,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	util "github.com/xxorde/pgglaskugel/util"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -422,7 +422,7 @@ func getS3Connection() (minioClient minio.Client) {
 	return *tmp
 }
 
-func getMyBackups() (backups pkg.Backups) {
+func getMyBackups() (backups util.Backups) {
 	backupDir := archiveDir + "/basebackup"
 
 	log.Debug("Get backups from folder: ", backupDir)

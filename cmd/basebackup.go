@@ -28,7 +28,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	pkg "github.com/xxorde/pgglaskugel/pkg"
+	util "github.com/xxorde/pgglaskugel/util"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -51,7 +51,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Perform basebackup")
 			// Get time, name and path for basebackup
-			backupTime := startTime.Format(pkg.BackupTimeFormat)
+			backupTime := startTime.Format(util.BackupTimeFormat)
 			backupName := "bb@" + backupTime + ".zst"
 			conString := "'" + viper.GetString("connection") + "'"
 
@@ -73,7 +73,7 @@ var (
 			// Watch output on stderror
 			backupStderror, err := backupCmd.StderrPipe()
 			ec.Check(err)
-			go pkg.WatchOutput(backupStderror, log.Info)
+			go util.WatchOutput(backupStderror, log.Info)
 
 			// This command is used to take the backup and compress it
 			compressCmd := exec.Command("zstd")
@@ -87,7 +87,7 @@ var (
 			// Watch output on stderror
 			compressStderror, err := compressCmd.StderrPipe()
 			ec.Check(err)
-			go pkg.WatchOutput(compressStderror, log.Info)
+			go util.WatchOutput(compressStderror, log.Info)
 
 			// Pipe the backup in the compression
 			compressCmd.Stdin = backupStdout
