@@ -1,12 +1,11 @@
 package util_test
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/rand"
-	"io"
-	"os"
+	"io/ioutil"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +24,8 @@ var (
 	privKey *packet.PrivateKey
 	pubKey  *packet.PublicKey
 
-	plainFile = "../test/text/pg1661.txt"
+	plainFile     = "../test/text/pg1661.txt"
+	plainFileSize = 594933
 )
 
 func TestKeyGen(t *testing.T) {
@@ -42,45 +42,57 @@ func TestKeyGen(t *testing.T) {
 
 func TestKeyRead(t *testing.T) {
 	privKey = util.ReadPrivateKey(keyPrivateFile)
-	t.Log(privKey)
-	pubKey = util.ReadPublicKey(keyPublicFile)
-	t.Log(pubKey)
-}
-
-func TestCrypt(t *testing.T) {
-	// Get a io.Reader for the plaintext
-	plainFileReader, err := os.Open(plainFile)
-	if err != nil {
+	if privKey == nil {
 		t.Fail()
 	}
 
-	// Create buffer, io.Reader, io.Writer for the plain text
-	var plain bytes.Buffer
-	plainWriter := bufio.NewWriter(&plain)
-	plainReader := bufio.NewReader(&plain)
+	pubKey = util.ReadPublicKey(keyPublicFile)
+	if pubKey == nil {
+		t.Fail()
+	}
+}
 
-	// Copy contet of plain text file in buffer plain
-	io.Copy(plainWriter, plainFileReader)
+func TestCrypt(t *testing.T) {
+	// Read in plain text from file
+	plainText, err := ioutil.ReadFile(plainFile)
+	if err != nil {
+		t.Log(err)
+		t.Fail()
+	}
 
-	// Create buffer, io.Reader, io.Writer for the cypher text
-	var cypher bytes.Buffer
-	cypherWriter := bufio.NewWriter(&cypher)
-	cypherReader := bufio.NewReader(&cypher)
+	if len(plainText) != plainFileSize {
+		t.Log("Size of plaintext does not match preset plainFileSize plainText:", plainText, "plainFileSize:", plainFileSize)
+		t.Fail()
+	}
+
+	// Create buffer for plain text and fill with text
+	plainBuffer := bytes.NewBuffer(plainText)
+
+	// Create buffer for cypher text
+	cypherBuffer := new(bytes.Buffer)
 
 	// Encrypt the plain text
-	encryptWritten := util.Encrypt(plainReader, cypherWriter, privKey, pubKey)
+	encryptWritten := util.Encrypt(plainBuffer, cypherBuffer, privKey, pubKey)
 	t.Log("Encrypt, bytes written: ", encryptWritten)
 
-	// Create buffer, io.Reader, io.Writer for the decrypted text
-	var decrypt bytes.Buffer
-	decryptWriter := bufio.NewWriter(&decrypt)
-	decryptReader := bufio.NewReader(&decrypt)
+	// Create for the decrypted text
+	decryptBuffer := new(bytes.Buffer)
 
 	// Decrypt the cypher text
-	decryptWritten := util.Decrypt(cypherReader, decryptWriter, privKey, pubKey)
+	decryptWritten := util.Decrypt(cypherBuffer, decryptBuffer, privKey, pubKey)
 	t.Log("Decrypt, bytes written: ", decryptWritten)
 
-	bytes.Compare(plain., decrypt)
-
-	t.Log()
+	// Convert plaintext and decrypted text to string and compare them
+	delta := strings.Compare(string(plainText), decryptBuffer.String())
+	t.Log("plain text size: ", len(plainText))
+	t.Log("decrypted text size: ", decryptBuffer.Len())
+	t.Log("The delta between plaintext and decrypted text is: ", delta)
+	if delta != 0 {
+		t.Log("Plaintext and decrypted text do not match")
+		t.Fail()
+	}
+	if decryptBuffer.Len() != plainFileSize {
+		t.Log("Size of decrypted text does not match preset plainFileSize, decryptBuffer.Len():", decryptBuffer.Len(), "plainFileSize:", plainFileSize)
+		t.Fail()
+	}
 }
