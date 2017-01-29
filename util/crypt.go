@@ -1,13 +1,15 @@
 package util
 
 import (
-	"compress/gzip"
 	"crypto"
 	"crypto/rsa"
+	_ "crypto/sha256"
 	"errors"
 	"io"
 	"os"
 	"time"
+
+	_ "golang.org/x/crypto/ripemd160"
 
 	log "github.com/siddontang/go/log"
 
@@ -102,10 +104,10 @@ func ReadPublicKey(filename string) *packet.PublicKey {
 	return key
 }
 
-func Encrypt(in io.Reader, out io.Writer, privKey *packet.PrivateKey, pubKey *packet.PublicKey) (written int64) {
-	to := createEntityFromKeys(privKey, pubKey)
+func Encrypt(plainIn io.Reader, cypherOut io.Writer, privKey *packet.PrivateKey, pubKey *packet.PublicKey) (written int64) {
+	to := CreateEntityFromKeys(privKey, pubKey)
 
-	w, err := armor.Encode(out, "Message", make(map[string]string))
+	w, err := armor.Encode(cypherOut, "Message", make(map[string]string))
 	ec.CheckFatalCustom(err, "Error creating OpenPGP Armor:")
 	defer w.Close()
 
@@ -117,17 +119,17 @@ func Encrypt(in io.Reader, out io.Writer, privKey *packet.PrivateKey, pubKey *pa
 	//ec.CheckFatalCustom(err, "Invalid compression level")
 	//defer compressed.Close()
 
-	written, err = io.Copy(plain, in)
+	written, err = io.Copy(plain, plainIn)
 	ec.CheckFatalCustom(err, "Error writing encrypted file")
 	log.Debug("written: ", written)
 
 	return written
 }
 
-func Decrypt(privKey *packet.PrivateKey, pubKey *packet.PublicKey) {
-	entity := createEntityFromKeys(privKey, pubKey)
+func Decrypt(cypheIn io.Reader, plainOut io.Writer, privKey *packet.PrivateKey, pubKey *packet.PublicKey) (written int64) {
+	entity := CreateEntityFromKeys(privKey, pubKey)
 
-	block, err := armor.Decode(os.Stdin)
+	block, err := armor.Decode(cypheIn)
 	ec.CheckCustom(err, "Error reading OpenPGP Armor:")
 
 	if block.Type != "Message" {
@@ -140,17 +142,19 @@ func Decrypt(privKey *packet.PrivateKey, pubKey *packet.PublicKey) {
 	md, err := openpgp.ReadMessage(block.Body, entityList, nil, nil)
 	ec.CheckCustom(err, "Error reading message")
 
-	compressed, err := gzip.NewReader(md.UnverifiedBody)
-	ec.CheckCustom(err, "Invalid compression level")
-	defer compressed.Close()
+	//	compressed, err := gzip.NewReader(md.UnverifiedBody)
+	//	ec.CheckCustom(err, "Invalid compression level")
+	//	defer compressed.Close()
 
-	n, err := io.Copy(os.Stdout, compressed)
+	written, err = io.Copy(plainOut, md.UnverifiedBody)
 	ec.CheckCustom(err, "Error reading encrypted file")
-	log.Info("Decrypted %d bytes", n)
+	log.Debug("Decrypted %d bytes", written)
+
+	return written
 }
 
-func createEntityFromKeys(privKey *packet.PrivateKey, pubKey *packet.PublicKey) *openpgp.Entity {
-	log.Debug("createEntityFromKeys")
+func CreateEntityFromKeys(privKey *packet.PrivateKey, pubKey *packet.PublicKey) *openpgp.Entity {
+	log.Debug("CreateEntityFromKeys")
 	privBits, err := privKey.BitLength()
 	ec.Check(err)
 

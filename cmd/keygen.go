@@ -22,7 +22,6 @@ package cmd
 
 import (
 	"crypto/rand"
-	"os"
 	"path/filepath"
 
 	log "github.com/Sirupsen/logrus"
@@ -57,12 +56,6 @@ var keygenCmd = &cobra.Command{
 		util.WritePrivateKey(keyPrivateFile, key)
 		util.WritePublicKey(keyPublicFile, key)
 		printDone()
-
-		privKey := util.ReadPrivateKey(keyPrefix + ".privkey")
-		pubKey := util.ReadPublicKey(keyPrefix + ".pubkey")
-
-		util.Encrypt(os.Stdin, nil, privKey, pubKey)
-
 	},
 }
 
