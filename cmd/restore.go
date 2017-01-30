@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"sync"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -155,12 +154,18 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Pipe the the inflated backup in untar
 	untarCmd.Stdin = inflateStdout
 
-	// WaitGroup for workers
-	var wgRestore sync.WaitGroup
+	// WaitGroups for workers
+	var wgRestoreStart sync.WaitGroup // Waiting group to wait for start
+	var wgRestoreDone sync.WaitGroup  // Waiting group to wait for end
 
-	// Assign backup stream from getBasebackup as Stdin for the inflate command
-	go getBasebackup(backup, &inflateCmd.Stdin, &wgRestore)
-	time.Sleep(1 * time.Second)
+	// Add one to the waiting counter
+	wgRestoreStart.Add(1)
+
+	// Start getBasebackup in new go-routine
+	go getBasebackup(backup, &inflateCmd.Stdin, &wgRestoreStart, &wgRestoreDone)
+
+	// Wait for getBasebackup to start
+	wgRestoreStart.Wait()
 
 	// Start untar
 	if err := untarCmd.Start(); err != nil {
@@ -189,26 +194,26 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	}
 
 	// Tell the backup source that the chain is finished
-	wgRestore.Done()
+	wgRestoreDone.Done()
 	return err
 }
 
-func getBasebackup(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.WaitGroup) {
-	// Add one worker to wait for
-	wgRestore.Add(1)
+func getBasebackup(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+	// Add one worker to wait for finish
+	wgDone.Add(1)
 
 	storageType := backup.StorageType()
 	switch storageType {
 	case "file":
-		getFromFile(backup, backupStream, wgRestore)
+		getFromFile(backup, backupStream, wgStart, wgDone)
 	case "s3":
-		getFromS3(backup, backupStream, wgRestore)
+		getFromS3(backup, backupStream, wgStart, wgDone)
 	default:
 		log.Fatal(storageType, " no valid value for backup_to")
 	}
 }
 
-func getFromFile(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.WaitGroup) {
+func getFromFile(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromFile")
 	file, err := os.Open(backup.Path)
 	ec.Check(err)
@@ -217,14 +222,17 @@ func getFromFile(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.W
 	// Set file as backupStream
 	*backupStream = file
 
+	// Tell the chain that data is read
+	wgStart.Done()
+
 	// Wait for the rest of the chain to finish
 	log.Debug("Wait for the rest of the chain to finish")
-	wgRestore.Wait()
+	wgDone.Wait()
 	log.Debug("getFromFile done")
 
 }
 
-func getFromS3(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.WaitGroup) {
+func getFromS3(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromS3")
 	bucket := viper.GetString("s3_bucket_backup")
 
@@ -260,9 +268,12 @@ func getFromS3(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.Wai
 	// Assign backupObject as input to the restore stack
 	*backupStream = backupObject
 
+	// Tell the chain that data is read
+	wgStart.Done()
+
 	// Wait for the rest of the chain to finish
 	log.Debug("Wait for the rest of the chain to finish")
-	wgRestore.Wait()
+	wgDone.Wait()
 	log.Debug("getFromS3 done")
 }
 
