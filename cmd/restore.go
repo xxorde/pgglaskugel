@@ -104,7 +104,7 @@ var restoreCmd = &cobra.Command{
 				}
 
 				// Preset restore_command
-				viper.Set("restore_command", myExecutable+configOption+" recover %f %p")
+				viper.Set("restore_command", myExecutable+configOption+" fetch %f %p")
 			}
 			restoreCommand := viper.GetString("restore_command")
 			recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"

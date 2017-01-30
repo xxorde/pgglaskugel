@@ -20,6 +20,10 @@ import (
 	"golang.org/x/crypto/openpgp/packet"
 )
 
+const (
+	blockType = "Message"
+)
+
 func GenerateKeys(keyBits int, keyOutputDir string, keyPrefix string,
 	keyPrivateFile string, keyPublicFile string, entropy io.Reader) *rsa.PrivateKey {
 
@@ -31,7 +35,14 @@ func GenerateKeys(keyBits int, keyOutputDir string, keyPrefix string,
 }
 
 func WritePrivateKey(keyPrivateFile string, key *rsa.PrivateKey) {
-	// Create file an open write only, do NOT override existing keys!
+	exists, err := Exists(keyPrivateFile)
+	if exists == true {
+		log.Fatal("File already exists: ", keyPrivateFile)
+	}
+	ec.CheckFatal(err)
+	log.Warn(exists)
+	log.Warn(err)
+	// Create file and open write only, do NOT override existing keys!
 	priv, err := os.OpenFile(keyPrivateFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	ec.CheckFatalCustom(err, "Error writing private key file: ")
 	defer priv.Close()
@@ -45,7 +56,15 @@ func WritePrivateKey(keyPrivateFile string, key *rsa.PrivateKey) {
 }
 
 func WritePublicKey(keyPublicFile string, key *rsa.PrivateKey) {
-	// Create file an open write only, do NOT override existing keys!
+	exists, err := Exists(keyPublicFile)
+	if exists == true {
+		log.Fatal("File already exists: ", keyPublicFile)
+	}
+	ec.CheckFatal(err)
+	log.Warn(exists)
+	log.Warn(err)
+
+	// Create file and open write only, do NOT override existing keys!
 	pub, err := os.OpenFile(keyPublicFile, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	ec.CheckFatalCustom(err, "Error writing public key file: ")
 	defer pub.Close()
@@ -107,7 +126,7 @@ func ReadPublicKey(filename string) *packet.PublicKey {
 func Encrypt(plainIn io.Reader, cypherOut io.Writer, privKey *packet.PrivateKey, pubKey *packet.PublicKey) (written int64) {
 	to := CreateEntityFromKeys(privKey, pubKey)
 
-	w, err := armor.Encode(cypherOut, "Message", make(map[string]string))
+	w, err := armor.Encode(cypherOut, blockType, make(map[string]string))
 	ec.CheckFatalCustom(err, "Error creating OpenPGP Armor:")
 	defer w.Close()
 
@@ -132,7 +151,7 @@ func Decrypt(cypheIn io.Reader, plainOut io.Writer, privKey *packet.PrivateKey, 
 	block, err := armor.Decode(cypheIn)
 	ec.CheckCustom(err, "Error reading OpenPGP Armor:")
 
-	if block.Type != "Message" {
+	if block.Type != blockType {
 		ec.CheckCustom(err, "Invalid message type")
 	}
 
@@ -169,13 +188,9 @@ func CreateEntityFromKeys(privKey *packet.PrivateKey, pubKey *packet.PublicKey) 
 	log.Debug("bits: ", bits)
 
 	config := packet.Config{
-		DefaultHash:            crypto.SHA256,
-		DefaultCipher:          packet.CipherAES256,
-		DefaultCompressionAlgo: packet.CompressionZLIB,
-		CompressionConfig: &packet.CompressionConfig{
-			Level: 9,
-		},
-		RSABits: bits,
+		DefaultHash:   crypto.SHA256,
+		DefaultCipher: packet.CipherAES256,
+		RSABits:       bits,
 	}
 	currentTime := config.Now()
 	uid := packet.NewUserId("", "", "")

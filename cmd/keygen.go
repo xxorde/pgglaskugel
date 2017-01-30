@@ -62,8 +62,8 @@ var keygenCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(keygenCmd)
 
-	keygenCmd.PersistentFlags().String("keyPrefix", "pgGlaskugel", "The prefix for public and private key")
-	keygenCmd.PersistentFlags().String("keyOutputDir", "./", "The prefix for public and private key")
+	keygenCmd.PersistentFlags().String("keyPrefix", "pgglaskugel", "The prefix for public and private key")
+	keygenCmd.PersistentFlags().String("keyOutputDir", keyDir, "The prefix for public and private key")
 	keygenCmd.PersistentFlags().Int("keyBits", 4096, "Key size in bits, sane values are 2048 or 4096")
 
 	// Bind flags to viper

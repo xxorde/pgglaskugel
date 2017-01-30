@@ -29,10 +29,13 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
 	"time"
+
+	"golang.org/x/crypto/openpgp/packet"
 
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
@@ -80,16 +83,18 @@ var (
 	subDirWal        = "/wal/"
 
 	// commands
-	cmdTar        = "tar"
-	cmdBasebackup = "pg_basebackup"
+	cmdTar        = "/bin/tar"
+	cmdBasebackup = "/usr/bin/pg_basebackup"
 	cmdZstd       = "/usr/bin/zstd"
 	cmdZstdcat    = "/usr/bin/zstdcat"
+	cmdGpg        = "/usr/bin/gpg"
 
 	baseBackupTools = []string{
 		cmdTar,
 		cmdBasebackup,
 		cmdZstd,
 		cmdZstdcat,
+		cmdGpg,
 	}
 
 	// Maximum PID
@@ -107,6 +112,11 @@ var (
 
 	// Store time of programm start
 	startTime time.Time
+
+	// PGP keys for encryption
+	keyDir  = "~/.pgglaskugel/"
+	privKey *packet.PrivateKey
+	pubKey  *packet.PublicKey
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
@@ -150,6 +160,10 @@ func init() {
 	RootCmd.PersistentFlags().String("s3_secret_key", "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC", "secret_key")
 	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
+	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
+	RootCmd.PersistentFlags().String("private_key", filepath.Join(keyDir, "pgglaskugel.privkey"), "PGP private key for encryption wit S3")
+	RootCmd.PersistentFlags().String("public_key", filepath.Join(keyDir, "pgglaskugel.pubkey"), "PGP public key for encryption wit S3")
+	RootCmd.PersistentFlags().String("recipient", "pgglaskugel", "The recipient for PGP encryption (key identifier)")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -169,6 +183,10 @@ func init() {
 	viper.BindPFlag("s3_secret_key", RootCmd.PersistentFlags().Lookup("s3_secret_key"))
 	viper.BindPFlag("s3_location", RootCmd.PersistentFlags().Lookup("s3_location"))
 	viper.BindPFlag("s3_ssl", RootCmd.PersistentFlags().Lookup("s3_ssl"))
+	viper.BindPFlag("encrypt", RootCmd.PersistentFlags().Lookup("encrypt"))
+	viper.BindPFlag("pgp_private_key", RootCmd.PersistentFlags().Lookup("private_key"))
+	viper.BindPFlag("pgp_public_key", RootCmd.PersistentFlags().Lookup("public_key"))
+	viper.BindPFlag("recipient", RootCmd.PersistentFlags().Lookup("recipient"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -215,10 +233,36 @@ func initConfig() {
 }
 
 // Global needed functions
-
 func printDone() {
 	elapsed := time.Since(startTime)
 	log.Info("Done in ", elapsed)
+}
+
+func getKeys() {
+	getPrivateKey()
+	getPublicKey()
+}
+
+func getPrivateKey() {
+	// If privKey not loaded read it in
+	if privKey == nil {
+		privKeyFile := viper.GetString("pgp_private_key")
+		privKey = util.ReadPrivateKey(privKeyFile)
+		if privKey == nil {
+			log.Fatal("Can not read pgp_private_key from: ", privKeyFile)
+		}
+	}
+}
+
+func getPublicKey() {
+	// If privKey not loaded read it in
+	if pubKey == nil {
+		publicKeyFile := viper.GetString("pgp_public_key")
+		pubKey = util.ReadPublicKey(publicKeyFile)
+		if pubKey == nil {
+			log.Fatal("Can not read pgp_public_key from: ", publicKeyFile)
+		}
+	}
 }
 
 // testTools test if all tools in tools are installed by trying to run them
