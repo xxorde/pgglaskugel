@@ -34,10 +34,12 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/crypto/openpgp/packet"
+
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
-
-	"github.com/xxorde/pgglaskugel/pkg"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	util "github.com/xxorde/pgglaskugel/util"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -80,16 +82,18 @@ var (
 	subDirWal        = "/wal/"
 
 	// commands
-	cmdTar        = "tar"
-	cmdBasebackup = "pg_basebackup"
+	cmdTar        = "/bin/tar"
+	cmdBasebackup = "/usr/bin/pg_basebackup"
 	cmdZstd       = "/usr/bin/zstd"
 	cmdZstdcat    = "/usr/bin/zstdcat"
+	cmdGpg        = "/usr/bin/gpg"
 
 	baseBackupTools = []string{
 		cmdTar,
 		cmdBasebackup,
 		cmdZstd,
 		cmdZstdcat,
+		cmdGpg,
 	}
 
 	// Maximum PID
@@ -107,6 +111,11 @@ var (
 
 	// Store time of programm start
 	startTime time.Time
+
+	// PGP keys for encryption
+	keyDir  = "~/.pgglaskugel/"
+	privKey *packet.PrivateKey
+	pubKey  *packet.PublicKey
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
@@ -150,6 +159,8 @@ func init() {
 	RootCmd.PersistentFlags().String("s3_secret_key", "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC", "secret_key")
 	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
+	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
+	RootCmd.PersistentFlags().String("recipient", "pgglaskugel", "The recipient for PGP encryption (key identifier)")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -169,6 +180,8 @@ func init() {
 	viper.BindPFlag("s3_secret_key", RootCmd.PersistentFlags().Lookup("s3_secret_key"))
 	viper.BindPFlag("s3_location", RootCmd.PersistentFlags().Lookup("s3_location"))
 	viper.BindPFlag("s3_ssl", RootCmd.PersistentFlags().Lookup("s3_ssl"))
+	viper.BindPFlag("encrypt", RootCmd.PersistentFlags().Lookup("encrypt"))
+	viper.BindPFlag("recipient", RootCmd.PersistentFlags().Lookup("recipient"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -211,11 +224,10 @@ func initConfig() {
 
 	// Check if needed tools are available
 	err := testTools(baseBackupTools)
-	check(err)
+	ec.Check(err)
 }
 
 // Global needed functions
-
 func printDone() {
 	elapsed := time.Since(startTime)
 	log.Info("Done in ", elapsed)
@@ -247,19 +259,11 @@ func validatePgData(pgData string) (err error) {
 	return err
 }
 
-func check(err error) error {
-	if err != nil {
-		log.Fatal(err)
-		return err
-	}
-	return nil
-}
-
 // reloadConfiguration reloads the PostgreSQL configuration
 func reloadConfiguration(db *sql.DB) (err error) {
 	query := "SELECT pg_reload_conf();"
 	_, err = db.Query(query)
-	check(err)
+	ec.Check(err)
 	return err
 }
 
@@ -267,7 +271,7 @@ func reloadConfiguration(db *sql.DB) (err error) {
 func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 	query := "SELECT setting FROM pg_settings WHERE name = $1;"
 	row := db.QueryRow(query, setting)
-	check(err)
+	ec.Check(err)
 	err = row.Scan(&value)
 	if err != nil {
 		log.Fatal("Can't get PostgreSQL setting: ", setting, " err:", err)
@@ -430,7 +434,7 @@ func getS3Connection() (minioClient minio.Client) {
 	return *tmp
 }
 
-func getMyBackups() (backups pkg.Backups) {
+func getMyBackups() (backups util.Backups) {
 	backupDir := archiveDir + "/basebackup"
 
 	log.Debug("Get backups from folder: ", backupDir)

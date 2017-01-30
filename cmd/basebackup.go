@@ -26,9 +26,10 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/xxorde/pgglaskugel/pkg"
-
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	util "github.com/xxorde/pgglaskugel/util"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -50,16 +51,19 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Perform basebackup")
 			// Get time, name and path for basebackup
-			backupTime := startTime.Format(pkg.BackupTimeFormat)
+			backupTime := startTime.Format(util.BackupTimeFormat)
 			backupName := "bb@" + backupTime + ".zst"
-			conString := "'" + viper.GetString("connection") + "'"
+			conString := viper.GetString("connection")
+			encrypt := viper.GetBool("encrypt")
+			recipient := viper.GetString("recipient")
+			log.Debug("conString: ", conString)
 
 			// Command to use pg_basebackup
 			// Tar format, set backupName as label, make fast checkpoints, return output on standardout
-			backupCmd := exec.Command("pg_basebackup", "--pgdata", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
+			backupCmd := exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
 			if viper.GetBool("standalone") {
 				// Set command to include WAL files
-				backupCmd = exec.Command("pg_basebackup", "--pgdata", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
+				backupCmd = exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
 			}
 			log.Debug("backupCmd: ", backupCmd)
 
@@ -71,8 +75,8 @@ var (
 
 			// Watch output on stderror
 			backupStderror, err := backupCmd.StderrPipe()
-			check(err)
-			go pkg.WatchOutput(backupStderror, log.Info)
+			ec.Check(err)
+			go util.WatchOutput(backupStderror, log.Info)
 
 			// This command is used to take the backup and compress it
 			compressCmd := exec.Command("zstd")
@@ -85,8 +89,8 @@ var (
 
 			// Watch output on stderror
 			compressStderror, err := compressCmd.StderrPipe()
-			check(err)
-			go pkg.WatchOutput(compressStderror, log.Info)
+			ec.Check(err)
+			go util.WatchOutput(compressStderror, log.Info)
 
 			// Pipe the backup in the compression
 			compressCmd.Stdin = backupStdout
@@ -103,10 +107,42 @@ var (
 			}
 			log.Info("Compression started")
 
+			// Stream which is send to storage backend
+			var backupStream io.ReadCloser
+
+			// Handle encryption
+			var gpgCmd *exec.Cmd
+			if encrypt {
+				log.Debug("Encrypt data, encrypt: ", encrypt)
+				// Encrypt the compressed data
+				gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
+				// Set the encryption output as input for S3
+				var err error
+				backupStream, err = gpgCmd.StdoutPipe()
+				if err != nil {
+					log.Fatal("Can not attach pipe to gpg process, ", err)
+				}
+				// Attach output of WAL to stdin
+				gpgCmd.Stdin = compressStdout
+				// Watch output on stderror
+				gpgStderror, err := gpgCmd.StderrPipe()
+				ec.Check(err)
+				go util.WatchOutput(gpgStderror, log.Warn)
+
+				// Start encryption
+				if err := gpgCmd.Start(); err != nil {
+					log.Fatal("gpg failed on startup, ", err)
+				}
+				log.Debug("gpg started")
+			} else {
+				// Do not use encryption
+				backupStream = compressStdout
+			}
+
 			// Start worker
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
-			go handleBackupStream(compressStdout, backupName, &wg)
+			go handleBackupStream(backupStream, backupName, &wg)
 
 			// Wait for workers to finish
 			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
@@ -127,6 +163,15 @@ var (
 				log.Fatal("compression failed after startup, ", err)
 			}
 			log.Debug("compressCmd done")
+
+			// If encryption is used wait for it to finish
+			if encrypt {
+				err = gpgCmd.Wait()
+				if err != nil {
+					log.Fatal("gpg failed after startup, ", err)
+				}
+				log.Debug("Encryption done")
+			}
 			printDone()
 		},
 	}
@@ -172,6 +217,13 @@ func writeStreamToFile(input io.ReadCloser, backupName string) {
 func writeStreamToS3(input io.ReadCloser, backupName string) {
 	bucket := viper.GetString("s3_bucket_backup")
 	location := viper.GetString("s3_location")
+	encrypt := viper.GetBool("encrypt")
+	contentType := "pgBasebackup"
+
+	// Set contentType for encryption
+	if encrypt {
+		contentType = "pgp"
+	}
 
 	// Initialize minio client object.
 	minioClient := getS3Connection()
@@ -187,16 +239,17 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		// Try to create bucket
 		err = minioClient.MakeBucket(bucket, location)
 		if err != nil {
+			log.Debug("minioClient.MakeBucket(bucket, location) failed")
 			log.Fatal(err)
 		}
 		log.Infof("Bucket %s created.", bucket)
 	}
-	n, err := minioClient.PutObject(bucket, backupName, input, "")
+	n, err := minioClient.PutObject(bucket, backupName, input, contentType)
 	if err != nil {
+		log.Debug("minioClient.PutObject(bucket, backupName, s3Input, contentType) failed")
 		log.Fatal(err)
 		return
 	}
-
 	log.Infof("Written %d bytes to %s in bucket %s.", n, backupName, bucket)
 }
 

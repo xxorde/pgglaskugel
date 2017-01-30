@@ -26,9 +26,11 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/xxorde/pgglaskugel/pkg"
 
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	util "github.com/xxorde/pgglaskugel/util"
+	"github.com/xxorde/pgglaskugel/wal"
 )
 
 // cleanupCmd represents the cleanup command
@@ -69,12 +71,9 @@ var cleanupCmd = &cobra.Command{
 		confirmDelete := viper.GetBool("force-retain")
 
 		if confirmDelete != true {
-			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
 			var err error
-			confirmDelete, err = pkg.AnswerConfirmation()
-			if err != nil {
-				log.Error(err)
-			}
+			confirmDelete, err = util.AnswerConfirmation("If you want to continue please type \"yes\" (Ctl-C to end):")
+			ec.CheckError(err)
 		}
 
 		if confirmDelete != true {
@@ -92,24 +91,24 @@ var cleanupCmd = &cobra.Command{
 		log.Info("Backups left: " + backups.String())
 		oldestBackup := backups.OldestBackup()
 		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
-		check(err)
+		ec.Check(err)
 		log.Debug("oldestNeededWal: ", oldestNeededWal)
 
-		var oldWal pkg.Wal
+		var oldWal wal.Wal
 		oldWal.Name = oldestNeededWal
 
-		walArchiveFile := pkg.WalArchive{Path: viper.GetString("archivedir") + "/wal"}
+		walArchiveFile := wal.WalArchive{Path: viper.GetString("archivedir") + "/wal"}
 		count, err = walArchiveFile.DeleteOldWal(oldWal)
-		check(err)
+		ec.Check(err)
 		log.Infof("Deleted %d WAL files from: %s", count, viper.GetString("archivedir")+"/wal")
 
 		// Clean WAL in S3
 		bucketAwailable, err := backups.MinioClient.BucketExists(backups.WalBucket)
 		if bucketAwailable && err == nil {
-			walArchiveS3 := pkg.WalArchive{Bucket: backups.WalBucket, MinioClient: backups.MinioClient}
+			walArchiveS3 := wal.WalArchive{Bucket: backups.WalBucket, MinioClient: backups.MinioClient}
 			count, err = walArchiveS3.DeleteOldWal(oldWal)
 			log.Infof("Deleted %d WAL files from: s3://%s", count, backups.WalBucket)
-			check(err)
+			ec.Check(err)
 		}
 		printDone()
 	},

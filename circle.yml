@@ -3,3 +3,6 @@ dependencies:
   override:
   post:
     - ./tools/package.sh $CIRCLE_ARTIFACTS
+test:
+  override:
+    - go test -v -race ./...

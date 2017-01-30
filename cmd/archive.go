@@ -27,9 +27,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/xxorde/pgglaskugel/pkg"
-
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	util "github.com/xxorde/pgglaskugel/util"
+	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -49,7 +50,7 @@ var (
 			count := 0
 			for _, walSource := range args {
 				err := testWalSource(walSource)
-				check(err)
+				ec.Check(err)
 				walName := filepath.Base(walSource)
 				err = archiveWal(walSource, walName)
 				if err != nil {
@@ -76,11 +77,11 @@ func testWalSource(walSource string) (err error) {
 		return err
 	}
 
-	if fi.Size() < pkg.MinArchiveSize {
+	if fi.Size() < wal.MinArchiveSize {
 		return errors.New("Input file to small")
 	}
 
-	if fi.Size() > pkg.MaxWalSize {
+	if fi.Size() > wal.MaxWalSize {
 		return errors.New("Input file to big")
 	}
 
@@ -114,6 +115,12 @@ func archiveToFile(walSource string, walName string) (err error) {
 	}
 
 	archiveCmd := exec.Command(cmdZstd, walSource, "-o", walTarget)
+
+	// Watch output on stderror
+	archiveStderror, err := archiveCmd.StderrPipe()
+	ec.Check(err)
+	go util.WatchOutput(archiveStderror, log.Warn)
+
 	err = archiveCmd.Run()
 	return err
 }
@@ -123,6 +130,9 @@ func archiveToS3(walSource string, walName string) (err error) {
 	bucket := viper.GetString("s3_bucket_wal")
 	location := viper.GetString("s3_location")
 	walTarget := walName + ".zst"
+	encrypt := viper.GetBool("encrypt")
+	recipient := viper.GetString("recipient")
+	contentType := "pgWAL"
 
 	// Initialize minio client object.
 	minioClient := getS3Connection()
@@ -143,19 +153,44 @@ func archiveToS3(walSource string, walName string) (err error) {
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	// This command is used to take the backup and compress it
+	// This command is used to take the wal and compress it
 	compressCmd := exec.Command(cmdZstd, "--stdout", walSource)
-
 	// attach pipe to the command
 	compressStdout, err := compressCmd.StdoutPipe()
 	if err != nil {
 		log.Fatal("Can not attach pipe to backup process, ", err)
 	}
-
+	s3Input := compressStdout
 	// Watch output on stderror
 	compressStderror, err := compressCmd.StderrPipe()
-	check(err)
-	go pkg.WatchOutput(compressStderror, log.Info)
+	ec.Check(err)
+	go util.WatchOutput(compressStderror, log.Info)
+
+	// Variables need for encryption
+	var gpgCmd *exec.Cmd
+	if encrypt {
+		log.Debug("Encrypt data, encrypt: ", encrypt)
+		// Encrypt the compressed data
+		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
+		// Set the encryption output as input for S3
+		s3Input, err = gpgCmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("Can not attach pipe to gpg process, ", err)
+		}
+		// Attach output of WAL to stdin
+		gpgCmd.Stdin = compressStdout
+		// Watch output on stderror
+		gpgStderror, err := gpgCmd.StderrPipe()
+		ec.Check(err)
+		go util.WatchOutput(gpgStderror, log.Warn)
+
+		// Start encryption
+		if err := gpgCmd.Start(); err != nil {
+			log.Fatal("gpg failed on startup, ", err)
+		}
+		log.Debug("gpg started")
+		contentType = "pgp"
+	}
 
 	// Start backup and compression
 	if err := compressCmd.Start(); err != nil {
@@ -163,7 +198,8 @@ func archiveToS3(walSource string, walName string) (err error) {
 	}
 	log.Debug("Compression started")
 
-	n, err := minioClient.PutObject(bucket, walTarget, compressStdout, "")
+	// Write data to S3
+	n, err := minioClient.PutObject(bucket, walTarget, s3Input, contentType)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -174,6 +210,17 @@ func archiveToS3(walSource string, walName string) (err error) {
 	err = compressCmd.Wait()
 	if err != nil {
 		log.Fatal("compression failed after startup, ", err)
+	} else {
+		log.Debug("Compression done")
+	}
+
+	if encrypt {
+		err = gpgCmd.Wait()
+		if err != nil {
+			log.Fatal("gpg failed after startup, ", err)
+		} else {
+			log.Debug("Encryption done")
+		}
 	}
 	return err
 }

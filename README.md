@@ -125,6 +125,19 @@ Flags:
 Use "pgglaskugel [command] --help" for more information about a command.
 ```
 
+# Encryption
+
+Backups and WAL files can be encrypted when using S3.
+If a public storage is used encryption might be necessary.
+For encryption the widely used tool GnuPG will be utilized.
+
+```
+# generate keys
+gpg --gen-key
+
+
+```
+
 # Binary
 Binaries are created by circleci for EVERY commit, expect them to be broken!
 * Binary only [pgglaskugel](https://circleci.com/api/v1/project/xxorde/pgglaskugel/latest/artifacts/0/$CIRCLE_ARTIFACTS/pgglaskugel?circle-token=cb916b323f139fb7097f26dfca10267b1c9701a4)

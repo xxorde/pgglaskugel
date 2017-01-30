@@ -22,27 +22,28 @@ package cmd
 
 import (
 	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"time"
-
-	"github.com/xxorde/pgglaskugel/pkg"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	util "github.com/xxorde/pgglaskugel/util"
 )
 
-// recoverCmd represents the recover command
-var recoverCmd = &cobra.Command{
-	Use:   "recover <WAL_FILE> <RECOVER_TO>",
-	Short: "Recovers a given WAL file",
-	Long: `This command recovers a given WAL file.
-	Example: archive_command = "` + myName + ` recover %f %p"
+// fetchCmd represents the recover command
+var fetchCmd = &cobra.Command{
+	Use:   "fetch <WAL_FILE> <FETCH_TO>",
+	Short: "Fetches a given WAL file",
+	Long: `This command fetches a given WAL file.
+	Example: archive_command = "` + myName + ` fetch %f %p"
 	
 It is intended to use as an restore_command in the recovery.conf.
-	Example: restore_command = '` + myName + ` recover %f %p'`,
+	Example: restore_command = '` + myName + ` fetch %f %p'`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) < 2 {
 			log.Fatal("Not enough arguments")
@@ -51,39 +52,38 @@ It is intended to use as an restore_command in the recovery.conf.
 		walName := args[0]
 		walTarget := args[1]
 
-		err := recoverWal(walTarget, walName)
+		err := fetchWal(walTarget, walName)
 		if err != nil {
-			log.Fatal("recover failed ", err)
+			log.Fatal("fetch failed ", err)
 		}
 		elapsed := time.Since(startTime)
-		log.Info("Recovered WAL file in ", elapsed)
+		log.Info("Fetched WAL file in ", elapsed)
 	},
 }
 
 func init() {
-	RootCmd.AddCommand(recoverCmd)
+	RootCmd.AddCommand(fetchCmd)
 }
 
-// recoverWal recovers a WAL file with the configured method
-func recoverWal(walTarget string, walName string) (err error) {
+// fetchWal recovers a WAL file with the configured method
+func fetchWal(walTarget string, walName string) (err error) {
 	archiveTo := viper.GetString("archive_to")
 
 	switch archiveTo {
 	case "file":
-		return recoverFromFile(walTarget, walName)
+		return fetchFromFile(walTarget, walName)
 	case "s3":
-		return recoverFromS3(walTarget, walName)
+		return fetchFromS3(walTarget, walName)
 	default:
 		log.Fatal(archiveTo, " no valid value for archiveTo")
 	}
 	return errors.New("This should never be reached")
 }
 
-// recoverFromFile uses the shell command lz4 to recover WAL files
-func recoverFromFile(walTarget string, walName string) (err error) {
-	log.Debug("recoverFromFile walTarget: ", walTarget, " walName: ", walName)
+// fetchFromFile uses the shell command lz4 to recover WAL files
+func fetchFromFile(walTarget string, walName string) (err error) {
 	walSource := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
-	log.Debug("recoverWithZstdCommand, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
+	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 
 	// Check if WAL file is already recovered
 	if _, err := os.Stat(walTarget); err == nil {
@@ -91,17 +91,17 @@ func recoverFromFile(walTarget string, walName string) (err error) {
 		return err
 	}
 
-	recoverCmd := exec.Command(cmdZstd, "-d", walSource, "-o", walTarget)
-	err = recoverCmd.Run()
+	fetchCmd := exec.Command(cmdZstd, "-d", walSource, "-o", walTarget)
+	err = fetchCmd.Run()
 	return err
 }
 
-// recoverFromS3 recover from a S3 compatible object store
-func recoverFromS3(walTarget string, walName string) (err error) {
-	log.Debug("recoverFromS3 walTarget: ", walTarget, " walName: ", walName)
-
+// fetchFromS3 recover from a S3 compatible object store
+func fetchFromS3(walTarget string, walName string) (err error) {
+	log.Debug("fetchFromS3 walTarget: ", walTarget, " walName: ", walName)
 	bucket := viper.GetString("s3_bucket_wal")
 	walSource := walName + ".zst"
+	encrypt := viper.GetBool("encrypt")
 
 	// Initialize minio client object.
 	minioClient := getS3Connection()
@@ -113,7 +113,7 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 		log.Fatal(err)
 	}
 	if !exists {
-		log.Fatal("Bucket to recover from does not exists")
+		log.Fatal("Bucket to fetch from does not exists")
 	}
 
 	walObject, err := minioClient.GetObject(bucket, walSource)
@@ -133,16 +133,48 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 		log.Fatal("WAL object has size <= 0")
 	}
 
+	var gpgStout io.ReadCloser
+	if encrypt || stat.ContentType == "pgp" {
+		log.Debug("content type: ", stat.ContentType)
+		// We need to decrypt the wal file
+
+		// Dencrypt the compressed data
+		gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-")
+		// Set the decryption output as input for inflation
+		gpgStout, err = gpgCmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("Can not attach pipe to gpg process, ", err)
+		}
+		// Attach output of WAL to stdin
+		gpgCmd.Stdin = walObject
+		// Watch output on stderror
+		gpgStderror, err := gpgCmd.StderrPipe()
+		ec.Check(err)
+		go util.WatchOutput(gpgStderror, log.Info)
+
+		// Start decryption
+		if err := gpgCmd.Start(); err != nil {
+			log.Fatal("gpg failed on startup, ", err)
+		}
+		log.Debug("gpg started")
+	}
+
 	// command to inflate the data stream
 	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
 
 	// Watch output on stderror
 	inflateStderror, err := inflateCmd.StderrPipe()
-	check(err)
-	go pkg.WatchOutput(inflateStderror, log.Info)
+	ec.Check(err)
+	go util.WatchOutput(inflateStderror, log.Info)
 
-	// Assign walObject as Stdin for the inflate command
-	inflateCmd.Stdin = walObject
+	// Assign inflationInput as Stdin for the inflate command
+	if gpgStout != nil {
+		// If gpgStout is defined use it as input
+		inflateCmd.Stdin = gpgStout
+	} else {
+		// If gpgStout is not defined use raw WAL
+		inflateCmd.Stdin = walObject
+	}
 
 	// Start WAL inflation
 	if err := inflateCmd.Start(); err != nil {
@@ -152,8 +184,6 @@ func recoverFromS3(walTarget string, walName string) (err error) {
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
-	if err != nil {
-		log.Fatal("inflation failed after startup, ", err)
-	}
+	ec.CheckCustom(err, "inflation failed after startup, ")
 	return err
 }

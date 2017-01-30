@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
-
+	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	// This is needed but never directly called
 	_ "github.com/lib/pq"
 )
@@ -68,7 +68,7 @@ var (
 
 			// Check if needed tools are available
 			err := testTools(setupTools)
-			check(err)
+			ec.Check(err)
 
 			// When no archive command set, set it
 			if viper.GetString("archive_command") == "" {
@@ -108,11 +108,11 @@ var (
 
 			// Get and check version via SQL
 			pgVersion, err := checkPgVersion(db)
-			check(err)
+			ec.Check(err)
 
 			// Get version of the data
 			pgDataVersion, err := getMajorVersionFromPgData(pgData)
-			check(err)
+			ec.Check(err)
 
 			log.WithFields(log.Fields{
 				"pgData":           pgData,
@@ -131,12 +131,12 @@ var (
 
 			// Create directories for backups, WAL and configuration
 			err = createDirs(archiveDir, subDirs)
-			check(err)
+			ec.Check(err)
 
 			// Configure PostgreSQL for archiving
 			log.Info("Configure PostgreSQL for archiving.")
 			changed, _ := configurePostgreSQL(db, pgSettings)
-			check(err)
+			ec.Check(err)
 			// If more than 0 setings have been changed we reload the configuration
 			if changed > 0 {
 				log.Info("Going to reload the configuration.")
@@ -144,7 +144,7 @@ var (
 
 				// Configure PostgreSQL again to see if all settings are good now!
 				changed, _ = configurePostgreSQL(db, pgSettings)
-				check(err)
+				ec.Check(err)
 			}
 
 			if changed > 0 {
@@ -184,7 +184,7 @@ func init() {
 // it then shows the user the need to restart PostgreSQL
 func pgRestartDB(pgData string) (err error) {
 	postmasterPID, err := getPostmasterPID(pgData)
-	check(err)
+	ec.Check(err)
 	log.Warn("Please restart PostgreSQL wth PID ", postmasterPID)
 	return err
 }
@@ -219,12 +219,12 @@ func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, e
 	for setting := range settings {
 		settingShould := settings[setting]
 		settingIs, err := getPgSetting(db, setting)
-		check(err)
+		ec.Check(err)
 		log.Debug(setting, " should be: ", settingShould, " it is: ", settingIs)
 
 		if settingIs != settingShould {
 			err := setPgSetting(db, setting, settingShould)
-			check(err)
+			ec.Check(err)
 			changed++
 		}
 	}
