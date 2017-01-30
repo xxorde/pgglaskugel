@@ -54,7 +54,8 @@ var (
 			backupTime := startTime.Format(util.BackupTimeFormat)
 			backupName := "bb@" + backupTime + ".zst"
 			conString := viper.GetString("connection")
-
+			encrypt := viper.GetBool("encrypt")
+			recipient := viper.GetString("recipient")
 			log.Debug("conString: ", conString)
 
 			// Command to use pg_basebackup
@@ -106,10 +107,42 @@ var (
 			}
 			log.Info("Compression started")
 
+			// Stream which is send to storage backend
+			var backupStream io.ReadCloser
+
+			// Handle encryption
+			var gpgCmd *exec.Cmd
+			if encrypt {
+				log.Debug("Encrypt data, encrypt: ", encrypt)
+				// Encrypt the compressed data
+				gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
+				// Set the encryption output as input for S3
+				var err error
+				backupStream, err = gpgCmd.StdoutPipe()
+				if err != nil {
+					log.Fatal("Can not attach pipe to gpg process, ", err)
+				}
+				// Attach output of WAL to stdin
+				gpgCmd.Stdin = compressStdout
+				// Watch output on stderror
+				gpgStderror, err := gpgCmd.StderrPipe()
+				ec.Check(err)
+				go util.WatchOutput(gpgStderror, log.Warn)
+
+				// Start encryption
+				if err := gpgCmd.Start(); err != nil {
+					log.Fatal("gpg failed on startup, ", err)
+				}
+				log.Debug("gpg started")
+			} else {
+				// Do not use encryption
+				backupStream = compressStdout
+			}
+
 			// Start worker
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
-			go handleBackupStream(compressStdout, backupName, &wg)
+			go handleBackupStream(backupStream, backupName, &wg)
 
 			// Wait for workers to finish
 			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
@@ -130,6 +163,15 @@ var (
 				log.Fatal("compression failed after startup, ", err)
 			}
 			log.Debug("compressCmd done")
+
+			// If encryption is used wait for it to finish
+			if encrypt {
+				err = gpgCmd.Wait()
+				if err != nil {
+					log.Fatal("gpg failed after startup, ", err)
+				}
+				log.Debug("Encryption done")
+			}
 			printDone()
 		},
 	}
@@ -176,38 +218,13 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 	bucket := viper.GetString("s3_bucket_backup")
 	location := viper.GetString("s3_location")
 	encrypt := viper.GetBool("encrypt")
-	recipient := viper.GetString("recipient")
 	contentType := "pgBasebackup"
 
 	var s3Input io.ReadCloser
 
-	// Variables need for encryption
-	var gpgCmd *exec.Cmd
+	// Set contentType for encryption
 	if encrypt {
-		log.Debug("Encrypt data, encrypt: ", encrypt)
-		// Encrypt the compressed data
-		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
-		// Set the encryption output as input for S3
-		var err error
-		s3Input, err = gpgCmd.StdoutPipe()
-		if err != nil {
-			log.Fatal("Can not attach pipe to gpg process, ", err)
-		}
-		// Attach output of WAL to stdin
-		gpgCmd.Stdin = input
-		// Watch output on stderror
-		gpgStderror, err := gpgCmd.StderrPipe()
-		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Warn)
-
-		// Start encryption
-		if err := gpgCmd.Start(); err != nil {
-			log.Fatal("gpg failed on startup, ", err)
-		}
-		log.Debug("gpg started")
 		contentType = "pgp"
-	} else {
-		s3Input = input
 	}
 
 	// Initialize minio client object.
@@ -234,15 +251,6 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		return
 	}
 	log.Infof("Written %d bytes to %s in bucket %s.", n, backupName, bucket)
-
-	if encrypt {
-		err = gpgCmd.Wait()
-		if err != nil {
-			log.Fatal("gpg failed after startup, ", err)
-		} else {
-			log.Debug("Encryption done")
-		}
-	}
 }
 
 func init() {
