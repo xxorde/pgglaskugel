@@ -30,8 +30,10 @@ import (
 	"github.com/siddontang/go/log"
 )
 
-func AnswerConfirmation() (confirmed bool, err error) {
+func AnswerConfirmation(msg string) (confirmed bool, err error) {
 	var input string
+	log.Warn(msg)
+
 	_, err = fmt.Scanln(&input)
 	if err != nil {
 		return false, err
@@ -56,11 +58,11 @@ func AnswerConfirmation() (confirmed bool, err error) {
 	return false, doesNotParse
 }
 
-func MustAnswerConfirmation() (confirmed bool) {
-	if confirmed, err := AnswerConfirmation(); err == nil {
+func MustAnswerConfirmation(msg string) (confirmed bool) {
+	if confirmed, err := AnswerConfirmation(msg); err == nil {
 		return confirmed
 	}
-	return MustAnswerConfirmation()
+	return MustAnswerConfirmation(msg)
 }
 
 func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {

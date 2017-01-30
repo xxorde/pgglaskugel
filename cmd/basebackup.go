@@ -220,8 +220,6 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 	encrypt := viper.GetBool("encrypt")
 	contentType := "pgBasebackup"
 
-	var s3Input io.ReadCloser
-
 	// Set contentType for encryption
 	if encrypt {
 		contentType = "pgp"
@@ -241,12 +239,14 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		// Try to create bucket
 		err = minioClient.MakeBucket(bucket, location)
 		if err != nil {
+			log.Debug("minioClient.MakeBucket(bucket, location) failed")
 			log.Fatal(err)
 		}
 		log.Infof("Bucket %s created.", bucket)
 	}
-	n, err := minioClient.PutObject(bucket, backupName, s3Input, contentType)
+	n, err := minioClient.PutObject(bucket, backupName, input, contentType)
 	if err != nil {
+		log.Debug("minioClient.PutObject(bucket, backupName, s3Input, contentType) failed")
 		log.Fatal(err)
 		return
 	}

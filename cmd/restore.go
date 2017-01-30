@@ -21,9 +21,11 @@
 package cmd
 
 import (
-	"errors"
+	"io"
 	"io/ioutil"
 	"os/exec"
+	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -36,113 +38,102 @@ import (
 )
 
 // restoreCmd represents the restore command
-var restoreCmd = &cobra.Command{
-	Use:   "restore [BACKUPNAME] [DESTINATION]",
-	Short: "Restore an existing backup to a given location",
-	Long:  `Restore a given backup to a given location.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		log.Debug("restore called")
-		checkNeededParameter("restore-to")
-		backupName := viper.GetString("backup")
-		backupDestination := viper.GetString("restore-to")
-		writeRecoveryConf := viper.GetBool("write-recovery-conf")
-		force := viper.GetBool("force-restore")
+var (
+	restoreCmd = &cobra.Command{
+		Use:   "restore [BACKUPNAME] [DESTINATION]",
+		Short: "Restore an existing backup to a given location",
+		Long:  `Restore a given backup to a given location.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			log.Debug("restore called")
+			backupName := viper.GetString("backup")
+			backupDestination := viper.GetString("restore-to")
+			writeRecoveryConf := viper.GetBool("write-recovery-conf")
+			force := viper.GetBool("force-restore")
 
-		// Set backupName if given directly
-		if len(args) >= 1 {
-			backupName = args[0]
-		}
+			// Set backupName if given directly
+			if len(args) >= 1 {
+				backupName = args[0]
+			}
 
-		// Set backupDestination if given directly
-		if len(args) >= 2 {
-			backupDestination = args[1]
-		}
+			// Set backupDestination if given directly
+			if len(args) >= 2 {
+				backupDestination = args[1]
+			}
 
-		// Too many arguments
-		if len(args) > 2 {
-			log.Fatal("Too many arguments: ", args)
-		}
+			// Too many arguments
+			if len(args) > 2 {
+				log.Fatal("Too many arguments: ", args)
+			}
 
-		if backupName == "" {
-			log.Fatal("Backupname not set")
-		}
+			if backupName == "" {
+				log.Fatal("Backupname not set")
+			}
 
-		// If target directory does not exists ...
-		if exists, err := util.Exists(backupDestination); !exists || err != nil {
-			// ... create it
-			err := os.MkdirAll(backupDestination, 0700)
+			// If target directory does not exists ...
+			if exists, err := util.Exists(backupDestination); !exists || err != nil {
+				log.Info(backupDestination, " does not exists, create it")
+				err := os.MkdirAll(backupDestination, 0700)
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+
+			// If backup folder is not empty ask what to do (and force is not set)
+			if empty, err := util.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
+				force, err := util.AnswerConfirmation("Destination directory is not empty, continue anyway?")
+				if err != nil {
+					log.Error(err)
+				}
+				if force != true {
+					log.Fatal(backupDestination + " is not an empty directory, you need to use force")
+				}
+			}
+
+			log.Info("Going to restore backup '", backupName, "' to: ", backupDestination)
+			err := restoreBasebackup(backupDestination, backupName)
 			if err != nil {
 				log.Fatal(err)
 			}
-		}
 
-		// If backup folder is not empty ask what to do (and force is not set)
-		if empty, err := util.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
-			force, err := util.AnswerConfirmation()
-			if err != nil {
-				log.Error(err)
-			}
+			if writeRecoveryConf {
+				// When no restore_command command set, set it
+				if viper.GetString("restore_command") == "" {
+					// Include config file in potential restore_command command
+					configOption := ""
+					if viper.ConfigFileUsed() != "" {
+						configOption = " --config " + viper.ConfigFileUsed()
+					}
 
-			if force != true {
-				log.Fatal(backupDestination + " is not an empty directory, you need to use force")
-			}
-		}
-
-		log.Info("Going to restore backup '", backupName, "' to: ", backupDestination)
-		err := restoreBasebackup(backupDestination, backupName)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		if writeRecoveryConf {
-			// When no restore_command command set, set it
-			if viper.GetString("restore_command") == "" {
-				// Include config file in potential restore_command command
-				configOption := ""
-				if viper.ConfigFileUsed() != "" {
-					configOption = " --config " + viper.ConfigFileUsed()
+					// Preset restore_command
+					viper.Set("restore_command", myExecutable+configOption+" fetch %f %p")
 				}
+				restoreCommand := viper.GetString("restore_command")
+				recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"
 
-				// Preset restore_command
-				viper.Set("restore_command", myExecutable+configOption+" fetch %f %p")
+				log.Info("Going to write recovery.conf to: ", backupDestination)
+				err = ioutil.WriteFile(backupDestination+"/recovery.conf", []byte(recoveryConf), 0600)
+				if err != nil {
+					panic(err)
+				}
 			}
-			restoreCommand := viper.GetString("restore_command")
-			recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"
 
-			log.Info("Going to write recovery.conf to: ", backupDestination)
-			err = ioutil.WriteFile(backupDestination+"/recovery.conf", []byte(recoveryConf), 0600)
-			if err != nil {
-				panic(err)
-			}
-		}
-
-		printDone()
-	},
-}
+			printDone()
+		},
+	}
+)
 
 func restoreBasebackup(backupDestination string, backupName string) (err error) {
 	backups := getMyBackups()
-
 	backup, err := backups.Find(backupName)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	storageType := backup.StorageType()
+	// Command to inflate the data stream
+	// Read from stdin and write do stdout
+	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", "-")
 
-	switch storageType {
-	case "file":
-		return restoreFromFile(backupDestination, backup)
-	case "s3":
-		return restoreFromS3(backupDestination, backup)
-	default:
-		log.Fatal(storageType, " no valid value for backup_to")
-	}
-	return errors.New("This should never be reached")
-}
-
-func restoreFromFile(backupDestination string, backup *util.Backup) (err error) {
-	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", backup.Path)
+	// Command to untar the uncompressed data stream
 	untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
 
 	// Attach pipe to the inflation command
@@ -161,8 +152,15 @@ func restoreFromFile(backupDestination string, backup *util.Backup) (err error) 
 	ec.Check(err)
 	go util.WatchOutput(untarStderror, log.Info)
 
-	// Pipe the backup in the inflation
+	// Pipe the the inflated backup in untar
 	untarCmd.Stdin = inflateStdout
+
+	// WaitGroup for workers
+	var wgRestore sync.WaitGroup
+
+	// Assign backup stream from getBasebackup as Stdin for the inflate command
+	go getBasebackup(backup, &inflateCmd.Stdin, &wgRestore)
+	time.Sleep(1 * time.Second)
 
 	// Start untar
 	if err := untarCmd.Start(); err != nil {
@@ -170,11 +168,11 @@ func restoreFromFile(backupDestination string, backup *util.Backup) (err error) 
 	}
 	log.Info("Untar started")
 
-	// Start inflate
+	// Start WAL inflation
 	if err := inflateCmd.Start(); err != nil {
-		log.Fatal("inflateCmd failed on startup, ", err)
+		log.Fatal("zstd failed on startup, ", err)
 	}
-	log.Info("Inflation started")
+	log.Debug("Inflation started")
 
 	// WAIT! If there is still data in the output pipe it can be lost!
 	// Wait for backup to finish
@@ -189,11 +187,45 @@ func restoreFromFile(backupDestination string, backup *util.Backup) (err error) 
 	if err != nil {
 		log.Fatal("inflateCmd failed after startup, ", err)
 	}
-	log.Debug("inflateCmd done")
+
+	// Tell the backup source that the chain is finished
+	wgRestore.Done()
 	return err
 }
 
-func restoreFromS3(backupDestination string, backup *util.Backup) (err error) {
+func getBasebackup(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.WaitGroup) {
+	// Add one worker to wait for
+	wgRestore.Add(1)
+
+	storageType := backup.StorageType()
+	switch storageType {
+	case "file":
+		getFromFile(backup, backupStream, wgRestore)
+	case "s3":
+		getFromS3(backup, backupStream, wgRestore)
+	default:
+		log.Fatal(storageType, " no valid value for backup_to")
+	}
+}
+
+func getFromFile(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.WaitGroup) {
+	log.Debug("getFromFile")
+	file, err := os.Open(backup.Path)
+	ec.Check(err)
+	defer file.Close()
+
+	// Set file as backupStream
+	*backupStream = file
+
+	// Wait for the rest of the chain to finish
+	log.Debug("Wait for the rest of the chain to finish")
+	wgRestore.Wait()
+	log.Debug("getFromFile done")
+
+}
+
+func getFromS3(backup *util.Backup, backupStream *io.Reader, wgRestore *sync.WaitGroup) {
+	log.Debug("getFromS3")
 	bucket := viper.GetString("s3_bucket_backup")
 
 	// Initialize minio client object.
@@ -225,61 +257,13 @@ func restoreFromS3(backupDestination string, backup *util.Backup) (err error) {
 		log.Fatal("Backup object has size <= 0")
 	}
 
-	// Command to inflate the data stream
-	// Read from stdin and write do stdout
-	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout", "-")
+	// Assign backupObject as input to the restore stack
+	*backupStream = backupObject
 
-	// Command to untar the uncompressed data stream
-	untarCmd := exec.Command("tar", "--extract", "--directory", backupDestination)
-
-	// Attach pipe to the inflation command
-	inflateStdout, err := inflateCmd.StdoutPipe()
-	if err != nil {
-		log.Fatal("Can not attach pipe to backup process, ", err)
-	}
-
-	// Watch stderror of inflation
-	inflateStderror, err := inflateCmd.StderrPipe()
-	ec.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info)
-
-	// Watch stderror of untar
-	untarStderror, err := untarCmd.StderrPipe()
-	ec.Check(err)
-	go util.WatchOutput(untarStderror, log.Info)
-
-	// Assign backupObject as Stdin for the inflate command
-	inflateCmd.Stdin = backupObject
-
-	// Pipe the the inflated backup in untar
-	untarCmd.Stdin = inflateStdout
-
-	// Start untar
-	if err := untarCmd.Start(); err != nil {
-		log.Fatal("untarCmd failed on startup, ", err)
-	}
-	log.Info("Untar started")
-
-	// Start WAL inflation
-	if err := inflateCmd.Start(); err != nil {
-		log.Fatal("zstd failed on startup, ", err)
-	}
-	log.Debug("Inflation started")
-
-	// WAIT! If there is still data in the output pipe it can be lost!
-	// Wait for backup to finish
-	err = untarCmd.Wait()
-	if err != nil {
-		log.Fatal("untarCmd failed after startup, ", err)
-	}
-	log.Debug("untarCmd done")
-
-	// Wait for compression to finish
-	err = inflateCmd.Wait()
-	if err != nil {
-		log.Fatal("inflateCmd failed after startup, ", err)
-	}
-	return err
+	// Wait for the rest of the chain to finish
+	log.Debug("Wait for the rest of the chain to finish")
+	wgRestore.Wait()
+	log.Debug("getFromS3 done")
 }
 
 func init() {

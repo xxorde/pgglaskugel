@@ -71,9 +71,8 @@ var cleanupCmd = &cobra.Command{
 		confirmDelete := viper.GetBool("force-retain")
 
 		if confirmDelete != true {
-			log.Info("If you want to continue please type \"yes\" (Ctl-C to end): ")
 			var err error
-			confirmDelete, err = util.AnswerConfirmation()
+			confirmDelete, err = util.AnswerConfirmation("If you want to continue please type \"yes\" (Ctl-C to end):")
 			ec.CheckError(err)
 		}
 
