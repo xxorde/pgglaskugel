@@ -150,7 +150,7 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Warn)
+		go util.WatchOutput(gpgStderror, log.Info)
 
 		// Start decryption
 		if err := gpgCmd.Start(); err != nil {

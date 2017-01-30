@@ -127,6 +127,8 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	if err != nil {
 		log.Fatal(err)
 	}
+	encrypt := viper.GetBool("encrypt")
+	var dataStream *io.Reader // Stream for the raw backup data
 
 	// Command to inflate the data stream
 	// Read from stdin and write do stdout
@@ -154,6 +156,30 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Pipe the the inflated backup in untar
 	untarCmd.Stdin = inflateStdout
 
+	// If encryption is used pipe data through decryption before inflation
+	// Command to dencrypt the compressed data
+	gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-")
+	// TODO: Test if backup is encrypted
+	if encrypt {
+		log.Debug("Backup will be decrypted")
+
+		// Set the decryption output as input for inflation
+		inflateCmd.Stdin, err = gpgCmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("Can not attach pipe to gpg process, ", err)
+		}
+		// Attach output of backup to stdin
+		dataStream = &gpgCmd.Stdin
+		// Watch output on stderror
+		gpgStderror, err := gpgCmd.StderrPipe()
+		ec.Check(err)
+		go util.WatchOutput(gpgStderror, log.Info)
+	} else {
+		log.Debug("Backup will not be encrypted")
+		// Encryption is not used, inflate data stream
+		dataStream = &inflateCmd.Stdin
+	}
+
 	// WaitGroups for workers
 	var wgRestoreStart sync.WaitGroup // Waiting group to wait for start
 	var wgRestoreDone sync.WaitGroup  // Waiting group to wait for end
@@ -162,7 +188,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	wgRestoreStart.Add(1)
 
 	// Start getBasebackup in new go-routine
-	go getBasebackup(backup, &inflateCmd.Stdin, &wgRestoreStart, &wgRestoreDone)
+	go getBasebackup(backup, dataStream, &wgRestoreStart, &wgRestoreDone)
 
 	// Wait for getBasebackup to start
 	wgRestoreStart.Wait()
@@ -178,6 +204,14 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		log.Fatal("zstd failed on startup, ", err)
 	}
 	log.Debug("Inflation started")
+
+	if encrypt {
+		log.Debug("Start decryption go-routine")
+		if err := gpgCmd.Start(); err != nil {
+			log.Fatal("gpg failed on startup, ", err)
+		}
+		log.Debug("gpg started")
+	}
 
 	// WAIT! If there is still data in the output pipe it can be lost!
 	// Wait for backup to finish
@@ -222,11 +256,11 @@ func getFromFile(backup *util.Backup, backupStream *io.Reader, wgStart *sync.Wai
 	// Set file as backupStream
 	*backupStream = file
 
-	// Tell the chain that data is read
+	// Tell the chain that backupStream can access data now
 	wgStart.Done()
 
 	// Wait for the rest of the chain to finish
-	log.Debug("Wait for the rest of the chain to finish")
+	log.Debug("getFromFile waits for the rest of the chain to finish")
 	wgDone.Wait()
 	log.Debug("getFromFile done")
 
@@ -268,11 +302,11 @@ func getFromS3(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitG
 	// Assign backupObject as input to the restore stack
 	*backupStream = backupObject
 
-	// Tell the chain that data is read
+	// Tell the chain that backupStream can access data now
 	wgStart.Done()
 
 	// Wait for the rest of the chain to finish
-	log.Debug("Wait for the rest of the chain to finish")
+	log.Debug("getFromS3 waits for the rest of the chain to finish")
 	wgDone.Wait()
 	log.Debug("getFromS3 done")
 }
