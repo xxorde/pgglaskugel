@@ -53,14 +53,16 @@ var (
 			// Get time, name and path for basebackup
 			backupTime := startTime.Format(util.BackupTimeFormat)
 			backupName := "bb@" + backupTime + ".zst"
-			conString := "'" + viper.GetString("connection") + "'"
+			conString := viper.GetString("connection")
+
+			log.Debug("conString: ", conString)
 
 			// Command to use pg_basebackup
 			// Tar format, set backupName as label, make fast checkpoints, return output on standardout
-			backupCmd := exec.Command("pg_basebackup", "--pgdata", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
+			backupCmd := exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
 			if viper.GetBool("standalone") {
 				// Set command to include WAL files
-				backupCmd = exec.Command("pg_basebackup", "--pgdata", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
+				backupCmd = exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
 			}
 			log.Debug("backupCmd: ", backupCmd)
 
@@ -173,6 +175,40 @@ func writeStreamToFile(input io.ReadCloser, backupName string) {
 func writeStreamToS3(input io.ReadCloser, backupName string) {
 	bucket := viper.GetString("s3_bucket_backup")
 	location := viper.GetString("s3_location")
+	encrypt := viper.GetBool("encrypt")
+	recipient := viper.GetString("recipient")
+	contentType := "pgBasebackup"
+
+	var s3Input io.ReadCloser
+
+	// Variables need for encryption
+	var gpgCmd *exec.Cmd
+	if encrypt {
+		log.Debug("Encrypt data, encrypt: ", encrypt)
+		// Encrypt the compressed data
+		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
+		// Set the encryption output as input for S3
+		var err error
+		s3Input, err = gpgCmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("Can not attach pipe to gpg process, ", err)
+		}
+		// Attach output of WAL to stdin
+		gpgCmd.Stdin = input
+		// Watch output on stderror
+		gpgStderror, err := gpgCmd.StderrPipe()
+		ec.Check(err)
+		go util.WatchOutput(gpgStderror, log.Warn)
+
+		// Start encryption
+		if err := gpgCmd.Start(); err != nil {
+			log.Fatal("gpg failed on startup, ", err)
+		}
+		log.Debug("gpg started")
+		contentType = "pgp"
+	} else {
+		s3Input = input
+	}
 
 	// Initialize minio client object.
 	minioClient := getS3Connection()
@@ -192,13 +228,21 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		}
 		log.Infof("Bucket %s created.", bucket)
 	}
-	n, err := minioClient.PutObject(bucket, backupName, input, "")
+	n, err := minioClient.PutObject(bucket, backupName, s3Input, contentType)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
-
 	log.Infof("Written %d bytes to %s in bucket %s.", n, backupName, bucket)
+
+	if encrypt {
+		err = gpgCmd.Wait()
+		if err != nil {
+			log.Fatal("gpg failed after startup, ", err)
+		} else {
+			log.Debug("Encryption done")
+		}
+	}
 }
 
 func init() {
