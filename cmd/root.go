@@ -100,14 +100,7 @@ var (
 	maxPID = 32768
 
 	// Default number of parallel jobs
-	defaultJobs = int((runtime.NumCPU() + 2) / 3)
-	//  1 core =>  1 jobs
-	//  2 core =>  1 jobs
-	//  3 core =>  1 jobs
-	//  4 core =>  2 jobs
-	//  8 core =>  3 jobs
-	// 16 core =>  6 jobs
-	// 32 core => 11 jobs
+	defaultJobs = runtime.NumCPU()
 
 	// Store time of programm start
 	startTime time.Time

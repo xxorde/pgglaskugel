@@ -79,7 +79,7 @@ var (
 			go util.WatchOutput(backupStderror, log.Info)
 
 			// This command is used to take the backup and compress it
-			compressCmd := exec.Command("zstd")
+			compressCmd := exec.Command(cmdZstd)
 
 			// attach pipe to the command
 			compressStdout, err := compressCmd.StdoutPipe()
@@ -101,14 +101,14 @@ var (
 			}
 			log.Info("Backup was started")
 
-			// Start backup and compression
+			// Start compression
 			if err := compressCmd.Start(); err != nil {
 				log.Fatal("zstd failed on startup, ", err)
 			}
 			log.Info("Compression started")
 
 			// Stream which is send to storage backend
-			var backupStream io.ReadCloser
+			var backupStream io.Reader
 
 			// Handle encryption
 			var gpgCmd *exec.Cmd
@@ -142,7 +142,7 @@ var (
 			// Start worker
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
-			go handleBackupStream(backupStream, backupName, &wg)
+			go handleBackupStream(&backupStream, backupName, &wg)
 
 			// Wait for workers to finish
 			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
@@ -178,7 +178,7 @@ var (
 )
 
 // handleBackupStream takes a stream and persists it with the configured method
-func handleBackupStream(input io.ReadCloser, filename string, wg *sync.WaitGroup) {
+func handleBackupStream(input *io.Reader, filename string, wg *sync.WaitGroup) {
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
@@ -194,7 +194,7 @@ func handleBackupStream(input io.ReadCloser, filename string, wg *sync.WaitGroup
 }
 
 // writeStreamToFile handles a stream and writes it to a local file
-func writeStreamToFile(input io.ReadCloser, backupName string) {
+func writeStreamToFile(input *io.Reader, backupName string) {
 	backupPath := viper.GetString("archivedir") + "/basebackup/" + backupName
 
 	file, err := os.OpenFile(backupPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
@@ -204,7 +204,7 @@ func writeStreamToFile(input io.ReadCloser, backupName string) {
 	defer file.Close()
 
 	log.Debug("Start writing to file")
-	written, err := io.Copy(file, input)
+	written, err := io.Copy(file, *input)
 	if err != nil {
 		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", backupPath, written, err)
 	}
@@ -214,7 +214,7 @@ func writeStreamToFile(input io.ReadCloser, backupName string) {
 }
 
 // writeStreamToS3 handles a stream and writes it to S3 storage
-func writeStreamToS3(input io.ReadCloser, backupName string) {
+func writeStreamToS3(input *io.Reader, backupName string) {
 	bucket := viper.GetString("s3_bucket_backup")
 	location := viper.GetString("s3_location")
 	encrypt := viper.GetBool("encrypt")
@@ -244,9 +244,12 @@ func writeStreamToS3(input io.ReadCloser, backupName string) {
 		}
 		log.Infof("Bucket %s created.", bucket)
 	}
-	n, err := minioClient.PutObject(bucket, backupName, input, contentType)
+
+	log.Debug("Put backup into bucket")
+	go util.WatchOutput(*input, log.Warn)
+	n, err := minioClient.PutObject(bucket, backupName, *input, contentType)
 	if err != nil {
-		log.Debug("minioClient.PutObject(bucket, backupName, s3Input, contentType) failed")
+		log.Debug("minioClient.PutObject(", bucket, ", ", backupName, ", *input,", contentType, ") failed")
 		log.Fatal(err)
 		return
 	}

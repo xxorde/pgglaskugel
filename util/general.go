@@ -72,7 +72,7 @@ func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {
 		outputFunc(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
-		outputFunc("reading standard input:", err)
+		outputFunc("error reading input:", err)
 	}
 	log.Debug("watchOutput end")
 }

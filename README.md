@@ -95,8 +95,8 @@ Available Commands:
   archive     Archives given WAL file(s)
   basebackup  Creates a new basebackup from the database
   cleanup     Deletes backups and WAL files enforcing an retention policy
+  fetch       Fetches a given WAL file
   ls          Shows existing backups
-  recover     Recovers a given WAL file
   restore     Restore an existing backup to a given location
   setup       Setup PostgreSQL and needed directories.
   tutor       A small tutorial to demonstrate the usage
@@ -109,10 +109,12 @@ Flags:
       --config string             Config file
       --connection string         Connection string to connect to the database (default "host=/var/run/postgresql user=postgres dbname=postgres")
       --debug                     Enable debug mode, to increase verbosity
+      --encrypt                   Enable encryption for S3 storage
   -j, --jobs int                  The number of jobs to run parallel, default depends on cores  (default 2)
       --json                      Generate output as JSON
   -D, --pgdata string             Base directory of your PostgreSQL instance aka. pg_data (default "$PGDATA")
       --pgdata-auto               Try to find pgdata if not set correctly (via SQL) (default true)
+      --recipient string          The recipient for PGP encryption (key identifier) (default "pgglaskugel")
       --s3_access_key string      access_key (default "TUMO1VCSJF7R2LC39A24")
       --s3_bucket_backup string   Bucket name for base backups (default "pgglaskugel-basebackup")
       --s3_bucket_wal string      Bucket name for WAL files (default "pgglaskugel-wal")
@@ -125,17 +127,12 @@ Flags:
 Use "pgglaskugel [command] --help" for more information about a command.
 ```
 
+
 # Encryption
-
-Backups and WAL files can be encrypted when using S3.
-If a public storage is used encryption might be necessary.
-For encryption the widely used tool GnuPG will be utilized.
-
+Encryption is delegated to GnuPG
 ```
 # generate keys
 gpg --gen-key
-
-
 ```
 
 # Binary
@@ -160,4 +157,20 @@ Install pgglaskugel.
 ```
 go get -u github.com/xxorde/pgglaskugel
 go install github.com/xxorde/pgglaskugel
+```
+
+## Runtime Dependencies
+* GnuPG
+* PostgreSQL
+* zstandart
+
+Example install for Debian:
+```
+sudo apt install gpg postgresql zstd
+```
+
+Example install for CetnOS7:
+```
+sudo yum -y install epel-release
+sudo yum -y install zstd gpg
 ```
