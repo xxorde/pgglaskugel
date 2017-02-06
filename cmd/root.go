@@ -82,11 +82,11 @@ var (
 	subDirWal        = "/wal/"
 
 	// commands
-	cmdTar        = "/bin/tar"
-	cmdBasebackup = "/usr/bin/pg_basebackup"
-	cmdZstd       = "/usr/bin/zstd"
-	cmdZstdcat    = "/usr/bin/zstdcat"
-	cmdGpg        = "/usr/bin/gpg"
+	cmdTar        = "tar"
+	cmdBasebackup = "pg_basebackup"
+	cmdZstd       = "zstd"
+	cmdZstdcat    = "zstdcat"
+	cmdGpg        = "gpg"
 
 	baseBackupTools = []string{
 		cmdTar,
@@ -95,9 +95,6 @@ var (
 		cmdZstdcat,
 		cmdGpg,
 	}
-
-	// Maximum PID
-	maxPID = 32768
 
 	// Default number of parallel jobs
 	defaultJobs = runtime.NumCPU()
@@ -154,6 +151,11 @@ func init() {
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
 	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
 	RootCmd.PersistentFlags().String("recipient", "pgglaskugel", "The recipient for PGP encryption (key identifier)")
+	RootCmd.PersistentFlags().String("path_to_tar", "/bin/tar", "Path to the tar command")
+	RootCmd.PersistentFlags().String("path_to_basebackup", "/usr/bin/pg_basebackup", "Path to the basebackup command")
+	RootCmd.PersistentFlags().String("path_to_zstd", "/usr/bin/zstd", "Path to the zstd command")
+	RootCmd.PersistentFlags().String("path_to_zstdcat", "/usr/bin/zstdcat", "Path to the zstdcat command")
+	RootCmd.PersistentFlags().String("path_to_gpg", "/usr/bin/gpg", "Path to the gpg command")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -175,6 +177,11 @@ func init() {
 	viper.BindPFlag("s3_ssl", RootCmd.PersistentFlags().Lookup("s3_ssl"))
 	viper.BindPFlag("encrypt", RootCmd.PersistentFlags().Lookup("encrypt"))
 	viper.BindPFlag("recipient", RootCmd.PersistentFlags().Lookup("recipient"))
+	viper.BindPFlag("path_to_tar", RootCmd.PersistentFlags().Lookup("path_to_tar"))
+	viper.BindPFlag("path_to_basebackup", RootCmd.PersistentFlags().Lookup("path_to_basebackup"))
+	viper.BindPFlag("path_to_zstd", RootCmd.PersistentFlags().Lookup("path_to_zstd"))
+	viper.BindPFlag("path_to_zstdcat", RootCmd.PersistentFlags().Lookup("path_to_zstdcat"))
+	viper.BindPFlag("path_to_gpg", RootCmd.PersistentFlags().Lookup("path_to_gpg"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -215,6 +222,21 @@ func initConfig() {
 	archiveDir = viper.GetString("archivedir")
 	log.Debug("archiveDir: ", archiveDir)
 
+	// Set path for the tools
+	cmdTar = viper.GetString("path_to_tar")
+	cmdBasebackup = viper.GetString("path_to_basebackup")
+	cmdZstd = viper.GetString("path_to_zstd")
+	cmdZstdcat = viper.GetString("path_to_zstdcat")
+	cmdGpg = viper.GetString("path_to_gpg")
+
+	baseBackupTools = []string{
+		cmdTar,
+		cmdBasebackup,
+		cmdZstd,
+		cmdZstdcat,
+		cmdGpg,
+	}
+
 	// Check if needed tools are available
 	err := testTools(baseBackupTools)
 	ec.Check(err)
@@ -228,18 +250,31 @@ func printDone() {
 
 // testTools test if all tools in tools are installed by trying to run them
 func testTools(tools []string) (err error) {
+	failCounter := 0
 	for _, tool := range tools {
-		cmd := exec.Command(tool, "--version")
-		var out bytes.Buffer
-		cmd.Stdout = &out
-		err := cmd.Run()
-		if err == nil {
-			log.Debug("Tool ", tool, " seems to be functional")
-			return nil
+		err = testTool(tool)
+		if err != nil {
+			failCounter++
 		}
-		log.Debug("Output of tool: ", tool, " is: ", out.String())
-		log.Warning("It seems that tool: ", tool, " is not working correctly: ", err)
 	}
+	if failCounter > 0 {
+		return errors.New(strconv.Itoa(failCounter) + " tools seem to be not functional")
+	}
+	return nil
+}
+
+func testTool(tool string) (err error) {
+	cmd := exec.Command(tool, "--version")
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	err = cmd.Run()
+	if err == nil {
+		log.Debug("Tool ", tool, " seems to be functional")
+		return nil
+	}
+	log.Debug("Output of tool: ", tool, " is: ", out.String())
+	log.Warning("It seems that tool: ", tool, " is not working correctly: ", err)
+	log.Info("You might want to change the path for that tool in the configuration: ", tool)
 	return err
 }
 
@@ -311,11 +346,6 @@ func getPostmasterPID(pgData string) (postmasterPID int, err error) {
 	if postmasterPID < 1 {
 		log.Error("PID found in ", pidFile, " is to low: ", postmasterPID)
 	}
-
-	if postmasterPID > maxPID {
-		log.Error("PID found in ", pidFile, " is to high: ", postmasterPID)
-	}
-
 	return postmasterPID, err
 }
 

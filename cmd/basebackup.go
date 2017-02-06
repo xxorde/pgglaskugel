@@ -246,7 +246,6 @@ func writeStreamToS3(input *io.Reader, backupName string) {
 	}
 
 	log.Debug("Put backup into bucket")
-	go util.WatchOutput(*input, log.Warn)
 	n, err := minioClient.PutObject(bucket, backupName, *input, contentType)
 	if err != nil {
 		log.Debug("minioClient.PutObject(", bucket, ", ", backupName, ", *input,", contentType, ") failed")
