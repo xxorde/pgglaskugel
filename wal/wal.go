@@ -36,25 +36,31 @@ const (
 	MaxWalSize = int64(16777216)
 
 	// MinArchiveSize minimal size for files to archive
-	// WAL min size would be equal to maxWalSize
-	// but backup labels are archived too.
 	MinArchiveSize = int64(100)
-
-	regFullWal    = `^[0-9A-Za-z]{24}`
-	regWalWithExt = `^([0-9A-Za-z]{24})(.*)`
-	regTimeline   = `^[0-9A-Za-z]{8}`
-	regCounter    = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
+	// Regex to represent the ...
+	regFullWal    = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
+	regWalWithExt = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
+	regTimeline   = `^[0-9A-Za-z]{8}`                    // ... timeline of a given WAL file name
+	regCounter    = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})` // ... segment counter in the given timeline
 )
 
+var (
+	nameFinder      = regexp.MustCompile(regWalWithExt) // *Regexp to extract the name from a WAL file with extension
+	fulWalValidator = regexp.MustCompile(regFullWal)    // *Regexp to identify a WAL file
+	counterFinder   = regexp.MustCompile(regCounter)    // *Regexp to get the segment counter
+
+)
+
+// Wal is a struct to represent a WAL file
 type Wal struct {
-	Name       string
-	Extension  string
-	Size       int64
-	WalArchive *WalArchive
+	Name      string
+	Extension string
+	Size      int64
+	Archive   *Archive
 }
 
+// ImportName imports a WAL file by name (including extension)
 func (w *Wal) ImportName(nameWithExtension string) (err error) {
-	nameFinder := regexp.MustCompile(regWalWithExt)
 	nameRaw := nameFinder.FindStringSubmatch(nameWithExtension)
 
 	if len(nameRaw) < 2 {
@@ -69,20 +75,20 @@ func (w *Wal) ImportName(nameWithExtension string) (err error) {
 	return nil
 }
 
+// Sane returns if the WAL file seems sane
 func (w *Wal) Sane() (sane bool) {
 	return w.SaneName()
 }
 
+// SaneName returns if the WAL file name seems sane
 func (w *Wal) SaneName() (saneName bool) {
-	// Regex to identify the right file
-	fulWalValidator := regexp.MustCompile(regFullWal)
-
 	if fulWalValidator.MatchString(w.Name) {
 		return true
 	}
 	return false
 }
 
+// Timeline returns the timeline of the WAL file
 func (w *Wal) Timeline() (timeline string) {
 	timelineFinder := regexp.MustCompile(regTimeline)
 	timelineRaw := timelineFinder.Find([]byte(w.Name))
@@ -91,8 +97,8 @@ func (w *Wal) Timeline() (timeline string) {
 	return timeline
 }
 
+// Counter returns the counter / postion in the current timeline
 func (w *Wal) Counter() (counter string) {
-	counterFinder := regexp.MustCompile(regCounter)
 	counterRaw := counterFinder.FindStringSubmatch(w.Name)
 
 	// 0 contains full string
@@ -102,6 +108,7 @@ func (w *Wal) Counter() (counter string) {
 	return counter
 }
 
+// OlderThan returns if *Wal is older than newWal
 func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 	if w.Sane() != true {
 		return false, errors.New("WAL not sane: " + w.Name)
@@ -117,18 +124,19 @@ func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 	return false, nil
 }
 
+// Delete delets the WAL file
 func (w *Wal) Delete() (err error) {
-	switch w.WalArchive.StorageType() {
+	switch w.Archive.StorageType() {
 	case "file":
-		err = os.Remove(w.WalArchive.Path + "/" + w.Name + w.Extension)
+		err = os.Remove(w.Archive.Path + "/" + w.Name + w.Extension)
 		if err != nil {
 			log.Warn(err)
 		}
 		return err
 	case "s3":
-		err = w.WalArchive.MinioClient.RemoveObject(w.WalArchive.Bucket, w.Name+w.Extension)
+		err = w.Archive.MinioClient.RemoveObject(w.Archive.Bucket, w.Name+w.Extension)
 	default:
-		return errors.New("Not supported StorageType: " + w.WalArchive.StorageType())
+		return errors.New("Not supported StorageType: " + w.Archive.StorageType())
 	}
 	if err != nil {
 		log.Warn(err)
@@ -136,7 +144,8 @@ func (w *Wal) Delete() (err error) {
 	return err
 }
 
-type WalArchive struct {
+// Archive is a struct to represent an WAL archive
+type Archive struct {
 	walFile     []Wal
 	Path        string
 	Bucket      string
@@ -144,7 +153,7 @@ type WalArchive struct {
 }
 
 // StorageType returns the type of storage the backup is on
-func (w *WalArchive) StorageType() (storageType string) {
+func (w *Archive) StorageType() (storageType string) {
 	if w.Path > "" {
 		return "file"
 	}
@@ -155,13 +164,13 @@ func (w *WalArchive) StorageType() (storageType string) {
 	return ""
 }
 
-func (w *WalArchive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
+func (w *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
 	// WAL files are deleted sequential from file system.
 	// Due to the file system architecture parallel delete
 	// from the filesystem will not bring great benefit.
 	files, _ := ioutil.ReadDir(w.Path)
 	for _, f := range files {
-		wal := Wal{WalArchive: w}
+		wal := Wal{Archive: w}
 		err := wal.ImportName(f.Name())
 		if err != nil {
 			log.Warn(err)
@@ -185,7 +194,7 @@ func (w *WalArchive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err err
 	return count, nil
 }
 
-func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
+func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	// Object storage has the potential to process operations parallel.
 	// Therefor we are going to delete WAL files in parallel.
 
@@ -204,7 +213,7 @@ func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error
 			if object.Err != nil {
 				log.Error(object.Err)
 			}
-			wal := Wal{WalArchive: w}
+			wal := Wal{Archive: w}
 			err := wal.ImportName(object.Key)
 			if err != nil {
 				log.Warn(err)
@@ -232,7 +241,7 @@ func (w *WalArchive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error
 	return int(atomicCounter), nil
 }
 
-func (w *WalArchive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
+func (w *Archive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
 	switch w.StorageType() {
 	case "file":
 		return w.DeleteOldWalFromFile(lastWalToKeep)
