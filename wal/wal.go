@@ -203,7 +203,7 @@ func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
-	atomicCounter := int32(0)
+	atomicCounter := int64(0)
 	var wg sync.WaitGroup
 
 	isRecursive := true
@@ -234,7 +234,7 @@ func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 					return
 				}
 				// Count up
-				atomic.AddInt32(&atomicCounter, 1)
+				atomic.AddInt64(&atomicCounter, 1)
 			}
 		}(object)
 	}
