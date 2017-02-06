@@ -164,6 +164,7 @@ func (w *Archive) StorageType() (storageType string) {
 	return ""
 }
 
+// DeleteOldWalFromFile deletes all WAL files from filesystem that are older than lastWalToKeep
 func (w *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
 	// WAL files are deleted sequential from file system.
 	// Due to the file system architecture parallel delete
@@ -194,6 +195,7 @@ func (w *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error)
 	return count, nil
 }
 
+// DeleteOldWalFromS3 deletes all WAL files from S3 that are older than lastWalToKeep
 func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	// Object storage has the potential to process operations parallel.
 	// Therefor we are going to delete WAL files in parallel.
@@ -241,6 +243,7 @@ func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	return int(atomicCounter), nil
 }
 
+// DeleteOldWal deletes all WAL files that are older than lastWalToKeep
 func (w *Archive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
 	switch w.StorageType() {
 	case "file":
