@@ -40,6 +40,7 @@ import (
 	minio "github.com/minio/minio-go"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	util "github.com/xxorde/pgglaskugel/util"
+	"github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -471,6 +472,23 @@ func getMyBackups() (backups util.Backups) {
 		backups.MinioClient = getS3Connection()
 		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
 		backups.WalBucket = viper.GetString("s3_bucket_wal")
+	}
+	return backups
+}
+
+func GetMyWal() (archive wal.Archive) {
+	// Get WAL files from filesystem
+	walDir := viper.GetString("archivedir") + "/wal"
+	archive.GetWalInDir(walDir)
+
+	if viper.GetString("backup_to") == "s3" {
+		log.Debug("Get backups from S3")
+
+		// Initialize minio client object.
+		archive.MinioClient = getS3Connection()
+		archive.Bucket = viper.GetString("s3_bucket_wal")
+		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
+
 	}
 	return backups
 }

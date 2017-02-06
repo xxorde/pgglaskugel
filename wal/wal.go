@@ -152,16 +152,21 @@ type Archive struct {
 	MinioClient minio.Client
 }
 
-// StorageType returns the type of storage the backup is on
-func (w *Archive) StorageType() (storageType string) {
-	if w.Path > "" {
-		return "file"
+// GetWalInDir adds all WAL files in walDir to the archive
+func (a *Archive) GetWalInDir(walDir string) (loadCounter int, err error) {
+	// WAL files are load sequential from file system.
+	files, _ := ioutil.ReadDir(a.Path)
+	for _, f := range files {
+		wal := Wal{Archive: a}
+		err := wal.ImportName(f.Name())
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
+		a.walFile = append(a.walFile, wal)
+		loadCounter++
 	}
-	if w.Bucket > "" {
-		return "s3"
-	}
-	// Not defined
-	return ""
+	return loadCounter, nil
 }
 
 // DeleteOldWalFromFile deletes all WAL files from filesystem that are older than lastWalToKeep
@@ -253,4 +258,16 @@ func (w *Archive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
 	default:
 		return 0, errors.New("Not supported StorageType: " + w.StorageType())
 	}
+}
+
+// StorageType returns the type of storage the backup is on
+func (w *Archive) StorageType() (storageType string) {
+	if w.Path > "" {
+		return "file"
+	}
+	if w.Bucket > "" {
+		return "s3"
+	}
+	// Not defined
+	return ""
 }
