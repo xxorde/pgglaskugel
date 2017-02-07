@@ -38,6 +38,10 @@ import (
 	minio "github.com/minio/minio-go"
 )
 
+var (
+	extractTimeFromBackup = regexp.MustCompile(`.*@`) // Regexp to remove the name from a backup
+)
+
 // Backups represents an array of "Backup"
 type Backups struct {
 	Backup      []Backup
@@ -125,9 +129,8 @@ func (b *Backups) AddObject(object minio.ObjectInfo, bucket string) (err error) 
 	newBackup.Name = strings.TrimSuffix(object.Key, newBackup.Extension)
 	newBackup.Size = object.Size
 
-	// Remove anything before the '@'
-	reg := regexp.MustCompile(`.*@`)
-	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
+	// Get the time from backup name
+	backupTimeRaw := extractTimeFromBackup.ReplaceAllString(newBackup.Name, "${1}")
 	newBackup.Created, err = time.Parse(BackupTimeFormat, backupTimeRaw)
 	if err != nil {
 		return err

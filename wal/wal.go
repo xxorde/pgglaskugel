@@ -20,14 +20,19 @@
 package wal
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"regexp"
+	"sort"
 	"sync"
 	"sync/atomic"
+	"text/tabwriter"
 
 	log "github.com/Sirupsen/logrus"
+	humanize "github.com/dustin/go-humanize"
 	minio "github.com/minio/minio-go"
 )
 
@@ -75,8 +80,8 @@ func (w *Wal) ImportName(nameWithExtension string) (err error) {
 	return nil
 }
 
-// Sane returns if the WAL file seems sane
-func (w *Wal) Sane() (sane bool) {
+// IsSane returns if the WAL file seems sane
+func (w *Wal) IsSane() (sane bool) {
 	return w.SaneName()
 }
 
@@ -110,11 +115,11 @@ func (w *Wal) Counter() (counter string) {
 
 // OlderThan returns if *Wal is older than newWal
 func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
-	if w.Sane() != true {
+	if w.IsSane() != true {
 		return false, errors.New("WAL not sane: " + w.Name)
 	}
 
-	if newWal.Sane() != true {
+	if newWal.IsSane() != true {
 		return false, errors.New("WAL not sane: " + newWal.Name)
 	}
 
@@ -152,8 +157,31 @@ type Archive struct {
 	MinioClient minio.Client
 }
 
-// GetWalInDir adds all WAL files in walDir to the archive
-func (a *Archive) GetWalInDir(walDir string) (loadCounter int, err error) {
+// GetWals adds all WAL files in known backends
+func (a *Archive) GetWals() (loadCounter int, err error) {
+	loadCounterFile := 0
+	loadCounterS3 := 0
+
+	// Use path to get WAL files if set
+	if a.Path > "" {
+		loadCounterFile, err = a.GetWalsInDir(a.Path)
+	}
+	if err != nil {
+		log.Warn(err)
+	}
+
+	// Use bucket to get WAL files if set
+	if a.Bucket > "" {
+		loadCounterS3, err = a.GetWalsInBucket(a.Bucket)
+	}
+	if err != nil {
+		log.Warn(err)
+	}
+	return loadCounterFile + loadCounterS3, nil
+}
+
+// GetWalsInDir adds all WAL files in walDir to the archive
+func (a *Archive) GetWalsInDir(walDir string) (loadCounter int, err error) {
 	// WAL files are load sequential from file system.
 	files, _ := ioutil.ReadDir(a.Path)
 	for _, f := range files {
@@ -169,14 +197,42 @@ func (a *Archive) GetWalInDir(walDir string) (loadCounter int, err error) {
 	return loadCounter, nil
 }
 
+// GetWalsInBucket includes all WALs in given bucket
+func (a *Archive) GetWalsInBucket(bucket string) (loadCounter int, err error) {
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := a.MinioClient.ListObjects(bucket, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+		log.Debug(object)
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+		newWal := Wal{Archive: a}
+		err := newWal.ImportName(object.Key)
+		if err != nil {
+			log.Warn(err)
+			return loadCounter, err
+		}
+		a.walFile = append(a.walFile, newWal)
+		loadCounter++
+	}
+	return loadCounter, err
+}
+
 // DeleteOldWalFromFile deletes all WAL files from filesystem that are older than lastWalToKeep
-func (w *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
+func (a *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
 	// WAL files are deleted sequential from file system.
 	// Due to the file system architecture parallel delete
 	// from the filesystem will not bring great benefit.
-	files, _ := ioutil.ReadDir(w.Path)
+	files, _ := ioutil.ReadDir(a.Path)
 	for _, f := range files {
-		wal := Wal{Archive: w}
+		wal := Wal{Archive: a}
 		err := wal.ImportName(f.Name())
 		if err != nil {
 			log.Warn(err)
@@ -201,7 +257,7 @@ func (w *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error)
 }
 
 // DeleteOldWalFromS3 deletes all WAL files from S3 that are older than lastWalToKeep
-func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
+func (a *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	// Object storage has the potential to process operations parallel.
 	// Therefor we are going to delete WAL files in parallel.
 
@@ -212,7 +268,7 @@ func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 	var wg sync.WaitGroup
 
 	isRecursive := true
-	objectCh := w.MinioClient.ListObjects(w.Bucket, "", isRecursive, doneCh)
+	objectCh := a.MinioClient.ListObjects(a.Bucket, "", isRecursive, doneCh)
 	for object := range objectCh {
 		go func(object minio.ObjectInfo) {
 			wg.Add(1)
@@ -220,7 +276,7 @@ func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 			if object.Err != nil {
 				log.Error(object.Err)
 			}
-			wal := Wal{Archive: w}
+			wal := Wal{Archive: a}
 			err := wal.ImportName(object.Key)
 			if err != nil {
 				log.Warn(err)
@@ -249,25 +305,70 @@ func (w *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
 }
 
 // DeleteOldWal deletes all WAL files that are older than lastWalToKeep
-func (w *Archive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
-	switch w.StorageType() {
+func (a *Archive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
+	switch a.StorageType() {
 	case "file":
-		return w.DeleteOldWalFromFile(lastWalToKeep)
+		return a.DeleteOldWalFromFile(lastWalToKeep)
 	case "s3":
-		return w.DeleteOldWalFromS3(lastWalToKeep)
+		return a.DeleteOldWalFromS3(lastWalToKeep)
 	default:
-		return 0, errors.New("Not supported StorageType: " + w.StorageType())
+		return 0, errors.New("Not supported StorageType: " + a.StorageType())
 	}
 }
 
 // StorageType returns the type of storage the backup is on
-func (w *Archive) StorageType() (storageType string) {
-	if w.Path > "" {
+func (a *Archive) StorageType() (storageType string) {
+	if a.Path > "" {
 		return "file"
 	}
-	if w.Bucket > "" {
+	if a.Bucket > "" {
 		return "s3"
 	}
 	// Not defined
 	return ""
+}
+
+// String returns an overview of the backups as string
+func (a *Archive) String() (archive string) {
+	buf := new(bytes.Buffer)
+	row := 0
+	notSane := 0
+	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
+	fmt.Fprintln(w, "WAL filesbackup in archive")
+	fmt.Fprintln(w, "# \tName \tExt \tSize \t Sane")
+	for _, wal := range a.walFile {
+		row++
+		if !wal.IsSane() {
+			notSane++
+		}
+		fmt.Fprintln(w, row, "\t", wal.Name, "\t", wal.Extension, "\t", humanize.Bytes(uint64(wal.Size)), "\t", wal.IsSane())
+	}
+	fmt.Fprintln(w, "")
+	fmt.Fprintln(w, "Total WALs:", a.Len(), " Not sane WALs:", notSane)
+	w.Flush()
+	return buf.String()
+}
+
+// Archive implements sort.Interface based on Backup.Created
+func (a *Archive) Len() int           { return len(a.walFile) }
+func (a *Archive) Swap(i, j int)      { (a.walFile)[i], (a.walFile)[j] = (a.walFile)[j], (a.walFile)[i] }
+func (a *Archive) Less(i, j int) bool { return (a.walFile)[i].Name < (a.walFile)[j].Name }
+
+// Sort sorts all backups in place
+func (a *Archive) Sort() {
+	// Sort, the newest first, newest to oldest
+	// Sort should be relative cheap so it can be called on every change
+	a.SortDesc()
+}
+
+// SortDesc sorts all backups in place DESC
+func (a *Archive) SortDesc() {
+	// Sort, the newest first
+	sort.Sort(sort.Reverse(a))
+}
+
+// SortAsc sorts all backups in place ASC
+func (a *Archive) SortAsc() {
+	// Sort, the newest first
+	sort.Sort(a)
 }

@@ -29,6 +29,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"strconv"
 	"strings"
@@ -72,6 +73,8 @@ var (
 	// Vars for configuration
 	cfgFile    string
 	archiveDir string
+	backupDir  string
+	walDir     string
 
 	// Minimal and maximal PostgreSQL version (numeric)
 	pgMinVersion           = 90500
@@ -219,9 +222,13 @@ func initConfig() {
 	// Sett parallelism
 	runtime.GOMAXPROCS(viper.GetInt("jobs"))
 
-	// Set archiveDir var
+	// Set main dirs var
 	archiveDir = viper.GetString("archivedir")
+	backupDir = filepath.Join(archiveDir, subDirBasebackup)
+	walDir = filepath.Join(archiveDir, subDirWal)
 	log.Debug("archiveDir: ", archiveDir)
+	log.Debug("backupDir: ", backupDir)
+	log.Debug("walDir: ", walDir)
 
 	// Set path for the tools
 	cmdTar = viper.GetString("path_to_tar")
@@ -459,11 +466,9 @@ func getS3Connection() (minioClient minio.Client) {
 }
 
 func getMyBackups() (backups util.Backups) {
-	backupDir := archiveDir + "/basebackup"
-
 	log.Debug("Get backups from folder: ", backupDir)
 	backups.GetBackupsInDir(backupDir)
-	backups.WalDir = viper.GetString("archivedir") + "/wal"
+	backups.WalDir = filepath.Join(viper.GetString("archivedir"), subDirWal)
 
 	if viper.GetString("backup_to") == "s3" {
 		log.Debug("Get backups from S3")
@@ -476,10 +481,10 @@ func getMyBackups() (backups util.Backups) {
 	return backups
 }
 
-func GetMyWal() (archive wal.Archive) {
+func getMyWals() (archive wal.Archive) {
 	// Get WAL files from filesystem
-	walDir := viper.GetString("archivedir") + "/wal"
-	archive.GetWalInDir(walDir)
+	log.Debug("Get WAL from folder: ", walDir)
+	archive.Path = walDir
 
 	if viper.GetString("backup_to") == "s3" {
 		log.Debug("Get backups from S3")
@@ -487,8 +492,8 @@ func GetMyWal() (archive wal.Archive) {
 		// Initialize minio client object.
 		archive.MinioClient = getS3Connection()
 		archive.Bucket = viper.GetString("s3_bucket_wal")
-		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
-
 	}
-	return backups
+
+	archive.GetWals()
+	return archive
 }
