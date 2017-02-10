@@ -43,38 +43,40 @@ const (
 	// MinArchiveSize minimal size for files to archive
 	MinArchiveSize = int64(100)
 	// Regex to represent the ...
-	regFullWal    = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
-	regWalWithExt = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
-	regTimeline   = `^[0-9A-Za-z]{8}`                    // ... timeline of a given WAL file name
-	regCounter    = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})` // ... segment counter in the given timeline
+	regFullWal     = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
+	regWalWithExt  = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
+	regTimeline    = `^[0-9A-Za-z]{8}`                    // ... timeline of a given WAL file name
+	regCounter     = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})` // ... segment counter in the given timeline
+	regBackupLabel = `^\.[0-9A-Za-z]{8}\.backup\..*`      // ... backup label
 )
 
 var (
-	nameFinder      = regexp.MustCompile(regWalWithExt) // *Regexp to extract the name from a WAL file with extension
-	fulWalValidator = regexp.MustCompile(regFullWal)    // *Regexp to identify a WAL file
-	counterFinder   = regexp.MustCompile(regCounter)    // *Regexp to get the segment counter
-
+	nameFinder      = regexp.MustCompile(regWalWithExt)  // *Regexp to extract the name from a WAL file with extension
+	fulWalValidator = regexp.MustCompile(regFullWal)     // *Regexp to identify a WAL file
+	counterFinder   = regexp.MustCompile(regCounter)     // *Regexp to get the segment counter
+	findBackupLabel = regexp.MustCompile(regBackupLabel) // *Regexp to identify an backup label
 )
 
 // Wal is a struct to represent a WAL file
 type Wal struct {
-	Name      string
-	Extension string
-	Size      int64
-	Archive   *Archive
+	Name        string
+	Extension   string
+	Size        int64
+	StorageType string
+	Archive     *Archive
 }
 
 // ImportName imports a WAL file by name (including extension)
 func (w *Wal) ImportName(nameWithExtension string) (err error) {
-	nameRaw := nameFinder.FindStringSubmatch(nameWithExtension)
-
-	if len(nameRaw) < 2 {
-		return errors.New("WAL name does not parse: " + nameWithExtension)
-	}
-
+	// Parses the input name and returns an array
 	// 0 contains full string
 	// 1 contains name
 	// 2 contains extension
+	nameRaw := nameFinder.FindStringSubmatch(nameWithExtension)
+	// If not enough parameters are returned, parse was not possible
+	if len(nameRaw) < 2 {
+		return errors.New("WAL name does not parse: " + nameWithExtension)
+	}
 	w.Name = string(nameRaw[1])
 	w.Extension = string(nameRaw[2])
 	return nil
@@ -183,15 +185,16 @@ func (a *Archive) GetWals() (loadCounter int, err error) {
 // GetWalsInDir adds all WAL files in walDir to the archive
 func (a *Archive) GetWalsInDir(walDir string) (loadCounter int, err error) {
 	// WAL files are load sequential from file system.
-	files, _ := ioutil.ReadDir(a.Path)
+	files, err := ioutil.ReadDir(a.Path)
+	if err != nil {
+		log.Warn(err)
+	}
 	for _, f := range files {
-		wal := Wal{Archive: a}
-		err := wal.ImportName(f.Name())
+		err = a.Add(f.Name(), "file")
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
-		a.walFile = append(a.walFile, wal)
 		loadCounter++
 	}
 	return loadCounter, nil
@@ -213,16 +216,38 @@ func (a *Archive) GetWalsInBucket(bucket string) (loadCounter int, err error) {
 		if object.Err != nil {
 			log.Error(object.Err)
 		}
-		newWal := Wal{Archive: a}
-		err := newWal.ImportName(object.Key)
+
+		err = a.Add(object.Key, "S3")
 		if err != nil {
 			log.Warn(err)
 			return loadCounter, err
 		}
-		a.walFile = append(a.walFile, newWal)
 		loadCounter++
+
 	}
 	return loadCounter, err
+}
+
+// Add adds an WAL to an archive
+func (a *Archive) Add(name string, storageType string) (err error) {
+	wal := Wal{Archive: a}
+	err = wal.ImportName(name)
+	if err != nil {
+		return err
+	}
+
+	if findBackupLabel.MatchString(wal.Extension) == true {
+		// This is a backup label not a WAL file
+		// We should implement a list for them as well
+		return nil
+	}
+
+	// Set storage Type
+	wal.StorageType = storageType
+
+	// Append WAL file to archive
+	a.walFile = append(a.walFile, wal)
+	return nil
 }
 
 // DeleteOldWalFromFile deletes all WAL files from filesystem that are older than lastWalToKeep

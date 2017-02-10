@@ -28,7 +28,7 @@ import (
 // lswalCmd represents the lswal command
 var lswalCmd = &cobra.Command{
 	Use:   "lswal",
-	Short: "A brief description of your command",
+	Short: "Show all WAL files in archive",
 	Long: `A longer description that spans multiple lines and likely contains examples
 and usage of using your command. For example:
 
