@@ -27,8 +27,6 @@ import (
 	"os"
 	"regexp"
 	"sort"
-	"sync"
-	"sync/atomic"
 	"text/tabwriter"
 
 	log "github.com/Sirupsen/logrus"
@@ -42,6 +40,12 @@ const (
 
 	// MinArchiveSize minimal size for files to archive
 	MinArchiveSize = int64(100)
+
+	// StorageTypeFile represents an file backend
+	StorageTypeFile = "file"
+	// StorageTypeS3 represents an S3 backend
+	StorageTypeS3 = "s3"
+
 	// Regex to represent the ...
 	regFullWal     = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
 	regWalWithExt  = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
@@ -133,17 +137,17 @@ func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 
 // Delete delets the WAL file
 func (w *Wal) Delete() (err error) {
-	switch w.Archive.StorageType() {
-	case "file":
+	switch w.StorageType {
+	case StorageTypeFile:
 		err = os.Remove(w.Archive.Path + "/" + w.Name + w.Extension)
 		if err != nil {
 			log.Warn(err)
 		}
 		return err
-	case "s3":
+	case StorageTypeS3:
 		err = w.Archive.MinioClient.RemoveObject(w.Archive.Bucket, w.Name+w.Extension)
 	default:
-		return errors.New("Not supported StorageType: " + w.Archive.StorageType())
+		return errors.New("Not supported StorageType: " + w.StorageType)
 	}
 	if err != nil {
 		log.Warn(err)
@@ -190,7 +194,7 @@ func (a *Archive) GetWalsInDir(walDir string) (loadCounter int, err error) {
 		log.Warn(err)
 	}
 	for _, f := range files {
-		err = a.Add(f.Name(), "file")
+		err = a.Add(f.Name(), StorageTypeFile)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -217,7 +221,7 @@ func (a *Archive) GetWalsInBucket(bucket string) (loadCounter int, err error) {
 			log.Error(object.Err)
 		}
 
-		err = a.Add(object.Key, "S3")
+		err = a.Add(object.Key, StorageTypeS3)
 		if err != nil {
 			log.Warn(err)
 			return loadCounter, err
@@ -250,24 +254,24 @@ func (a *Archive) Add(name string, storageType string) (err error) {
 	return nil
 }
 
-// DeleteOldWalFromFile deletes all WAL files from filesystem that are older than lastWalToKeep
-func (a *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error) {
-	// WAL files are deleted sequential from file system.
+// DeleteOldWal deletes all WAL files that are older than lastWalToKeep
+func (a *Archive) DeleteOldWal(lastWalToKeep Wal) (deleted int) {
+	// WAL files are deleted sequential
 	// Due to the file system architecture parallel delete
-	// from the filesystem will not bring great benefit.
-	files, _ := ioutil.ReadDir(a.Path)
-	for _, f := range files {
-		wal := Wal{Archive: a}
-		err := wal.ImportName(f.Name())
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
+	// Maybe this can be done in parallel for other storage systems
+	visited := 0
+	for _, wal := range a.walFile {
+		// Count up
+		visited++
+
+		// Check if current visited WAL is older than lastWalToKeep
 		old, err := wal.OlderThan(lastWalToKeep)
 		if err != nil {
 			log.Warn(err)
 			continue
 		}
+
+		// If it is older, delete it
 		if old {
 			log.Debugf("Older than %s => going to delete: %s", lastWalToKeep.Name, wal.Name)
 			err := wal.Delete()
@@ -275,82 +279,27 @@ func (a *Archive) DeleteOldWalFromFile(lastWalToKeep Wal) (count int, err error)
 				log.Warn(err)
 				continue
 			}
-			count++
+			deleted++
 		}
 	}
-	return count, nil
+	log.Debugf("Checked %d WAL files and deleted %d", visited, deleted)
+	return deleted
 }
 
-// DeleteOldWalFromS3 deletes all WAL files from S3 that are older than lastWalToKeep
-func (a *Archive) DeleteOldWalFromS3(lastWalToKeep Wal) (count int, err error) {
-	// Object storage has the potential to process operations parallel.
-	// Therefor we are going to delete WAL files in parallel.
-
-	// Create a done channel to control 'ListObjects' go routine.
-	doneCh := make(chan struct{})
-	defer close(doneCh)
-	atomicCounter := int64(0)
-	var wg sync.WaitGroup
-
-	isRecursive := true
-	objectCh := a.MinioClient.ListObjects(a.Bucket, "", isRecursive, doneCh)
-	for object := range objectCh {
-		go func(object minio.ObjectInfo) {
-			wg.Add(1)
-			defer wg.Done()
-			if object.Err != nil {
-				log.Error(object.Err)
-			}
-			wal := Wal{Archive: a}
-			err := wal.ImportName(object.Key)
-			if err != nil {
-				log.Warn(err)
-				return
-			}
-			old, err := wal.OlderThan(lastWalToKeep)
-			if err != nil {
-				log.Warn(err)
-				return
-			}
-			if old {
-				log.Debugf("Older than %s => going to delete: %s", lastWalToKeep.Name, wal.Name)
-				err := wal.Delete()
-				if err != nil {
-					log.Warn(err)
-					return
-				}
-				// Count up
-				atomic.AddInt64(&atomicCounter, 1)
-			}
-		}(object)
-	}
-	// Wait for all goroutines to finish
-	wg.Wait()
-	return int(atomicCounter), nil
-}
-
-// DeleteOldWal deletes all WAL files that are older than lastWalToKeep
-func (a *Archive) DeleteOldWal(lastWalToKeep Wal) (count int, err error) {
-	switch a.StorageType() {
-	case "file":
-		return a.DeleteOldWalFromFile(lastWalToKeep)
-	case "s3":
-		return a.DeleteOldWalFromS3(lastWalToKeep)
-	default:
-		return 0, errors.New("Not supported StorageType: " + a.StorageType())
-	}
-}
-
-// StorageType returns the type of storage the backup is on
-func (a *Archive) StorageType() (storageType string) {
+// StorageTypeFile returns true if archive has file backend
+func (a *Archive) StorageTypeFile() (hasS3 bool) {
 	if a.Path > "" {
-		return "file"
+		return true
 	}
+	return false
+}
+
+// StorageTypeS3 returns true if archive has S3 backend
+func (a *Archive) StorageTypeS3() (hasS3 bool) {
 	if a.Bucket > "" {
-		return "s3"
+		return true
 	}
-	// Not defined
-	return ""
+	return false
 }
 
 // String returns an overview of the backups as string

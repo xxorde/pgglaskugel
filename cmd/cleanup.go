@@ -94,23 +94,17 @@ var cleanupCmd = &cobra.Command{
 		ec.Check(err)
 		log.Debug("oldestNeededWal: ", oldestNeededWal)
 
+		// Create object to represent oldest needet WAL file
 		var oldWal wal.Wal
 		oldWal.Name = oldestNeededWal
 
-		// Clean up WALs on filesystem
-		walArchiveFile := wal.Archive{Path: viper.GetString("archivedir") + "/wal"}
-		count, err = walArchiveFile.DeleteOldWal(oldWal)
-		ec.Check(err)
-		log.Infof("Deleted %d WAL files from: %s", count, viper.GetString("archivedir")+"/wal")
+		// Get all WAL files
+		walArchive := getMyWals()
 
-		// Clean WAL in S3
-		bucketAvailable, err := backups.MinioClient.BucketExists(backups.WalBucket)
-		if bucketAvailable && err == nil {
-			walArchiveS3 := wal.Archive{Bucket: backups.WalBucket, MinioClient: backups.MinioClient}
-			count, err = walArchiveS3.DeleteOldWal(oldWal)
-			log.Infof("Deleted %d WAL files from: s3://%s", count, backups.WalBucket)
-			ec.Check(err)
-		}
+		// Delete all WAL files that are older than oldestNeededWal
+		count = walArchive.DeleteOldWal(oldWal)
+		log.Infof("Deleted %d WAL files:", count)
+
 		printDone()
 	},
 }
