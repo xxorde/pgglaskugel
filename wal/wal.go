@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"text/tabwriter"
@@ -139,7 +140,7 @@ func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
 func (w *Wal) Delete() (err error) {
 	switch w.StorageType {
 	case StorageTypeFile:
-		err = os.Remove(w.Archive.Path + "/" + w.Name + w.Extension)
+		err = os.Remove(filepath.Join(w.Archive.Path, w.Name+w.Extension))
 		if err != nil {
 			log.Warn(err)
 		}
@@ -194,7 +195,8 @@ func (a *Archive) GetWalsInDir(walDir string) (loadCounter int, err error) {
 		log.Warn(err)
 	}
 	for _, f := range files {
-		err = a.Add(f.Name(), StorageTypeFile)
+		size := f.Size()
+		err = a.Add(f.Name(), StorageTypeFile, size)
 		if err != nil {
 			log.Warn(err)
 			continue
@@ -221,7 +223,7 @@ func (a *Archive) GetWalsInBucket(bucket string) (loadCounter int, err error) {
 			log.Error(object.Err)
 		}
 
-		err = a.Add(object.Key, StorageTypeS3)
+		err = a.Add(object.Key, StorageTypeS3, object.Size)
 		if err != nil {
 			log.Warn(err)
 			return loadCounter, err
@@ -233,7 +235,7 @@ func (a *Archive) GetWalsInBucket(bucket string) (loadCounter int, err error) {
 }
 
 // Add adds an WAL to an archive
-func (a *Archive) Add(name string, storageType string) (err error) {
+func (a *Archive) Add(name string, storageType string, size int64) (err error) {
 	wal := Wal{Archive: a}
 	err = wal.ImportName(name)
 	if err != nil {
@@ -242,12 +244,14 @@ func (a *Archive) Add(name string, storageType string) (err error) {
 
 	if findBackupLabel.MatchString(wal.Extension) == true {
 		// This is a backup label not a WAL file
-		// We should implement a list for them as well
-		return nil
+		// We should we add it as well till we come up with a better solution :)
 	}
 
 	// Set storage Type
 	wal.StorageType = storageType
+
+	// Set size
+	wal.Size = size
 
 	// Append WAL file to archive
 	a.walFile = append(a.walFile, wal)
