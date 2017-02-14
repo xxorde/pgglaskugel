@@ -257,7 +257,7 @@ func writeStreamToS3(input *io.Reader, backupName string) {
 
 func init() {
 	RootCmd.AddCommand(basebackupCmd)
-	RootCmd.PersistentFlags().Bool("standalone", false, "Include WAL files in backup so it can be used stand alone")
+	RootCmd.PersistentFlags().Bool("standalone", true, "Include WAL files in backup so it can be used without WAL archive")
 	// Bind flags to viper
 	viper.BindPFlag("standalone", RootCmd.PersistentFlags().Lookup("standalone"))
 }

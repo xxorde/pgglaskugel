@@ -282,7 +282,7 @@ func (a *Archive) DeleteOldWal(lastWalToKeep Wal) (deleted int) {
 			deleted++
 		}
 	}
-	log.Debugf("Checked %d WAL files and deleted %d", visited, deleted)
+	log.Debugf("Checked %d files and deleted %d", visited, deleted)
 	return deleted
 }
 
