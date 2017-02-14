@@ -313,13 +313,13 @@ func (a *Archive) String() (archive string) {
 	notSane := 0
 	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "WAL filesbackup in archive")
-	fmt.Fprintln(w, "# \tName \tExt \tSize \t Sane")
+	fmt.Fprintln(w, "# \tName \tExt \tSize \tStorage \t Sane")
 	for _, wal := range a.walFile {
 		row++
 		if !wal.IsSane() {
 			notSane++
 		}
-		fmt.Fprintln(w, row, "\t", wal.Name, "\t", wal.Extension, "\t", humanize.Bytes(uint64(wal.Size)), "\t", wal.IsSane())
+		fmt.Fprintln(w, row, "\t", wal.Name, "\t", wal.Extension, "\t", humanize.Bytes(uint64(wal.Size)), "\t", wal.StorageType, "\t", wal.IsSane())
 	}
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Total WALs:", a.Len(), " Not sane WALs:", notSane)

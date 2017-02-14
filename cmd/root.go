@@ -67,6 +67,12 @@ const (
 )
 
 var (
+	// Name of the current host
+	hostname string
+
+	// Name of the PostgreSQL cluster
+	clusterName string
+
 	// own executable path
 	myExecutable string
 
@@ -132,11 +138,23 @@ func init() {
 	// Measure time from here
 	startTime = time.Now()
 
-	myExecutable, _ = osext.Executable()
+	// Local error var declared here to make it easier to define the scope of other vars
+	var err error
+
+	myExecutable, err = osext.Executable()
+	if err != nil {
+		log.Warn(err)
+	}
+
+	hostname, err = os.Hostname()
+	if err != nil {
+		log.Warn(err)
+	}
 
 	cobra.OnInitialize(initConfig)
 	// Set the default values for the globally used flags
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "Config file")
+	RootCmd.PersistentFlags().String("cluster_name", hostname, "Name of the cluster, used in backup name")
 	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().Bool("pgdata-auto", true, "Try to find pgdata if not set correctly (via SQL)")
 	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups go")
@@ -163,6 +181,7 @@ func init() {
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
+	viper.BindPFlag("cluster_name", RootCmd.PersistentFlags().Lookup("cluster_name"))
 	viper.BindPFlag("pgdata", RootCmd.PersistentFlags().Lookup("pgdata"))
 	viper.BindPFlag("pgdata-auto", RootCmd.PersistentFlags().Lookup("pgdata-auto"))
 	viper.BindPFlag("archivedir", RootCmd.PersistentFlags().Lookup("archivedir"))
@@ -218,6 +237,9 @@ func initConfig() {
 		log.SetLevel(log.DebugLevel)
 		log.Debug("Running with debug mode")
 	}
+
+	// Set clusterName
+	clusterName = viper.GetString("cluster_name")
 
 	// Sett parallelism
 	runtime.GOMAXPROCS(viper.GetInt("jobs"))
