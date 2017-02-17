@@ -19,9 +19,14 @@ s3_secret_key: yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC
 s3_location: us-east-1
 s3_ssl: true
 
+# basebackup
+# Do not include needed WAL data in backup, can reduce redundancy if archive is used
+# IF SET TO TRUE THE WALs FROM THE ARCHIVE ARE NEEDED TO RESTORE THE BACKUPS!
+no-standalone: false
+
 # cleanup
 retain: 0
-force-retain: false
+force-delete: false
 
 # restore
 backup: "myBackup@2016-11-04T21:52:57" # The backup to restore"

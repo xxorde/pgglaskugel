@@ -52,15 +52,30 @@ var cleanupCmd = &cobra.Command{
 			log.Error(err)
 		}
 
+		// Are all backups we want to keep sane?
+		if keep.IsSane() != true {
+			log.Warn("Not all backups to keep are sane, will only count sane backups for retainsion policy")
+			log.Warn("The following backups will not count for retainsion policy: ", keep.Insane())
+
+			// Keep only the sane backups in keep
+			// Not sane backups are not deletet, but they are not taken into account for retainsion policy
+			// In sane backups will be deleted by getting to old
+			keep = keep.Sane()
+		}
+
+		// Check if we have less backups than wen want to keep
 		if uint(keep.Len()) < retain {
 			log.Warn("Not enough backups for retention policy!")
 		}
+
+		// Do we have backups to keept?
 		if keep.Len() >= 1 {
 			log.Info("Keep the following backups:", keep.String())
 		} else {
 			log.Info("No backups will be left!")
 		}
 
+		// Show backups to delete, or exit if none should
 		if discard.Len() >= 1 {
 			log.Info("DELETE the following backups: ", discard.String())
 		} else {
@@ -68,14 +83,13 @@ var cleanupCmd = &cobra.Command{
 			os.Exit(0)
 		}
 
-		confirmDelete := viper.GetBool("force-retain")
-
+		// The user must confirm deletion or set force-delete
+		confirmDelete := viper.GetBool("force-delete")
 		if confirmDelete != true {
 			var err error
 			confirmDelete, err = util.AnswerConfirmation("If you want to continue please type \"yes\" (Ctl-C to end):")
 			ec.CheckError(err)
 		}
-
 		if confirmDelete != true {
 			log.Warn("Deletion was not confirmed, ending now.")
 			os.Exit(1)
@@ -112,9 +126,9 @@ var cleanupCmd = &cobra.Command{
 func init() {
 	RootCmd.AddCommand(cleanupCmd)
 	cleanupCmd.PersistentFlags().Uint("retain", 0, "Number of (new) backups to keep?")
-	cleanupCmd.PersistentFlags().Bool("force-retain", false, "Force the deletion of old backups, without asking!")
+	cleanupCmd.PersistentFlags().Bool("force-delete", false, "Force the deletion of old backups, without asking!")
 
 	// Bind flags to viper
 	viper.BindPFlag("retain", cleanupCmd.PersistentFlags().Lookup("retain"))
-	viper.BindPFlag("force-retain", cleanupCmd.PersistentFlags().Lookup("force-retain"))
+	viper.BindPFlag("force-delete", cleanupCmd.PersistentFlags().Lookup("force-delete"))
 }

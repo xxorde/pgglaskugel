@@ -64,7 +64,7 @@ var (
 			// Command to use pg_basebackup
 			// Tar format, set backupName as label, make fast checkpoints, return output on standardout
 			backupCmd := exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
-			if viper.GetBool("standalone") {
+			if viper.GetBool("no-standalone") == false {
 				// Set command to include WAL files so the backup is usable without an archive
 				backupCmd = exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
 			}
@@ -153,6 +153,7 @@ var (
 
 			// Wait for backup to finish
 			// If there is still data in the output pipe it can be lost!
+			log.Debug("Wait for backupCmd")
 			err = backupCmd.Wait()
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)
@@ -161,6 +162,7 @@ var (
 
 			// Wait for compression to finish
 			// If there is still data in the output pipe it can be lost!
+			log.Debug("Wait for compressCmd")
 			err = compressCmd.Wait()
 			if err != nil {
 				log.Fatal("compression failed after startup, ", err)
@@ -169,6 +171,7 @@ var (
 
 			// If encryption is used wait for it to finish
 			if encrypt {
+				log.Debug("Wait for gpgCmd")
 				err = gpgCmd.Wait()
 				if err != nil {
 					log.Fatal("gpg failed after startup, ", err)
@@ -248,7 +251,7 @@ func writeStreamToS3(input *io.Reader, backupName string) {
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	log.Debug("Put backup into bucket")
+	log.Debug("Put backup into bucket: ", bucket)
 	n, err := minioClient.PutObject(bucket, backupName, *input, contentType)
 	if err != nil {
 		log.Debug("minioClient.PutObject(", bucket, ", ", backupName, ", *input,", contentType, ") failed")
@@ -260,7 +263,7 @@ func writeStreamToS3(input *io.Reader, backupName string) {
 
 func init() {
 	RootCmd.AddCommand(basebackupCmd)
-	basebackupCmd.PersistentFlags().Bool("standalone", true, "Include WAL files in backup so it can be used without WAL archive. If set to false all needed WAL files need to be available via the Archive! If set true the archive is still needed for 'point in time recovery'!")
+	basebackupCmd.PersistentFlags().Bool("no-standalone", false, "Do not include WAL files in backup. If set all needed WAL files need to be available via the Archive! If set to false the archive is still needed for 'point in time recovery'!")
 	// Bind flags to viper
-	viper.BindPFlag("standalone", basebackupCmd.PersistentFlags().Lookup("standalone"))
+	viper.BindPFlag("no-standalone", basebackupCmd.PersistentFlags().Lookup("no-standalone"))
 }
