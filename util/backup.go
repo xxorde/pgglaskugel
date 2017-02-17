@@ -82,7 +82,7 @@ func (b *Backup) StorageType() (storageType string) {
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b *Backup) GetStartWalLocation(archiveLocation string) (startWalLocation string, err error) {
+func (b *Backup) GetStartWalLocation() (startWalLocation string, err error) {
 	switch b.StorageType() {
 	case "file":
 		return b.GetStartWalLocationFromFile()
@@ -159,9 +159,13 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 	// 000000010000001200000062.00000028.backup, make better regex
 	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
 
+	// Escape the name so we can use it in a regular expression
+	searchName := regexp.QuoteMeta(b.Name)
 	// Regex to identify the right file
-	regLabel := regexp.MustCompile(`.*LABEL: ` + b.Name)
+	regLabel := regexp.MustCompile(`.*LABEL: ` + searchName)
 	log.Debug("regLabel: ", regLabel)
+
+	log.Debug("Looking for the backup label that contains: ", b.Name)
 
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
@@ -176,6 +180,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 
 		if object.Size > maxBackupLabelSize {
 			// size is to big for backup label
+			// log.Debug("Object is to big to be a backup label, size: ", object.Size)
 			continue
 		}
 
@@ -196,6 +201,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 			}
 			log.Debug("Read ", readCount, " from backupLabel")
 
+			// Command to decompress the backuplabel
 			catCmd := exec.Command("zstd", "-d", "--stdout")
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
@@ -226,6 +232,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 				// We ignore errors here, zstd returns 1 even if everything is fine here
 				log.Debug("catCmd.Wait(), ", err)
 			}
+			log.Debug("Backuplabel:\n", string(bufPlain))
 
 			if len(regLabel.Find(bufPlain)) > 1 {
 				log.Debug("Found matching backup label")
@@ -241,15 +248,6 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 	return "", errors.New("START WAL LOCATION not found")
 }
 
-// GetLabelFile returns the label file of a backup
-func (b *Backup) GetLabelFile(archiveDir string) (labelFile string, err error) {
-	_, err = b.GetStartWalLocation(archiveDir)
-	if err != nil {
-		return "", err
-	}
-	return b.LabelFile, nil
-}
-
 func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
 	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9A-Fa-f]{24}\)`)
 	regStartWal := regexp.MustCompile(`[0-9A-Fa-f]{24}`)
@@ -262,7 +260,7 @@ func (b *Backup) parseBackupLabel(backupLabel []byte) (err error) {
 
 	startWal := regStartWal.Find(startWalLine)
 	if len(startWal) < 1 {
-		return errors.New("Can not find START WAL.")
+		return errors.New("Can not find START WAL")
 	}
 
 	b.StartWalLocation = string(startWal)

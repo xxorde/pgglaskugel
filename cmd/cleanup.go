@@ -95,6 +95,7 @@ var cleanupCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
+		// Delete all backups in the "discard" set
 		count, err := discard.DeleteAll()
 		if err != nil {
 			log.Warn("DeleteAll()", err)
@@ -102,13 +103,21 @@ var cleanupCmd = &cobra.Command{
 		log.Info(strconv.Itoa(count) + " backups were removed.")
 		backups = getMyBackups()
 
+		// Show backups that are left
 		log.Info("Backups left: " + backups.String())
+
+		// Use oldest needed backup to determin oldest needed WAL file
 		oldestBackup := backups.OldestBackup()
-		oldestNeededWal, err := oldestBackup.GetStartWalLocation(viper.GetString("archivedir") + "/wal")
-		ec.Check(err)
+		oldestNeededWal, err := oldestBackup.GetStartWalLocation()
+		if err != nil {
+			log.Fatal(err)
+		}
+		if oldestNeededWal <= "" {
+			log.Fatal("Could not get oldest needed WAL file")
+		}
 		log.Debug("oldestNeededWal: ", oldestNeededWal)
 
-		// Create object to represent oldest needet WAL file
+		// Create object to represent oldest needed WAL file
 		var oldWal wal.Wal
 		oldWal.Name = oldestNeededWal
 
