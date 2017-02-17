@@ -26,6 +26,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -518,4 +519,63 @@ func getMyWals() (archive wal.Archive) {
 
 	archive.GetWals()
 	return archive
+}
+
+// writeStreamToFile handles a stream and writes it to a local file
+func writeStreamToFile(input *io.Reader, filepath string) {
+	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
+	if err != nil {
+		log.Fatal("Can not create output file, ", err)
+	}
+	defer file.Close()
+
+	log.Debug("Start writing to file")
+	written, err := io.Copy(file, *input)
+	if err != nil {
+		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", filepath, written, err)
+	}
+
+	log.Infof("%d bytes were written, waiting for file.Sync()", written)
+	file.Sync()
+}
+
+// writeStreamToS3 handles a stream and writes it to S3 storage
+func writeStreamToS3(input *io.Reader, bucket, name string) {
+	location := viper.GetString("s3_location")
+	encrypt := viper.GetBool("encrypt")
+	contentType := "zstd"
+
+	// Set contentType for encryption
+	if encrypt {
+		contentType = "pgp"
+	}
+
+	// Initialize minio client object.
+	minioClient := getS3Connection()
+
+	// Test if bucket is there
+	exists, err := minioClient.BucketExists(bucket)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if exists {
+		log.Debugf("Bucket already exists, we are using it: %s", bucket)
+	} else {
+		// Try to create bucket
+		err = minioClient.MakeBucket(bucket, location)
+		if err != nil {
+			log.Debug("minioClient.MakeBucket(bucket, location) failed")
+			log.Fatal(err)
+		}
+		log.Infof("Bucket %s created.", bucket)
+	}
+
+	log.Debug("Put stream into bucket: ", bucket)
+	n, err := minioClient.PutObject(bucket, name, *input, contentType)
+	if err != nil {
+		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
+		log.Fatal(err)
+		return
+	}
+	log.Infof("Written %d bytes to %s in bucket %s.", n, name, bucket)
 }
