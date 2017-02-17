@@ -174,7 +174,7 @@ Example install for Debian:
 sudo apt install gpg postgresql zstd
 ```
 
-Example install for CetnOS7:
+Example install for CentOS7:
 ```
 sudo yum -y install epel-release
 sudo yum -y install zstd gpg
