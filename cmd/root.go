@@ -34,6 +34,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"golang.org/x/crypto/openpgp/packet"
@@ -125,6 +126,9 @@ var (
 		Long:  `A tool that helps you to manage your PostgreSQL backups.` + logo,
 	}
 )
+
+// storeStream is an interface for functions that store a stream in an storage backend
+type storeStream func(*io.Reader, string)
 
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
@@ -519,6 +523,96 @@ func getMyWals() (archive wal.Archive) {
 
 	archive.GetWals()
 	return archive
+}
+
+// compressEncryptStream takes a stream and:
+// * compresses it
+// * endcrypts it (if configured)
+// * persists it to given storage backend though storeStream function
+func compressEncryptStream(input *io.ReadCloser, name string, storageBackend storeStream, wg *sync.WaitGroup) {
+	// Tell the waiting group this process is done when function ends
+	defer wg.Done()
+
+	// Are we using encryption?
+	encrypt := viper.GetBool("encrypt")
+	recipient := viper.GetString("recipient")
+
+	// This command is used to compress the backup
+	compressCmd := exec.Command(cmdZstd)
+
+	// attach pipe to the command
+	compressStdout, err := compressCmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("Can not attach pipe to backup process, ", err)
+	}
+
+	// Watch output on stderror
+	compressStderror, err := compressCmd.StderrPipe()
+	ec.Check(err)
+	go util.WatchOutput(compressStderror, log.Info)
+
+	// Pipe the backup in the compression
+	compressCmd.Stdin = *input
+
+	// Start compression
+	if err := compressCmd.Start(); err != nil {
+		log.Fatal("zstd failed on startup, ", err)
+	}
+	log.Info("Compression started")
+
+	// Stream which is send to storage backend
+	var dataStream io.Reader
+
+	// Handle encryption
+	var gpgCmd *exec.Cmd
+	if encrypt {
+		log.Debug("Encrypt data, encrypt: ", encrypt)
+		// Encrypt the compressed data
+		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
+		// Set the encryption output as input for S3
+		var err error
+		dataStream, err = gpgCmd.StdoutPipe()
+		if err != nil {
+			log.Fatal("Can not attach pipe to gpg process, ", err)
+		}
+		// Attach output of WAL to stdin
+		gpgCmd.Stdin = compressStdout
+		// Watch output on stderror
+		gpgStderror, err := gpgCmd.StderrPipe()
+		ec.Check(err)
+		go util.WatchOutput(gpgStderror, log.Warn)
+
+		// Start encryption
+		if err := gpgCmd.Start(); err != nil {
+			log.Fatal("gpg failed on startup, ", err)
+		}
+		log.Debug("gpg started")
+	} else {
+		// Do not use encryption
+		dataStream = compressStdout
+	}
+
+	// Store the steamed data
+	storageBackend(&dataStream, name)
+
+	// Wait for compression to finish
+	// If there is still data in the output pipe it can be lost!
+	log.Debug("Wait for compressCmd")
+	err = compressCmd.Wait()
+	if err != nil {
+		log.Fatal("compression failed after startup, ", err)
+	}
+	log.Debug("compressCmd done")
+
+	// If encryption is used wait for it to finish
+	if encrypt {
+		log.Debug("Wait for gpgCmd")
+		err = gpgCmd.Wait()
+		if err != nil {
+			log.Fatal("gpg failed after startup, ", err)
+		}
+		log.Debug("Encryption done")
+	}
 }
 
 // writeStreamToFile handles a stream and writes it to a local file

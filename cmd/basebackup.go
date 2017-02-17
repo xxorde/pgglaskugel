@@ -40,7 +40,6 @@ const (
 )
 
 var (
-
 	// WaitGroup for workers
 	wg sync.WaitGroup
 
@@ -57,9 +56,6 @@ var (
 
 			conString := viper.GetString("connection")
 			log.Debug("conString: ", conString)
-
-			encrypt := viper.GetBool("encrypt")
-			recipient := viper.GetString("recipient")
 
 			// Command to use pg_basebackup
 			// Tar format, set backupName as label, make fast checkpoints, return output on standardout
@@ -81,71 +77,16 @@ var (
 			ec.Check(err)
 			go util.WatchOutput(backupStderror, log.Info)
 
-			// This command is used to compress the backup
-			compressCmd := exec.Command(cmdZstd)
+			// Start worker
+			// Add one worker to our waiting group (for waiting later)
+			wg.Add(1)
+			go compressEncryptStream(&backupStdout, backupName, storeBackupStream, &wg)
 
-			// attach pipe to the command
-			compressStdout, err := compressCmd.StdoutPipe()
-			if err != nil {
-				log.Fatal("Can not attach pipe to backup process, ", err)
-			}
-
-			// Watch output on stderror
-			compressStderror, err := compressCmd.StderrPipe()
-			ec.Check(err)
-			go util.WatchOutput(compressStderror, log.Info)
-
-			// Pipe the backup in the compression
-			compressCmd.Stdin = backupStdout
-
-			// Start the process (in the background)
+			// Start backup process (in the background)
 			if err := backupCmd.Start(); err != nil {
 				log.Fatal("pg_basebackup failed on startup, ", err)
 			}
 			log.Info("Backup was started")
-
-			// Start compression
-			if err := compressCmd.Start(); err != nil {
-				log.Fatal("zstd failed on startup, ", err)
-			}
-			log.Info("Compression started")
-
-			// Stream which is send to storage backend
-			var backupStream io.Reader
-
-			// Handle encryption
-			var gpgCmd *exec.Cmd
-			if encrypt {
-				log.Debug("Encrypt data, encrypt: ", encrypt)
-				// Encrypt the compressed data
-				gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
-				// Set the encryption output as input for S3
-				var err error
-				backupStream, err = gpgCmd.StdoutPipe()
-				if err != nil {
-					log.Fatal("Can not attach pipe to gpg process, ", err)
-				}
-				// Attach output of WAL to stdin
-				gpgCmd.Stdin = compressStdout
-				// Watch output on stderror
-				gpgStderror, err := gpgCmd.StderrPipe()
-				ec.Check(err)
-				go util.WatchOutput(gpgStderror, log.Warn)
-
-				// Start encryption
-				if err := gpgCmd.Start(); err != nil {
-					log.Fatal("gpg failed on startup, ", err)
-				}
-				log.Debug("gpg started")
-			} else {
-				// Do not use encryption
-				backupStream = compressStdout
-			}
-
-			// Start worker
-			// Add one worker to our waiting group (for waiting later)
-			wg.Add(1)
-			go handleBackupStream(&backupStream, backupName, &wg)
 
 			// Wait for workers to finish
 			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
@@ -160,40 +101,19 @@ var (
 			}
 			log.Debug("backupCmd done")
 
-			// Wait for compression to finish
-			// If there is still data in the output pipe it can be lost!
-			log.Debug("Wait for compressCmd")
-			err = compressCmd.Wait()
-			if err != nil {
-				log.Fatal("compression failed after startup, ", err)
-			}
-			log.Debug("compressCmd done")
-
-			// If encryption is used wait for it to finish
-			if encrypt {
-				log.Debug("Wait for gpgCmd")
-				err = gpgCmd.Wait()
-				if err != nil {
-					log.Fatal("gpg failed after startup, ", err)
-				}
-				log.Debug("Encryption done")
-			}
 			printDone()
 		},
 	}
 )
 
 // handleBackupStream takes a stream and persists it with the configured method
-func handleBackupStream(input *io.Reader, filename string, wg *sync.WaitGroup) {
-	// Tell the waiting group this process is done when function ends
-	defer wg.Done()
-
+func storeBackupStream(input *io.Reader, name string) {
 	backupTo := viper.GetString("backup_to")
 	switch backupTo {
 	case "file":
-		writeStreamToFile(input, filepath.Join(backupDir, filename))
+		writeStreamToFile(input, filepath.Join(backupDir, name))
 	case "s3":
-		writeStreamToS3(input, viper.GetString("s3_bucket_backup"), filename)
+		writeStreamToS3(input, viper.GetString("s3_bucket_backup"), name)
 	default:
 		log.Fatal(backupTo, " no valid value for backupTo")
 	}
