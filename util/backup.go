@@ -29,6 +29,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	wal "github.com/xxorde/pgglaskugel/wal"
 )
 
 const (
@@ -37,6 +38,11 @@ const (
 
 	// Larger files are most likely no backup label
 	maxBackupLabelSize = 2048
+)
+
+var (
+	// Regex to identify a backup label file
+	regBackupLabelFile = regexp.MustCompile(wal.RegBackupLabel)
 )
 
 // Backup stores information about a backup
@@ -95,10 +101,6 @@ func (b *Backup) GetStartWalLocation() (startWalLocation string, err error) {
 // GetStartWalLocationFromFile returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
 func (b *Backup) GetStartWalLocationFromFile() (startWalLocation string, err error) {
-	// Regex to identify a backup label file
-	// 000000010000001200000062.00000028.backup, make better regex
-	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
-
 	// Escape the name so we can use it in a regular expression
 	searchName := regexp.QuoteMeta(b.Name)
 	// Regex to identify the right file
@@ -158,10 +160,6 @@ func (b *Backup) GetStartWalLocationFromFile() (startWalLocation string, err err
 // GetStartWalLocationFromS3 returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
 func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error) {
-	// Regex to identify a backup label file
-	// 000000010000001200000062.00000028.backup, make better regex
-	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
-
 	// Escape the name so we can use it in a regular expression
 	searchName := regexp.QuoteMeta(b.Name)
 	// Regex to identify the right file

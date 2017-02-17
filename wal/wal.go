@@ -48,18 +48,19 @@ const (
 	StorageTypeS3 = "s3"
 
 	// Regex to represent the ...
-	regFullWal     = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
-	regWalWithExt  = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
-	regTimeline    = `^[0-9A-Za-z]{8}`                    // ... timeline of a given WAL file name
-	regCounter     = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})` // ... segment counter in the given timeline
-	regBackupLabel = `^\.[0-9A-Za-z]{8}\.backup\..*`      // ... backup label
+	RegFullWal     = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
+	RegWalWithExt  = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
+	RegTimeline    = `^[0-9A-Za-z]{8}`                    // ... timeline of a given WAL file name
+	RegCounter     = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})` // ... segment counter in the given timeline
+	RegBackupLabel = `^\.[0-9A-Za-z]{8}\.backup\..*`      // ... backup label
 )
 
 var (
-	nameFinder      = regexp.MustCompile(regWalWithExt)  // *Regexp to extract the name from a WAL file with extension
-	fulWalValidator = regexp.MustCompile(regFullWal)     // *Regexp to identify a WAL file
-	counterFinder   = regexp.MustCompile(regCounter)     // *Regexp to get the segment counter
-	findBackupLabel = regexp.MustCompile(regBackupLabel) // *Regexp to identify an backup label
+	nameFinder      = regexp.MustCompile(RegWalWithExt)  // *Regexp to extract the name from a WAL file with extension
+	fulWalValidator = regexp.MustCompile(RegFullWal)     // *Regexp to identify a WAL file
+	timelineFinder  = regexp.MustCompile(RegTimeline)    // *Regexp to identify a timeline
+	counterFinder   = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
+	findBackupLabel = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
 )
 
 // Wal is a struct to represent a WAL file
@@ -102,7 +103,6 @@ func (w *Wal) SaneName() (saneName bool) {
 
 // Timeline returns the timeline of the WAL file
 func (w *Wal) Timeline() (timeline string) {
-	timelineFinder := regexp.MustCompile(regTimeline)
 	timelineRaw := timelineFinder.Find([]byte(w.Name))
 
 	timeline = string(timelineRaw)
