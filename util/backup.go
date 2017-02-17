@@ -99,8 +99,11 @@ func (b *Backup) GetStartWalLocationFromFile() (startWalLocation string, err err
 	// 000000010000001200000062.00000028.backup, make better regex
 	regBackupLabelFile := regexp.MustCompile(`.*\.backup`)
 
+	// Escape the name so we can use it in a regular expression
+	searchName := regexp.QuoteMeta(b.Name)
 	// Regex to identify the right file
-	regLabel := regexp.MustCompile(`.*LABEL: ` + b.Name)
+	regLabel := regexp.MustCompile(`.*LABEL: ` + searchName)
+	log.Debug("regLabel: ", regLabel)
 
 	files, _ := ioutil.ReadDir(b.Backups.WalDir)
 	// find all backup labels
