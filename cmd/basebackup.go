@@ -40,9 +40,6 @@ const (
 )
 
 var (
-	// WaitGroup for workers
-	wg sync.WaitGroup
-
 	basebackupCmd = &cobra.Command{
 		Use:   "basebackup",
 		Short: "Creates a new basebackup from the database",
@@ -53,6 +50,9 @@ var (
 			backupTime := startTime.Format(util.BackupTimeFormat)
 			backupName := clusterName + "@" + backupTime + ".zst"
 			log.Info("Create new basebackup: ", backupName)
+
+			// WaitGroup for workers
+			var wg sync.WaitGroup
 
 			conString := viper.GetString("connection")
 			log.Debug("conString: ", conString)
@@ -77,9 +77,10 @@ var (
 			ec.Check(err)
 			go util.WatchOutput(backupStderror, log.Info)
 
-			// Start worker
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
+
+			// Start worker
 			go compressEncryptStream(&backupStdout, backupName, storeBackupStream, &wg)
 
 			// Start backup process (in the background)

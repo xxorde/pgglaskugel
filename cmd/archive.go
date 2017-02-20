@@ -22,14 +22,13 @@ package cmd
 
 import (
 	"errors"
+	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
-	util "github.com/xxorde/pgglaskugel/util"
 	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
@@ -47,17 +46,38 @@ var (
 			if len(args) < 1 {
 				log.Fatal("No WAL file was defined!")
 			}
+
+			// Counter for WAL files
 			count := 0
+
+			// WaitGroup for workers
+			var wg sync.WaitGroup
+
+			// Iterate over every WAL file
 			for _, walSource := range args {
-				err := testWalSource(walSource)
-				ec.Check(err)
 				walName := filepath.Base(walSource)
-				err = archiveWal(walSource, walName)
+
+				f, err := os.Open(walSource)
 				if err != nil {
-					log.Fatal("archive failed ", err)
+					log.Error("Can not open WAL file")
+					log.Fatal(err)
 				}
+
+				walReader := io.ReadCloser(f)
+
+				// Add one worker to our waiting group (for waiting later)
+				wg.Add(1)
+
+				// Start worker
+				go compressEncryptStream(&walReader, walName, storeWalStream, &wg)
+
 				count++
 			}
+
+			// Wait for workers to finish
+			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
+			wg.Wait()
+
 			elapsed := time.Since(startTime)
 			log.Info("Archived ", count, " WAL file(s) in ", elapsed)
 		},
@@ -88,141 +108,17 @@ func testWalSource(walSource string) (err error) {
 	return nil
 }
 
-// archiveWal archives a WAL file with the configured method
-func archiveWal(walSource string, walName string) (err error) {
+// storeWalStream takes a stream and persists it with the configured method
+func storeWalStream(input *io.Reader, name string) {
 	archiveTo := viper.GetString("archive_to")
-
 	switch archiveTo {
 	case "file":
-		return archiveToFile(walSource, walName)
+		writeStreamToFile(input, filepath.Join(backupDir, name))
 	case "s3":
-		return archiveToS3(walSource, walName)
+		writeStreamToS3(input, viper.GetString("s3_bucket_wal"), name)
 	default:
 		log.Fatal(archiveTo, " no valid value for archiveTo")
 	}
-	return errors.New("This should never be reached")
-}
-
-// archiveToFile uses the shell command lz4 to archive WAL files
-func archiveToFile(walSource string, walName string) (err error) {
-	walTarget := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
-	log.Debug("archiveWithZstdCommand, walSource: ", walSource, ", walName: ", walName, ", walTarget: ", walTarget)
-
-	// Check if WAL file is already in archive
-	if _, err := os.Stat(walTarget); err == nil {
-		err := errors.New("WAL file is already in archive: " + walTarget)
-		return err
-	}
-
-	archiveCmd := exec.Command(cmdZstd, walSource, "-o", walTarget)
-
-	// Watch output on stderror
-	archiveStderror, err := archiveCmd.StderrPipe()
-	ec.Check(err)
-	go util.WatchOutput(archiveStderror, log.Warn)
-
-	err = archiveCmd.Run()
-	return err
-}
-
-// archiveToS3 archives to a S3 compatible object store
-func archiveToS3(walSource string, walName string) (err error) {
-	bucket := viper.GetString("s3_bucket_wal")
-	location := viper.GetString("s3_location")
-	walTarget := walName + ".zst"
-	encrypt := viper.GetBool("encrypt")
-	recipient := viper.GetString("recipient")
-	contentType := "pgWAL"
-
-	// Initialize minio client object.
-	minioClient := getS3Connection()
-
-	// Test if bucket is there
-	exists, err := minioClient.BucketExists(bucket)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if exists {
-		log.Debugf("Bucket already exists, we are using it: %s", bucket)
-	} else {
-		// Try to create bucket
-		err = minioClient.MakeBucket(bucket, location)
-		if err != nil {
-			log.Fatal(err)
-		}
-		log.Infof("Bucket %s created.", bucket)
-	}
-
-	// This command is used to take the wal and compress it
-	compressCmd := exec.Command(cmdZstd, "--stdout", walSource)
-	// attach pipe to the command
-	compressStdout, err := compressCmd.StdoutPipe()
-	if err != nil {
-		log.Fatal("Can not attach pipe to backup process, ", err)
-	}
-	s3Input := compressStdout
-	// Watch output on stderror
-	compressStderror, err := compressCmd.StderrPipe()
-	ec.Check(err)
-	go util.WatchOutput(compressStderror, log.Info)
-
-	// Variables need for encryption
-	var gpgCmd *exec.Cmd
-	if encrypt {
-		log.Debug("Encrypt data, encrypt: ", encrypt)
-		// Encrypt the compressed data
-		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
-		// Set the encryption output as input for S3
-		s3Input, err = gpgCmd.StdoutPipe()
-		if err != nil {
-			log.Fatal("Can not attach pipe to gpg process, ", err)
-		}
-		// Attach output of WAL to stdin
-		gpgCmd.Stdin = compressStdout
-		// Watch output on stderror
-		gpgStderror, err := gpgCmd.StderrPipe()
-		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Warn)
-
-		// Start encryption
-		if err := gpgCmd.Start(); err != nil {
-			log.Fatal("gpg failed on startup, ", err)
-		}
-		log.Debug("gpg started")
-		contentType = "pgp"
-	}
-
-	// Start backup and compression
-	if err := compressCmd.Start(); err != nil {
-		log.Fatal("zstd failed on startup, ", err)
-	}
-	log.Debug("Compression started")
-
-	// Write data to S3
-	n, err := minioClient.PutObject(bucket, walTarget, s3Input, contentType)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	log.Infof("Written %d bytes to %s in bucket %s.", n, walTarget, bucket)
-
-	// If there is still data in the output pipe it can be lost!
-	err = compressCmd.Wait()
-	if err != nil {
-		log.Fatal("compression failed after startup, ", err)
-	} else {
-		log.Debug("Compression done")
-	}
-
-	if encrypt {
-		err = gpgCmd.Wait()
-		if err != nil {
-			log.Fatal("gpg failed after startup, ", err)
-		} else {
-			log.Debug("Encryption done")
-		}
-	}
-	return err
 }
 
 func init() {
