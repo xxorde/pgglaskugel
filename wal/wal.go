@@ -242,7 +242,7 @@ func (a *Archive) Add(name string, storageType string, size int64) (err error) {
 		return err
 	}
 
-	if findBackupLabel.MatchString(wal.Extension) == true {
+	if findBackupLabel.MatchString(wal.Name+wal.Extension) == true {
 		// This is a backup label not a WAL file
 		// We should we add it as well till we come up with a better solution :)
 	}
