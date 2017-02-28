@@ -48,7 +48,7 @@ var (
 			log.Info("Perform basebackup")
 			// Get time, name and path for basebackup
 			backupTime := startTime.Format(util.BackupTimeFormat)
-			backupName := clusterName + "@" + backupTime + ".zst"
+			backupName := clusterName + "@" + backupTime
 			log.Info("Create new basebackup: ", backupName)
 
 			// WaitGroup for workers

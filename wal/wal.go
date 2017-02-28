@@ -48,11 +48,11 @@ const (
 	StorageTypeS3 = "s3"
 
 	// Regex to represent the ...
-	RegFullWal     = `^[0-9A-Za-z]{24}`                   // ... name of a WAL file
-	RegWalWithExt  = `^([0-9A-Za-z]{24})(.*)`             // ... name of a WAL file wit extension
-	RegTimeline    = `^[0-9A-Za-z]{8}`                    // ... timeline of a given WAL file name
-	RegCounter     = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})` // ... segment counter in the given timeline
-	RegBackupLabel = `^\.[0-9A-Za-z]{8}\.backup\..*`      // ... backup label
+	RegFullWal     = `^[0-9A-Za-z]{24}`                           // ... name of a WAL file
+	RegWalWithExt  = `^([0-9A-Za-z]{24})(.*)`                     // ... name of a WAL file wit extension
+	RegTimeline    = `^[0-9A-Za-z]{8}`                            // ... timeline of a given WAL file name
+	RegCounter     = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`         // ... segment counter in the given timeline
+	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*` // ... backup label with any additional extension
 )
 
 var (

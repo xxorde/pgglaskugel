@@ -166,7 +166,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 	regLabel := regexp.MustCompile(`.*LABEL: ` + searchName)
 	log.Debug("regLabel: ", regLabel)
 
-	log.Debug("Looking for the backup label that contains: ", b.Name)
+	log.Debug("Looking for the backup label that contains: ", searchName)
 
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
@@ -178,6 +178,8 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 		if object.Err != nil {
 			log.Error(object.Err)
 		}
+
+		// log.Debug("Looking at potential backup label: ", object.Key)
 
 		if object.Size > maxBackupLabelSize {
 			// size is to big for backup label

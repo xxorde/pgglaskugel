@@ -533,6 +533,9 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 	// Tell the waiting group this process is done when function ends
 	defer wg.Done()
 
+	// We are using zstd for compression, add extension
+	name = name + ".zst"
+
 	// Are we using encryption?
 	encrypt := viper.GetBool("encrypt")
 	recipient := viper.GetString("recipient")
