@@ -113,7 +113,7 @@ func storeWalStream(input *io.Reader, name string) {
 	archiveTo := viper.GetString("archive_to")
 	switch archiveTo {
 	case "file":
-		writeStreamToFile(input, filepath.Join(archiveDir, name))
+		writeStreamToFile(input, filepath.Join(walDir, name))
 	case "s3":
 		writeStreamToS3(input, viper.GetString("s3_bucket_wal"), name)
 	default:
