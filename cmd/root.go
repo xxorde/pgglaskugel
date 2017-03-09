@@ -629,10 +629,10 @@ func writeStreamToFile(input *io.Reader, filepath string) {
 	log.Debug("Start writing to file")
 	written, err := io.Copy(file, *input)
 	if err != nil {
-		log.Fatal("writeStreamToFile: Error while writing to %s, written %d, error: %v", filepath, written, err)
+		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", filepath, written, err)
 	}
 
-	log.Info("%d bytes were written, waiting for file.Sync()", written)
+	log.Infof("%d bytes were written, waiting for file.Sync()", written)
 	file.Sync()
 }
 
@@ -656,7 +656,7 @@ func writeStreamToS3(input *io.Reader, bucket, name string) {
 		log.Fatal(err)
 	}
 	if exists {
-		log.Debug("Bucket already exists, we are using it: %s", bucket)
+		log.Debugf("Bucket already exists, we are using it: %s", bucket)
 	} else {
 		// Try to create bucket
 		err = minioClient.MakeBucket(bucket, location)
@@ -664,15 +664,15 @@ func writeStreamToS3(input *io.Reader, bucket, name string) {
 			log.Debug("minioClient.MakeBucket(bucket, location) failed")
 			log.Fatal(err)
 		}
-		log.Info("Bucket %s created.", bucket)
+		log.Infof("Bucket %s created.", bucket)
 	}
 
-	log.Debug("Put stream into bucket: ", bucket)
+	log.Debugf("Put stream into bucket: ", bucket)
 	n, err := minioClient.PutObject(bucket, name, *input, contentType)
 	if err != nil {
 		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
 		log.Fatal(err)
 		return
 	}
-	log.Info("Written %d bytes to %s in bucket %s.", n, name, bucket)
+	log.Infof("Written %d bytes to %s in bucket %s.", n, name, bucket)
 }
