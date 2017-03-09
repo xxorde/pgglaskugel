@@ -90,7 +90,7 @@ var (
 			log.Info("Backup was started")
 
 			// Wait for workers to finish
-			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
+			//(WAIT FOR THE WORKER FIRST OR WE CAN LOOSE DATA)
 			wg.Wait()
 
 			// Wait for backup to finish

@@ -23,7 +23,7 @@ The configuration should be easy to use and manage.
 
 Comes with a simple self setup.
 
-### Achieve
+### Archieve
 Can be used to achieve to:
 * local storage / network mounts
 * S3 / minio
@@ -41,10 +41,10 @@ Local storage or network mounts are accessed through the local file system.
 S3 compatible object storage can be accessed by pgGlaskugel directly.
 
 ### Backup
-Backups are done by calling `pgGlaskugel basebackup`. This can happen by hand, cronjob or an automation tool like Ansible.
+Backups are done by calling `pgGlaskugel basebackup`. This can happen manually, via cronjob or an automation tool like Ansible.
 
 ### WAL Archiving
-If WAL Archiving should be used PostgreSQL's `archive_command` is set to `pgGlaskugel archive %p` so that PostgreSQL calls pgGlaskugel for every ready WAL file.
+If WAL Archiving should be used, PostgreSQL's `archive_command` is set to `pgGlaskugel archive %p` so that PostgreSQL calls it for every ready WAL file.
 
 ### Retention Policy
 Retention policy is enforced by calling `pgGlaskugel cleanup --retain <NUMBER OF BACKUPS TO KEEP> --force-retain`.
@@ -69,10 +69,10 @@ pgGlaskugel --config server_to_backup.yml archive %p
 Orchestration will maybe integrated later. 
 
 ### WAL Archiving
-If WAL Archiving should be used PostgreSQL's `archive_command` is set to `pgGlaskugel archive %p` so that PostgreSQL calls pgGlaskugel for every ready WAL file.
-Because WAL is pushed by PostgreSQL access to the WAL storage from database server is necessary.
+If WAL Archiving should be used, PostgreSQL's `archive_command` is set to `pgGlaskugel archive %p` so that PostgreSQL calls it for every ready WAL file.
+Because WAL is pushed by PostgreSQL, access to the WAL storage from database server is necessary.
 
-If pgGlaskugel should not be installed the WAL segments can be compressed and transferred by other methods.
+If pgGlaskugel should not be installed, the WAL segments can be compressed and transferred by other methods.
 
 
 # Usage

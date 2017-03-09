@@ -62,7 +62,7 @@ var (
 	setupCmd = &cobra.Command{
 		Use:   "setup",
 		Short: "Setup PostgreSQL and needed directories.",
-		Long:  `This command makes all needed configuration changes via ALTER SYSTEM and creates missing folders. To operate it needs a superuser connection (connection sting) and the path where the backups should go.`,
+		Long:  `This command makes all needed configuration changes via ALTER SYSTEM and creates missing folders. To operate, it needs a superuser connection (connection sting) and the path where the backups should go.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Run Setup")
 
@@ -149,10 +149,10 @@ var (
 
 			if changed > 0 {
 				// Settings are still not good, restart needed!
-				log.Warn("Not all settings took effect, we need to restart the Database!")
+				log.Warn("Not all settings took effect, we need to restart the database!")
 				pgRestartDB(pgData)
 				if err != nil {
-					log.Fatal("Unable to restart Database: ", err)
+					log.Fatal("Unable to restart database: ", err)
 				}
 			}
 			log.Info("PostgreSQL is configured for archiving.")
@@ -206,21 +206,21 @@ func isPgVersionSupported(pgVersionNum int) (supported bool) {
 	}
 
 	if pgVersionNum > pgMaxVersion {
-		log.Warning("The version of PostgreSQL is not jet support! Your version: ", pgVersionNum, " Max supported version: ", pgMaxVersion)
+		log.Warning("The version of PostgreSQL is not yet support! Your version: ", pgVersionNum, " Max supported version: ", pgMaxVersion)
 		return false
 	}
 
 	return true
 }
 
-// configurePostgreSQL set all settings in "settings" return count of changes
+// configurePostgreSQL set all settings in "settings" and returns count of changes
 func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, err error) {
 	changed = 0
 	for setting := range settings {
 		settingShould := settings[setting]
 		settingIs, err := getPgSetting(db, setting)
 		ec.Check(err)
-		log.Debug(setting, " should be: ", settingShould, " it is: ", settingIs)
+		log.Debug(setting, " should be: ", settingShould, "   it is: ", settingIs)
 
 		if settingIs != settingShould {
 			err := setPgSetting(db, setting, settingShould)

@@ -37,6 +37,7 @@ func init() {
 }
 
 func tutor(cmd *cobra.Command, args []string) {
+	// TODO Fill in the tutor-text
 	fmt.Println(`
 Tutor
 =====

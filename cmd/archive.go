@@ -75,7 +75,7 @@ var (
 			}
 
 			// Wait for workers to finish
-			//(WAIT FIRST FOR THE WORKER OR WE CAN LOOSE DATA)
+			//(WAIT FOR THE WORKER FIRST OR WE CAN LOOSE DATA)
 			wg.Wait()
 
 			elapsed := time.Since(startTime)
@@ -98,11 +98,11 @@ func testWalSource(walSource string) (err error) {
 	}
 
 	if fi.Size() < wal.MinArchiveSize {
-		return errors.New("Input file to small")
+		return errors.New("Input file is too small")
 	}
 
 	if fi.Size() > wal.MaxWalSize {
-		return errors.New("Input file to big")
+		return errors.New("Input file is too big")
 	}
 
 	return nil
