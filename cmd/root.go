@@ -483,7 +483,7 @@ func getS3Connection() (minioClient minio.Client) {
 	}
 
 	tmp.SetAppInfo(myName, myVersion)
-	log.Debugf("%v", minioClient)
+	log.Debug("minioClient: ", minioClient)
 
 	return *tmp
 }
@@ -663,7 +663,7 @@ func writeStreamToS3(input *io.Reader, bucket, name string) {
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	log.Debugf("Put stream into bucket: ", bucket)
+	log.Debug("Put stream into bucket: ", bucket)
 	n, err := minioClient.PutObject(bucket, name, *input, contentType)
 	if err != nil {
 		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
