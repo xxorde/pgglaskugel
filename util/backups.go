@@ -135,7 +135,7 @@ func (b *Backups) AddObject(object minio.ObjectInfo, bucket string) (err error) 
 	if err != nil {
 		return err
 	}
-	// Add back reference to the list od backups
+	// Add back reference to the list of backups
 	newBackup.Backups = b
 	b.Backup = append(b.Backup, newBackup)
 	b.Sort()
@@ -235,7 +235,7 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 		return *b, Backups{}, errors.New("Not enough new backups")
 	}
 
-	// Give the additional vars to the ne sets
+	// Give the additional vars to the new sets
 	newBackups.MinioClient = b.MinioClient
 	oldBackups.MinioClient = b.MinioClient
 	newBackups.WalDir = b.WalDir
@@ -243,7 +243,7 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 	newBackups.WalBucket = b.WalBucket
 	oldBackups.WalBucket = b.WalBucket
 
-	// Putt the newest in newBackups
+	// Put the newest in newBackups
 	newBackups.Backup = (b.Backup)[:countNew]
 
 	// Put every other backup in oldBackups
@@ -286,7 +286,7 @@ func (b *Backups) DeleteAll() (count int, err error) {
 	return count, err
 }
 
-// Find finds a backup by name and returns is
+// Find finds a backup by name and returns it
 func (b *Backups) Find(name string) (backup *Backup, err error) {
 	for _, backup := range b.Backup {
 		if backup.Name == name {

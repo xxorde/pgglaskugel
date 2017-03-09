@@ -138,7 +138,7 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 		log.Debug("content type: ", stat.ContentType)
 		// We need to decrypt the wal file
 
-		// Dencrypt the compressed data
+		// Decrypt the compressed data
 		gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-")
 		// Set the decryption output as input for inflation
 		gpgStout, err = gpgCmd.StdoutPipe()
@@ -184,6 +184,6 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
-	ec.CheckCustom(err, "inflation failed after startup, ")
+	ec.CheckCustom(err, "Inflation failed after startup, ")
 	return err
 }

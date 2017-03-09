@@ -54,28 +54,28 @@ var cleanupCmd = &cobra.Command{
 
 		// Are all backups we want to keep sane?
 		if keep.IsSane() != true {
-			log.Warn("Not all backups to keep are sane, will only count sane backups for retainsion policy")
-			log.Warn("The following backups will not count for retainsion policy: ", keep.Insane())
+			log.Warn("Not all backups to keep are sane, will only count sane backups for retention policy")
+			log.Warn("The following backups will not count for retention policy: ", keep.Insane())
 
-			// Keep only the sane backups in keep
-			// Not sane backups are not deletet, but they are not taken into account for retainsion policy
-			// In sane backups will be deleted by getting to old
+			// Keep only the sane backups
+			// Not sane backups are not deleted, but they are not taken into account for retention policy
+			// In sane backups will be deleted when too old
 			keep = keep.Sane()
 		}
 
-		// Check if we have less backups than wen want to keep
+		// Check if we have less backups than we want to keep
 		if uint(keep.Len()) < retain {
 			log.Warn("Not enough backups for retention policy!")
 		}
 
-		// Do we have backups to keept?
+		// Do we have backups to keep?
 		if keep.Len() >= 1 {
 			log.Info("Keep the following backups:", keep.String())
 		} else {
 			log.Info("No backups will be left!")
 		}
 
-		// Show backups to delete, or exit if none should
+		// Show backups to delete, or exit if none
 		if discard.Len() >= 1 {
 			log.Info("DELETE the following backups: ", discard.String())
 		} else {
@@ -91,7 +91,7 @@ var cleanupCmd = &cobra.Command{
 			ec.CheckError(err)
 		}
 		if confirmDelete != true {
-			log.Warn("Deletion was not confirmed, ending now.")
+			log.Warn("Deletion was not confirmed, exiting now.")
 			os.Exit(1)
 		}
 

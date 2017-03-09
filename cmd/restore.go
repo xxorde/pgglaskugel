@@ -41,7 +41,7 @@ var (
 	restoreCmd = &cobra.Command{
 		Use:   "restore [BACKUPNAME] [DESTINATION]",
 		Short: "Restore an existing backup to a given location",
-		Long:  `Restore a given backup to a given location.`,
+		Long:  `Restore an existing backup to a given location.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Debug("restore called")
 			backupName := viper.GetString("backup")
@@ -49,6 +49,7 @@ var (
 			writeRecoveryConf := viper.GetBool("write-recovery-conf")
 			force := viper.GetBool("force-restore")
 
+			// TODO This is not very robust, maybe we find a better way here
 			// Set backupName if given directly
 			if len(args) >= 1 {
 				backupName = args[0]
@@ -77,7 +78,7 @@ var (
 				}
 			}
 
-			// If backup folder is not empty ask what to do (and force is not set)
+			// If backup folder is not empty, ask what to do (and force is not set)
 			if empty, err := util.IsEmpty(backupDestination); (!empty || err != nil) && force != true {
 				force, err := util.AnswerConfirmation("Destination directory is not empty, continue anyway?")
 				if err != nil {
@@ -156,8 +157,8 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Pipe the the inflated backup in untar
 	untarCmd.Stdin = inflateStdout
 
-	// If encryption is used pipe data through decryption before inflation
-	// Command to dencrypt the compressed data
+	// If encryption is used, pipe data through decryption before inflation
+	// Command to decrypt the compressed data
 	gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-")
 	// TODO: Test if backup is encrypted
 	if encrypt {

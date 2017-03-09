@@ -29,8 +29,8 @@ import (
 // versionCmd represents the version command
 var versionCmd = &cobra.Command{
 	Use:   "version",
-	Short: "Shows the version you are using",
-	Long:  `You can look online if you find a newer version of this software.`,
+	Short: "Shows the version of pgGlaskugel you are using",
+	Long:  `You can look online if you need a newer version of this software.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		log.Info("pg_gobackup version " + myVersion + ", OMG do not use this!!!")
 	},

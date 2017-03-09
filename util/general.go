@@ -38,8 +38,8 @@ func AnswerConfirmation(msg string) (confirmed bool, err error) {
 	if err != nil {
 		return false, err
 	}
-	positive := []string{"y", "yes", "do it", "let's rock"}
-	negative := []string{"n", "no", "hell no", "fuck off"}
+	positive := []string{"j","ja","y", "yes", "do it", "let's rock"}
+	negative := []string{"nein","n", "no", "hell no", "fuck off"}
 
 	input = strings.ToLower(input)
 

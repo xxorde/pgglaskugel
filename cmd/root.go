@@ -162,11 +162,11 @@ func init() {
 	RootCmd.PersistentFlags().String("cluster_name", hostname, "Name of the cluster, used in backup name")
 	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().Bool("pgdata-auto", true, "Try to find pgdata if not set correctly (via SQL)")
-	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups go")
-	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode, to increase verbosity")
+	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups")
+	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
-	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel, default depends on cores ")
+	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel. default depends on cores ")
 	RootCmd.PersistentFlags().String("backup_to", "file", "Backup destination (file|s3)")
 	RootCmd.PersistentFlags().String("archive_to", "file", "WAL destination (file|s3)")
 	RootCmd.PersistentFlags().String("s3_endpoint", "127.0.0.1:9000", "S3 endpoint")
@@ -337,7 +337,7 @@ func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 	ec.Check(err)
 	err = row.Scan(&value)
 	if err != nil {
-		log.Fatal("Can't get PostgreSQL setting: ", setting, " err:", err)
+		log.Fatal("Can not get PostgreSQL setting: ", setting, " err:", err)
 		return "", err
 	}
 	log.Debug("Got ", value, " for ", setting, " in pg_settings")
@@ -346,7 +346,7 @@ func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 
 // setPgSetting sets a value to a setting
 func setPgSetting(db *sql.DB, setting string, value string) (err error) {
-	// Bad style and risk for injection!!! But no better option ... open for suggestions!
+	// TODO Bad style and risk for injection!!! But no better option ... open for suggestions!
 	query := "ALTER SYSTEM SET " + setting + " = '" + value + "';"
 	_, err = db.Query(query)
 	if err != nil {
@@ -465,11 +465,11 @@ func checkNeededParameter(parameter ...string) (err error) {
 	for _, p := range parameter {
 		if viper.GetString(p) <= "" {
 			errCount++
-			log.Warn(p, " ist not set")
+			log.Warn(p, " is not set")
 		}
 	}
 	if errCount > 0 {
-		return errors.New("No all parameters are set")
+		return errors.New("Not all parameters are set")
 	}
 	return nil
 }
@@ -595,7 +595,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 		dataStream = compressStdout
 	}
 
-	// Store the steamed data
+	// Store the streamed data
 	storageBackend(&dataStream, name)
 
 	// Wait for compression to finish
@@ -667,7 +667,7 @@ func writeStreamToS3(input *io.Reader, bucket, name string) {
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	log.Debug("Put stream into bucket: ", bucket)
+	log.Debugf("Put stream into bucket: ", bucket)
 	n, err := minioClient.PutObject(bucket, name, *input, contentType)
 	if err != nil {
 		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
