@@ -38,6 +38,6 @@ cp -r README.md docs LICENSE ${SHARE}/
 tar cfJ ${ARCHIVE_NAME} -C ${BUILD} .
 
 # Copy artifacts
-if [ ! -d ${DEST} ]; then
+if [ -d ${DEST} ]; then
 	cp ${ARCHIVE_NAME} ${DEST}/
 fi
