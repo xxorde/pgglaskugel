@@ -23,6 +23,7 @@ package cmd
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -232,10 +233,10 @@ func configurePostgreSQL(db *sql.DB, settings map[string]string) (changed int, e
 	return changed, nil
 }
 
-// createDirs creates all dirs in archivedir + "/" + subDirs
+// createDirs creates all subDirs
 func createDirs(archivedir string, subDirs []string) error {
 	for _, dir := range subDirs {
-		path := archivedir + "/" + dir
+		path := filepath.Join(archivedir, dir)
 		err := os.MkdirAll(path, 0770)
 		if err != nil {
 			log.Fatal("Can not create directory: ", path)

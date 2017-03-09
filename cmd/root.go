@@ -37,8 +37,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/crypto/openpgp/packet"
-
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
@@ -115,9 +113,7 @@ var (
 	startTime time.Time
 
 	// PGP keys for encryption
-	keyDir  = "~/.pgglaskugel/"
-	privKey *packet.PrivateKey
-	pubKey  *packet.PublicKey
+	keyDir = "~/.pgglaskugel/"
 
 	// RootCmd represents the base command when called without any subcommands
 	RootCmd = &cobra.Command{
