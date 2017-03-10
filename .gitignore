@@ -1,6 +1,8 @@
 debug
-pgglaskugel*
-pgGlaskugel*
+pgglaskugel
+pgGlaskugel
+pgglaskugel.tar*
+pgGlaskugel.tar*
 *.xz
 *.lzo
 *.lz4
