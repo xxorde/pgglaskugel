@@ -30,9 +30,11 @@ go build -o ${NAME}
 
 # Copy executeable
 cp ${NAME} ${BIN}/
+install -m 755 ${NAME} ${BIN}/
 
 # Copy docs
-cp -r README.md docs LICENSE ${SHARE}/
+install -m 644 README.md LICENSE ${SHARE}/
+cp -r docs ${SHARE}/
 
 # Create archive
 tar cfJ ${ARCHIVE_NAME} -C ${BUILD} .
