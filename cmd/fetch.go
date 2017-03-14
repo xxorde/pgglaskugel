@@ -23,7 +23,6 @@ package cmd
 import (
 	"errors"
 	"io"
-	"os"
 	"os/exec"
 	"time"
 
@@ -80,19 +79,64 @@ func fetchWal(walTarget string, walName string) (err error) {
 	return errors.New("This should never be reached")
 }
 
-// fetchFromFile uses the shell command lz4 to recover WAL files
+// fetchFromFile uses the shell command zstd to recover WAL files
 func fetchFromFile(walTarget string, walName string) (err error) {
 	walSource := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
 	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
+	encrypt := viper.GetBool("encrypt")
 
-	// Check if WAL file is already recovered
-	if _, err := os.Stat(walTarget); err == nil {
-		err := errors.New("WAL file is already recovered in : " + walTarget)
+	// If encryption is not used the restore is easy
+	if encrypt == false {
+		fetchCmd := exec.Command(cmdZstd, "-d", walSource, "-o", walTarget)
+		err = fetchCmd.Run()
 		return err
 	}
 
-	fetchCmd := exec.Command(cmdZstd, "-d", walSource, "-o", walTarget)
-	err = fetchCmd.Run()
+	// If we reach this code path encryption is turned on
+	// Encryption is used so we have to decrypt
+	log.Debug("WAL file will be decrypted")
+
+	// Read and decrypt the compressed data
+	gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-", walSource)
+	// Set the decryption output as input for inflation
+	var gpgStout io.ReadCloser
+	gpgStout, err = gpgCmd.StdoutPipe()
+	if err != nil {
+		log.Fatal("Can not attach pipe to gpg process, ", err)
+	}
+
+	// Watch output on stderror
+	gpgStderror, err := gpgCmd.StderrPipe()
+	ec.Check(err)
+	go util.WatchOutput(gpgStderror, log.Info)
+
+	// Start decryption
+	if err := gpgCmd.Start(); err != nil {
+		log.Fatal("gpg failed on startup, ", err)
+	}
+	log.Debug("gpg started")
+
+	// command to inflate the data stream
+	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
+
+	// Watch output on stderror
+	inflateStderror, err := inflateCmd.StderrPipe()
+	ec.Check(err)
+	go util.WatchOutput(inflateStderror, log.Info)
+
+	// Assign inflationInput as Stdin for the inflate command
+	inflateCmd.Stdin = gpgStout
+
+	// Start WAL inflation
+	if err := inflateCmd.Start(); err != nil {
+		log.Fatal("zstd failed on startup, ", err)
+	}
+	log.Debug("Inflation started")
+
+	// If there is still data in the output pipe it can be lost!
+	err = inflateCmd.Wait()
+	ec.CheckCustom(err, "Inflation failed after startup")
+
 	return err
 }
 

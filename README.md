@@ -34,7 +34,7 @@ Can be used to achieve to:
 ## Distributed or Single Node
 ![decentralized](docs/img/arch_overview_decentralized.png)
 
-This is a distributed or single node approach.
+This is a distributed or single node approach, it is the intended use case for pgGlaskugel.
 On every database server there is also an instance of pgGlaskugel.
 
 Local storage or network mounts are accessed through the local file system.
@@ -58,6 +58,7 @@ Backups are restored by a local call to `pgGlaskugel  restore --backup <BACKUP N
 ![decentralized](docs/img/arch_overview_centralized.png)
 
 This example uses a central backup server that manages the backups of many database servers.
+This is not the intended use so this kind of setup is not as convenient.
 
 ### Backups
 Backups are called via cronjob or another tool according to schedule.
