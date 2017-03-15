@@ -12,3 +12,4 @@ pgGlaskugel.tar*
 .minio.sys/
 .#*
 *#*#
+.vagrant
