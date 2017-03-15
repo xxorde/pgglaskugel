@@ -29,7 +29,6 @@ mkdir -p ${SHARE}
 go build -o ${NAME}
 
 # Copy executeable
-cp ${NAME} ${BIN}/
 install -m 755 ${NAME} ${BIN}/
 
 # Copy docs
@@ -41,5 +40,6 @@ tar cfJ ${ARCHIVE_NAME} -C ${BUILD} .
 
 # Copy artifacts
 if [ -d ${DEST} ]; then
+	cp ${NAME} ${DEST}/
 	cp ${ARCHIVE_NAME} ${DEST}/
 fi
