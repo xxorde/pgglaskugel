@@ -9,6 +9,7 @@ pgGlaskugel.tar*
 *.zst
 *.exe
 *.app
+*.swp
 .minio.sys/
 .#*
 *#*#
