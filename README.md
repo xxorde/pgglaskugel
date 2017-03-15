@@ -97,21 +97,25 @@ Available Commands:
   basebackup  Creates a new basebackup from the database
   cleanup     Deletes backups and WAL files enforcing an retention policy
   fetch       Fetches a given WAL file
+  genman      Generate man page for pgGlaskugel
+  help        Help about any command
   ls          Shows existing backups
+  lswal       Show all WAL files in archive
   restore     Restore an existing backup to a given location
   setup       Setup PostgreSQL and needed directories.
   tutor       A small tutorial to demonstrate the usage
-  version     Shows the version you are using
+  version     Shows the version of pgGlaskugel you are using
 
 Flags:
       --archive_to string           WAL destination (file|s3) (default "file")
-      --archivedir string           Dir where the backups go (default "/var/lib/postgresql/backup/pgglaskugel")
+      --archivedir string           Dir where the backups (default "/var/lib/postgresql/backup/pgglaskugel")
       --backup_to string            Backup destination (file|s3) (default "file")
+      --cluster_name string         Name of the cluster, used in backup name (default "kerrigan")
       --config string               Config file
       --connection string           Connection string to connect to the database (default "host=/var/run/postgresql user=postgres dbname=postgres")
-      --debug                       Enable debug mode, to increase verbosity
+      --debug                       Enable debug mode to increase verbosity
       --encrypt                     Enable encryption for S3 storage
-  -j, --jobs int                    The number of jobs to run parallel, default depends on cores  (default 4)
+  -j, --jobs int                    The number of jobs to run parallel. default depends on cores  (default 4)
       --json                        Generate output as JSON
       --path_to_basebackup string   Path to the basebackup command (default "/usr/bin/pg_basebackup")
       --path_to_gpg string          Path to the gpg command (default "/usr/bin/gpg")
@@ -128,7 +132,6 @@ Flags:
       --s3_location string          S3 datacenter location (default "us-east-1")
       --s3_secret_key string        secret_key (default "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC")
       --s3_ssl                      If SSL (TLS) should be used for S3 (default true)
-      --standalone                  Include WAL files in backup so it can be used stand alone
 
 Use "pgglaskugel [command] --help" for more information about a command.
 ```
