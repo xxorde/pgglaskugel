@@ -5,7 +5,7 @@
 # Disclaimer
 
 This is a personal work-in-progress project!
-Do not expect anything to work as intended jet!
+Do not expect anything to work as intended, yet!
 
 Feel free to send bug reports, use `--debug`! :)
 
@@ -23,8 +23,8 @@ The configuration should be easy to use and manage.
 
 Comes with a simple self setup.
 
-### Archieve
-Can be used to achieve to:
+### Archive
+Can be used to archive to:
 * local storage / network mounts
 * S3 / minio
 
@@ -48,7 +48,7 @@ If WAL Archiving should be used, PostgreSQL's `archive_command` is set to `pgGla
 
 ### Retention Policy
 Retention policy is enforced by calling `pgGlaskugel cleanup --retain <NUMBER OF BACKUPS TO KEEP> --force-retain`.
-This is normally done via cronjob on the same machine (but there are altho other methods).
+This is normally done via cronjob on the same machine (but there are also other methods).
 
 ### Restore Backup
 Backups are restored by a local call to `pgGlaskugel  restore --backup <BACKUP NAME> --restore-to <PATH TO NEW INSTANCE>`
