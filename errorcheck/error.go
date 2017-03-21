@@ -20,7 +20,7 @@
 
 package errorcheck
 
-import "github.com/siddontang/go/log"
+import log "github.com/Sirupsen/logrus"
 
 // Nice coating of indirection for error handling and logging
 func Check(err error) error {
