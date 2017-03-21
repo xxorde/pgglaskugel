@@ -2,17 +2,17 @@
 %global _dwz_low_mem_die_limit 0
 
 Name:           pgglaskugel
-Version:        0.2
+Version:        0.3
 Release:        1
 BuildArch:      x86_64
 Summary:        A tool that helps you to manage your PostgreSQL backups
 License:        MIT
 URL:            https://github.com/xxorde/pgglaskugel
 
-Source0:       pgglaskugel.tar.gz
+#Source0:       pgglaskugel.tar.gz
 # activate this, when the repo is public, and make sure to use spectool -g pgglaskugel.spec befor rpmbuild 
 # to get the sources for the release, if it changes
-#Source0:        https://github.com/xxorde/pgglaskugel/archive/v0.2.tar.gz
+Source0:        https://github.com/xxorde/pgglaskugel/archive/v0.3.tar.gz
 
 BuildRequires:  golang >= 1.7
 
