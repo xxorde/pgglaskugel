@@ -50,7 +50,7 @@ import (
 
 const (
 	myName    = "pgglaskugel"
-	myVersion = "0.3"
+	myVersion = "0.4"
 
 	// Logo
 	logo = `

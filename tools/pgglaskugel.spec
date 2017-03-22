@@ -2,7 +2,7 @@
 %global _dwz_low_mem_die_limit 0
 
 Name:           pgglaskugel
-Version:        0.3
+Version:        0.4
 Release:        1
 BuildArch:      x86_64
 Summary:        A tool that helps you to manage your PostgreSQL backups
