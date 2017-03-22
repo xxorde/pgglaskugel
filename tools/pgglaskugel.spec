@@ -7,7 +7,7 @@ Release:        1
 BuildArch:      x86_64
 Summary:        A tool that helps you to manage your PostgreSQL backups
 License:        MIT
-URL:            https://github.com/xxorde/pgglaskugel
+URL:            https://github.com/xxorde/%{name}
 
 #Source0:       pgglaskugel.tar.gz
 # activate this, when the repo is public, and make sure to use spectool -g pgglaskugel.spec befor rpmbuild 
