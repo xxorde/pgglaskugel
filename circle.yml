@@ -13,4 +13,4 @@ dependencies:
 test:
   override:
     - make test
-    - cd /tools/Test-CentOS7; ./run_test_in_docker.sh
+    - cd tools/Test-CentOS7; ./run_test_in_docker.sh
