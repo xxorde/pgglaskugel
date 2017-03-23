@@ -1,10 +1,8 @@
 dependencies:
   pre:
-    - sudo apt update; sudo apt install zstd
   override:
   post:
     - make pgglaskugel
-    - make man
     - make tarball 
     - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
 
