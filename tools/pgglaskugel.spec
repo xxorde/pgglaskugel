@@ -25,6 +25,9 @@ install -m 755 %{name} %{buildroot}/%{_bindir}/
 %doc docs
 %{_bindir}/%{name}
 
+%clean
+rm -rf %{buildroot}
+
 %changelog
 * Thu Mar  23 2017 Alexander Sosna <alexander@xxor.de>
   Initial package version.
