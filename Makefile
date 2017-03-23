@@ -4,7 +4,7 @@ VERSION = 0.5
 BUILD_TIME = $(shell date +%FT%T%z)
 LDFLAGS = -ldflags "-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.Buildtime=$(BUILD_TIME)"
 
-BUILD = "_build"
+BUILD = _build
 INSTALL = /
 
 BIN = /usr/bin
