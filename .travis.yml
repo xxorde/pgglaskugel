@@ -11,7 +11,7 @@ go:
 os:
   - linux
 script:
-  - make vendor
+  - go get
   - make pgglaskugel
   - make tarball
   - make test
