@@ -29,7 +29,7 @@ test:
 	go test -v -race
 
 tarball:
-	mkdir -p $(BUILD)
+	mkdir -p $(BUILD)/docs
 	install -m 755 $(NAME) $(BUILD)
 	install -m 644 README.md LICENSE $(BUILD)/docs
 	cp -r docs/* $(BUILD)/docs
