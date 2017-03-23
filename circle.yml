@@ -2,6 +2,7 @@ dependencies:
   override:
   post:
     - make pgglaskugel
+    - make man
     - make tarball 
     - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
 
