@@ -215,15 +215,16 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	}
 
 	// Wait for compression to finish
-	err = inflateCmd.Wait()
-	if err != nil {
+	// Using new error variables here due to previous race conditions
+	errWait := inflateCmd.Wait()
+	if errWait != nil {
 		log.Fatal("inflateCmd failed after startup, ", err)
 	}
 
 	// WAIT! If there is still data in the output pipe it can be lost!
 	// Wait for backup to finish
-	err = untarCmd.Wait()
-	if err != nil {
+	errWait = untarCmd.Wait()
+	if errWait != nil {
 		log.Fatal("untarCmd failed after startup, ", err)
 	}
 	log.Debug("untarCmd done")

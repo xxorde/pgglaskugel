@@ -28,6 +28,9 @@ man:
 test:
 	go test -v -race
 
+testsuite:
+	cd tools/Test-CentOS7; ./run_test_in_docker.sh
+
 tarball:
 	mkdir -p $(BUILD)/docs
 	install -m 755 $(NAME) $(BUILD)
