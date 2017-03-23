@@ -20,7 +20,6 @@
 package util
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -66,15 +65,7 @@ func MustAnswerConfirmation(msg string) (confirmed bool) {
 }
 
 func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {
-	log.Debug("watchOutput started")
-	scanner := bufio.NewScanner(input)
-	for scanner.Scan() {
-		outputFunc(scanner.Text())
-	}
-	if err := scanner.Err(); err != nil {
-		outputFunc("error reading input:", err)
-	}
-	log.Debug("watchOutput end")
+	log.Debug("nop")
 }
 
 // Exists returns whether the given file or directory exists or not
