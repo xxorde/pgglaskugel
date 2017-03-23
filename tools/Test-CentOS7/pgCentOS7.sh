@@ -21,6 +21,146 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
+# config
+PG_VERSION=9.5
+PGVERSION=95
+PG_CTL=/usr/pgsql-$PG_VERSION/bin/pg_ctl
+TESTDIR=/var/lib/pgglaskugel-test
+PGDATA=$TESTDIR/$PG_VERSION/data
+ARCHIVEDIR=$TESTDIR/backup/pgglaskugel
+MINIO=/var/lib/minio
+DBUSER=postgres
+DBUSER_DO="sudo -u $DBUSER"
+
+cleanup()
+{
+  echo "Clean everything..."
+  $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
+  pkill minio > /dev/null 2>&1
+  if [ -d $TESTDIR ]
+    then
+      rm -rf $TESTDIR
+  fi
+  if [ -d $MINIO ]
+    then
+      rm -rf $MINIO
+  fi
+  if [ -d /root/.minio ]
+    then
+      rm -rf /root/.minio
+  fi
+  if [ -f /usr/bin/pgglaskugel ]
+    then
+      rm /usr/bin/pgglaskugel
+  fi
+  if [ -f /usr/bin/minio ]
+    then
+      rm /usr/bin/minio
+  fi
+}
+
+getPostgressetup()
+{
+  cat > /usr/pgsql-$PG_VERSION/bin/postgresql$PGVERSION-setup << EOL 
+#!/bin/bash
+PGVERSION=9.5.6
+PGMAJORVERSION=`echo "\$PGVERSION" | sed 's/^\([0-9]*\.[0-9]*\).*$/\1/'`
+PGENGINE=/usr/pgsql-9.5/bin
+PREVMAJORVERSION=9.4
+PREVPGENGINE=/usr/pgsql-\$PREVMAJORVERSION/bin
+
+# The second parameter is the new database version, i.e. \$PGMAJORVERSION in this case.
+SERVICE_NAME="\$2"
+if [ x"\$SERVICE_NAME" = x ]
+then
+    SERVICE_NAME=postgresql-\$PGMAJORVERSION
+fi
+OLD_SERVICE_NAME="\$3"
+if [ x"\$OLD_SERVICE_NAME" = x ]
+then
+    OLD_SERVICE_NAME=postgresql-\$PREVMAJORVERSION
+fi
+case "$1" in
+    --version)
+        echo "postgresql-setup \$PGVERSION"
+        exit 0
+        ;;
+esac
+PGDATA=$PGDATA
+PGLOG=$TESTDIR/$PG_VERSION/initdb.log
+
+if [ -z "\$PGDATA" ]
+  then
+    echo "ERROR setting PGDATA"
+fi
+export PGDATA
+
+SU=su
+
+script_result=0
+perform_initdb(){
+    if [ ! -e "\$PGDATA" ]; then
+        mkdir -p "\$PGDATA" || return 1
+        chown $DBUSER:$DBUSER "\$PGDATA"
+        chmod go-rwx "\$PGDATA"
+    fi
+    # Clean up SELinux tagging for PGDATA
+    [ -x /sbin/restorecon ] && /sbin/restorecon "\$PGDATA"
+
+    # Create the initdb log file if needed
+    if [ ! -e "\$PGLOG" -a ! -h "\$PGLOG" ]; then
+        touch "\$PGLOG" || return 1
+        chown $DBUSER:$DBUSER "\$PGLOG"
+        chmod go-rwx "\$PGLOG"
+        [ -x /sbin/restorecon ] && /sbin/restorecon "\$PGLOG"
+    fi
+
+    # Initialize the database
+    initdbcmd="\$PGENGINE/initdb --pgdata='\$PGDATA' --auth='ident'"
+    initdbcmd+=" \$PGSETUP_INITDB_OPTIONS"
+
+    \$SU -l $DBUSER -c "\$initdbcmd" >> "\$PGLOG" 2>&1 < /dev/null
+
+    # Create directory for postmaster log files
+    mkdir "\$PGDATA/pg_log"
+    chown $DBUSER:$DBUSER "\$PGDATA/pg_log"
+    chmod go-rwx "\$PGDATA/pg_log"
+    [ -x /sbin/restorecon ] && /sbin/restorecon "\$PGDATA/pg_log"
+
+    if [ -f "\$PGDATA/PG_VERSION" ]; then
+        return 0
+    fi
+    return 1
+}
+initdb(){
+    if [ -f "\$PGDATA/PG_VERSION" ]; then
+        echo $"Data directory is not empty!"
+        echo
+        script_result=1
+    else
+        echo -n $"Initializing database ... "
+        if perform_initdb; then
+            echo $"OK"
+        else
+            echo $"failed, see \$PGLOG"
+            script_result=1
+        fi
+        echo
+    fi
+}
+
+case "\$1" in
+    initdb)
+        initdb
+        ;;
+    *)
+        echo >&2 "ERROR while setting up postgresql"
+        exit 2
+esac
+
+exit \$script_result
+EOL
+}
 
 # check distro and version
 checkdistroversion()
@@ -41,33 +181,36 @@ checkdistroversion()
   echo "Seems like a CentOS7 version..."
 }
 
+installpackages()
+{
+  echo "Installing needed tools..."
+  yum -y -q install sudo lsof wget rng-tools
+  yum -y -q install https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-3.noarch.rpm
+  yum -y -q install postgresql95 postgresql95-server
+  yum -y -q install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+  yum -y -q install zstd
+}
+
+
 minioinstall()
 {
   echo "Getting Minio..."
-  wget https://dl.minio.io/server/minio/release/linux-amd64/minio
+  wget https://dl.minio.io/server/minio/release/linux-amd64/minio > /dev/null
   chmod 755 minio
   mv ./minio /usr/bin
-cat > /lib/systemd/system/minio.service << EOL
-[Unit]
-Description=Minio Server
-#depends on Network
-
-[Service]
-Type=simple
-Environment="IP=127.0.0.1" "PORT=9000" "DATADIR=/var/lib/minio"
-ExecStart=/usr/bin/minio server --address \${IP}:\${PORT} \${DATADIR}
-
-[Install]
-WantedBy=multi-user.target
-EOL
-  systemctl daemon-reload
 }
 
 miniostart()
 {
   echo "Starting Minio Server..."
-  systemctl start minio.service
-  sleep 3
+  minio server --address 127.0.0.1:9000 -C "/root/.minio" $MINIO &
+  while [ -z "$(lsof -i :9000)" ]
+    do
+      echo "Wait for Minio to listen..."
+      sleep 2
+    done
+  chown $DBUSER:$DBUSER $MINIO 
+  chmod -R 700 $MINIO
 }
 
 miniogetkeys()
@@ -91,7 +234,7 @@ miniocheck()
       minioinstall
       miniostart
       miniogetkeys
-    elif [ "active" == $(systemctl is-active minio.service) ]
+    elif [ ! -z "$(lsof -i :9000)" ]
       then
         miniogetkeys
     else
@@ -120,12 +263,12 @@ encrypttest()
 {
   if [ "$1" == "file" ]
     then
-      enctest=/var/lib/postgresql/backup/pgglaskugel/basebackup/$(ls /var/lib/postgresql/backup/pgglaskugel/basebackup)
-      walenctest=/var/lib/postgresql/backup/pgglaskugel/wal/$(ls /var/lib/postgresql/backup/pgglaskugel/wal | head -1)
+      enctest=$ARCHIVEDIR/basebackup/$(ls $ARCHIVEDIR/basebackup)
+      walenctest=$ARCHIVEDIR/wal/$(ls $ARCHIVEDIR/wal | head -1)
     elif [ "$1" == "s3" ]
       then
-        enctest=/var/lib/minio/pgglaskugel-basebackup/$(ls /var/lib/minio/pgglaskugel-basebackup)
-        walenctest=/var/lib/minio/pgglaskugel-wal/$(ls /var/lib/minio/pgglaskugel-wal | head -1)
+        enctest=$MINIO/basebackup/$(ls $MINIO/basebackup)
+        walenctest=$MINIO/wal/$(ls $MINIO/wal | head -1)
     else
       echo "ERROR: Encryption test parameters failed"
       exit 1
@@ -171,29 +314,30 @@ testingenc()
 
 cleandirs()
 {
-  if [ -d /var/lib/pgsql/9.5/data ]
+  if [ -d $PGDATA ]
     then
-      if [ ! -z "$(ls /var/lib/pgsql/9.5/data)" ]
+      if [ ! -z "$(ls $PGDATA)" ]
         then
-          systemctl stop postgresql-9.5.service
-          rm -rf /var/lib/pgsql/9.5/data/*   
+          $DBUSER_DO $PG_CTL  stop -D $PGDATA -s -m fast
+
+          rm -rf $PGDATA/*   
           echo "Cleaning data dir..."
       fi
   fi
-  if [ -d /var/lib/postgresql/backup/pgglaskugel/basebackup/ ]
+  if [ -d $ARCHIVEDIR/basebackup/ ]
     then
-      if [ ! -z "$(ls /var/lib/postgresql/backup/pgglaskugel/basebackup/)" ]
+      if [ ! -z "$(ls $ARCHIVEDIR/basebackup/)" ]
         then
-          rm -rf /var/lib/postgresql/backup/pgglaskugel/basebackup/*
-          rm -rf /var/lib/postgresql/backup/pgglaskugel/wal/*
+          rm -rf $ARCHIVEDIR/basebackup/*
+          rm -rf $ARCHIVEDIR/wal/*
           echo "Cleaning pgGlaskugel basebackup..."
       fi
   fi
-  if [ -d /var/lib/minio ]
+  if [ -d $MINIO ]
     then
-      if [ ! -z "$(ls /var/lib/minio)" ]
+      if [ ! -z "$(ls $MINIO)" ]
         then
-          rm -rf /var/lib/minio/*
+          rm -rf $MINIO/*
           echo "Cleaning Minio folders..."
       fi
   fi
@@ -203,25 +347,32 @@ pathglaskugel()
 {
   if [ -f "$1" ]
     then
-      mv $1 /usr/bin
-      echo "pgGlaskugel successfully moved to /usr/bin/"
+      cp $1 /usr/bin
+      retval=$?
   elif [ -d "$1" ]
     then
-      mv $1/pgglaskugel /usr/bin
-      echo "pgGlaskugel successfully moved to /usr/bin/"
+      cp $1/pgglaskugel /usr/bin
+      retval=$?
     else
       echo "Path is wrong"
+      exit 1
+  fi
+  if [ $retval -eq 0 ]
+    then
+      echo "pgGlaskugel successfully moved to /usr/bin/"
+    else
+      echo "Error: Moving pgGlaskugel to /usr/bin/ failed..."
       exit 1
   fi
 }
 
 gpgcheck()
 {
-  if [ -z "$(sudo -u postgres gpg -k | grep pub | sed 1d | cut -d"/" -f 2 | cut -d" " -f1)" ]
+  if [ -z "$($DBUSER_DO gpg -k | grep pub | sed 1d | cut -d"/" -f 2 | cut -d" " -f1)" ]
     then
       createKeyPair
     else
-      echo "Found gpg keys from postgres..."
+      echo "Found gpg keys from $DBUSER ..."
       echo "Let's use them to encrypt/decrypt!"
   fi
 }
@@ -229,7 +380,7 @@ gpgcheck()
 createKeyPair()
 {
   rngd -r /dev/urandom
-cat > /var/lib/pgsql/foo << EOL
+cat > $TESTDIR/foo << EOL
 %echo Generating a default key
 Key-Type: default
 Subkey-Type: default
@@ -241,33 +392,36 @@ Expire-Date: 0
 %commit
 %echo done
 EOL
-  chown postgres /var/lib/pgsql/foo
-  sudo -u postgres gpg --batch --gen-key /var/lib/pgsql/foo
+  chown $DBUSER $TESTDIR/foo
+  $DBUSER_DO gpg --batch --gen-key $TESTDIR/foo
 }
 
 Init ()
 {
   echo "Configuring new cluster..."
-  systemctl start postgresql-9.5.service
+  $DBUSER_DO $PG_CTL start -D $PGDATA -w -t 300 > /dev/null  2>&1
   echo "Editing pg_hba.conf..."
-cat > /var/lib/pgsql/9.5/data/pg_hba.conf << EOL
+cat > $PGDATA/pg_hba.conf << EOL
 host    all             all             127.0.0.1/32            md5
-local   all             postgres                                ident
-local   replication     postgres                                ident
-host    replication     postgres        127.0.0.1/32            md5
+local   all             $DBUSER                                ident
+local   replication     $DBUSER                                ident
+host    replication     $DBUSER        127.0.0.1/32            md5
 EOL
-  chown -R postgres /var/lib/pgsql/
-  echo "Set postgres password to postgres..."
-  sudo -u postgres psql -c "alter user postgres with password 'postgres';"
+  chown -R $DBUSER $TESTDIR
+  echo "Set $DBUSER password to $DBUSER..."
+  $DBUSER_DO psql -c "alter user $DBUSER with password '$DBUSER';"
   echo "Reloading the pg_hba.conf..."
-  sudo -u postgres psql -c "select pg_reload_conf();"
+  $DBUSER_DO psql -c "select pg_reload_conf();"
 }
 
 prepareconfigfolder()
 {
-  if [ ! -d /var/lib/pgsql/.pgglaskugel ]
+  mkdir -p $PGDATA
+  chown -R $DBUSER:$DBUSER $TESTDIR
+  chmod -R 700 $TESTDIR
+  if [ ! -d $TESTDIR/.pgglaskugel ]
     then
-      mkdir /var/lib/pgsql/.pgglaskugel
+      mkdir $TESTDIR/.pgglaskugel
   fi
 }
 
@@ -305,7 +459,7 @@ pickconfig()
 
 s3config()
 {
-cat > /var/lib/pgsql/.pgglaskugel/config.yml << EOL
+cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 ---
 encrypt: true
 debug: true
@@ -315,12 +469,16 @@ backup_to: s3
 s3_access_key: $accesskey
 s3_secret_key: $secretkey
 s3_ssl: false
+pgdata: $PGDATA
+archivedir: $ARCHIVEDIR
+s3_bucket_backup: basebackup
+s3_bucket_wal: wal
 EOL
 }
 
 s3confignoenc()
 {
-cat > /var/lib/pgsql/.pgglaskugel/config.yml << EOL
+cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 ---
 encrypt: false
 debug: true
@@ -329,73 +487,62 @@ backup_to: s3
 s3_access_key: $accesskey
 s3_secret_key: $secretkey
 s3_ssl: false
+pgdata: $PGDATA
+archivedir: $ARCHIVEDIR
+s3_bucket_backup: basebackup
+s3_bucket_wal: wal
 EOL
 }
 
 fileconfig()
 {
-cat > /var/lib/pgsql/.pgglaskugel/config.yml << EOL
+cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 ---
 encrypt: true
 debug: true
 recipient: hen@foo.bar
+pgdata: $PGDATA
+archivedir: $ARCHIVEDIR
 EOL
 }
 
 fileconfignoenc()
 {
-cat > /var/lib/pgsql/.pgglaskugel/config.yml << EOL
+cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 ---
 encrypt: false 
 debug: true
+pgdata: $PGDATA
+archivedir: $ARCHIVEDIR
 EOL
 }
 
 pgglaskugelsetup()
 {
   ##################################Fix##################################
-  mkdir -p /var/lib/postgresql/backup/pgglaskugel/basebackup
-  chown -R postgres /var/lib/postgresql/backup
+  mkdir -p $TESTDIR/backup/pgglaskugel/basebackup
+  chown -R $DBUSER $TESTDIR/backup
   #######################################################################
   
   echo "Starting pgGlaskugel setup..."
-  sudo -u postgres pgglaskugel setup
-  systemctl restart postgresql-9.5.service 
+  $DBUSER_DO pgglaskugel setup --config $TESTDIR/.pgglaskugel/config.yml
+  $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
+  $DBUSER_DO $PG_CTL start -D $PGDATA -s -w -t 300
 }
 
 pgglaskugelbasebackup()
 {
   #test data
-  sudo -u postgres psql -c "create table test0 (num int, Primary Key(num));"
-  sudo -u postgres psql -c "create table test1 (num int, Primary Key(num));"
+  $DBUSER_DO psql -c "create table test0 (num int, Primary Key(num));"
+  $DBUSER_DO psql -c "create table test1 (num int, Primary Key(num));"
   echo "Creating basebackup"
-  sudo -u postgres pgglaskugel basebackup
+  $DBUSER_DO pgglaskugel basebackup --config $TESTDIR/.pgglaskugel/config.yml
   #another one
-  sudo -u postgres psql -c "create table test2 (num int, Primary Key(num));"
+  $DBUSER_DO psql -c "create table test2 (num int, Primary Key(num));"
   #switch_xlog
-  sudo -u postgres psql -c "SELECT pg_switch_xlog();"
+  $DBUSER_DO psql -c "SELECT pg_switch_xlog();"
   #save tables in var
-  Test1=$(sudo -u postgres psql -c "\dt")
-}
-
-installpackages()
-{
-  yum -y install wget
-  yum -y install rng-tools
-  yum -y install https://download.postgresql.org/pub/repos/yum/9.5/redhat/rhel-7-x86_64/pgdg-centos95-9.5-3.noarch.rpm
-  yum -y install postgresql95
-  yum -y install postgresql95-server
-  yum -y install https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-  yum -y install zstd
-}
-
-checksu()
-{
-  if [ $EUID -ne 0 ]
-    then
-      echo "This script must be run as root"
-      exit 1
-  fi
+  Test1=$($DBUSER_DO psql -c "\dt")
 }
 
 pgglaskugelrestore()
@@ -403,10 +550,10 @@ pgglaskugelrestore()
   echo "restoring backup..."
   if [ "$1" == "file" ]
     then
-      backupfilezst=$(ls /var/lib/postgresql/backup/pgglaskugel/basebackup)
+      backupfilezst=$(ls $ARCHIVEDIR/basebackup)
     elif [ "$1" == "s3" ]
       then
-        backupfilezst=$(ls /var/lib/minio/pgglaskugel-basebackup)
+        backupfilezst=$(ls $MINIO/basebackup)
     else
       echo "ERROR: No Backupdirectory specified"
       exit 1
@@ -419,13 +566,13 @@ pgglaskugelrestore()
       echo "backup file $backupfilezst found"
   fi
   backupfilezst=$(basename $backupfilezst .zst)
-  sudo -u postgres pgglaskugel restore $backupfilezst /var/lib/pgsql/9.5/data
+  $DBUSER_DO pgglaskugel restore $backupfilezst $PGDATA --config $TESTDIR/.pgglaskugel/config.yml
 }
 
 testingtables()
 {
   ## Compare postgres tables. save \dt in variables and compare
-  Test2=$(sudo -u postgres psql -c "\dt")
+  Test2=$($DBUSER_DO psql -c "\dt")
   echo "TESTING NOW..."
   if [ "$Test1" == "$Test2" ] && [[ $Test1 =~ .*test0.*test1.*test2.* ]] && [[ $Test2 =~ .*test0.*test1.*test2.* ]] 
     then
@@ -439,20 +586,20 @@ testingtables()
 dropoldcluster()
 {
   echo "Dropping old cluster..."
-  systemctl stop postgresql-9.5.service
-  rm -rf /var/lib/pgsql/9.5/data/*
+  $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
+  rm -rf $PGDATA/*
 }
 
 preparetest()
 {
   cleandirs
-  /usr/pgsql-9.5/bin/postgresql95-setup initdb
+  /usr/pgsql-$PG_VERSION/bin/postgresql95-setup initdb
   Init
 }
 
 runtest()
 {
-  cd /var/lib/pgsql #no permission denied
+  cd $TESTDIR #no permission denied
   if [ -z "$1" ] || [ -z "$2" ]
     then
       echo "ERROR in function: runtest (Wrong parameters)..."
@@ -461,7 +608,10 @@ runtest()
   preparetest
   if [ "$1" == "s3" ]
     then
+      ARCHIVEDIR=$MINIO
       miniocheck
+    else
+      ARCHIVEDIR=$TESTDIR/backup/pgglaskugel
   fi
   if [ "$2" == "enc" ]
     then
@@ -478,38 +628,42 @@ runtest()
   testingtables
 }
 
-
+trap cleanup 0 2 3 15
 #######################################################################
 ###############################START###################################
 #######################################################################
+start=$(date +%s)
 # Check arguments
 if [ ! -f /usr/bin/pgglaskugel ]
   then
-    if [ $# -ne 1 ]
+    if [ ! -f ./pgglaskugel ]
       then
-        echo "Usage: $0 <Path to pgGlaskugel>"
-        exit 1
+        if [ $# -ne 1 ]
+          then
+            echo "Usage: $0 <Path to pgGlaskugel>"
+            exit 1
+          else
+            pathglaskugel $1
+        fi
       else
-        pathglaskugel $1
+        pathglaskugel .
     fi
 fi
 
-checksu
 echo "Check if CentOS7..."
 checkdistroversion
 installpackages
+getPostgressetup
 prepareconfigfolder
 echo "#RUNNING S3 TEST WITH ENCRYPTION#"
-#runs3enctest
 runtest s3 enc
 echo "#RUNNING S3 TEST WITHOUT ENCRYPTION#"
-#runs3noenctest
 runtest s3 noenc
 echo "#RUNNING FILE TEST WITH ENCRYPTION#"
-#runfileenctest
 runtest file enc
 echo "#RUNNING FILE TEST WITHOUT ENCRYPTION#"
-#runfilenoenctest
 runtest file noenc
 echo "#ALL TESTS WERE SUCCESSFUL#"
+end=$(date +%s)
+echo "Runtime: $((end-start))s"
 exit 0
