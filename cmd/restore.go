@@ -214,6 +214,12 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		log.Debug("gpg started")
 	}
 
+	// Wait for compression to finish
+	err = inflateCmd.Wait()
+	if err != nil {
+		log.Fatal("inflateCmd failed after startup, ", err)
+	}
+
 	// WAIT! If there is still data in the output pipe it can be lost!
 	// Wait for backup to finish
 	err = untarCmd.Wait()
@@ -221,12 +227,6 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		log.Fatal("untarCmd failed after startup, ", err)
 	}
 	log.Debug("untarCmd done")
-
-	// Wait for compression to finish
-	err = inflateCmd.Wait()
-	if err != nil {
-		log.Fatal("inflateCmd failed after startup, ", err)
-	}
 
 	// Tell the backup source that the chain is finished
 	wgRestoreDone.Done()

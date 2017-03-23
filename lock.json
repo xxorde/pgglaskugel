@@ -85,7 +85,7 @@
         {
             "name": "github.com/minio/minio-go",
             "branch": "master",
-            "revision": "896a51e471693237a63687a3a27f0260eded2548",
+            "revision": "6c345016aa12005b8171a6e9499aa0adefa2bb6e",
             "packages": [
                 ".",
                 "pkg/policy",
@@ -187,7 +187,7 @@
         {
             "name": "golang.org/x/sys",
             "branch": "master",
-            "revision": "99f16d856c9836c42d24e7ab64ea72916925fa97",
+            "revision": "8fd966b47dbdd4faa03de0d06e3d733baeb9a1a9",
             "packages": [
                 "unix"
             ]
@@ -195,7 +195,7 @@
         {
             "name": "golang.org/x/text",
             "branch": "master",
-            "revision": "d6659f7caf1675f85b138e916a19be8e153c51e4",
+            "revision": "08e2be0e61b04895bf20488c7b26d146fe8a1be9",
             "packages": [
                 "internal/gen",
                 "internal/triegen",
