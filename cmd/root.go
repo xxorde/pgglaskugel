@@ -49,8 +49,7 @@ import (
 )
 
 const (
-	myName    = "pgglaskugel"
-	myVersion = "0.4"
+	myName = "pgglaskugel"
 
 	// Logo
 	logo = `
@@ -67,6 +66,12 @@ const (
 )
 
 var (
+	// Version holds the current version
+	Version string
+
+	// Buildtime holds the timestamp during the build
+	Buildtime string
+
 	// Name of the current host
 	hostname string
 
@@ -482,7 +487,7 @@ func getS3Connection() (minioClient minio.Client) {
 		log.Fatal(err)
 	}
 
-	tmp.SetAppInfo(myName, myVersion)
+	tmp.SetAppInfo(myName, Version)
 	log.Debug("minioClient: ", minioClient)
 
 	return *tmp

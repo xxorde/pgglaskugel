@@ -1,8 +1,10 @@
 dependencies:
-  pre:
   override:
   post:
-    - ./tools/package.sh $CIRCLE_ARTIFACTS
+    - make pgglaskugel
+    - make tarball 
+    - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
+
 test:
   override:
-    - go test -v -race ./...
+    - make test
