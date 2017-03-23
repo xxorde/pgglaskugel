@@ -1,10 +1,10 @@
 dependencies:
   pre:
   override:
-    - cd $GOPATH/src/github.com/xxorde/pgglaskugel
-    - make all 
+  post:
+    - make tarball 
     - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
 
 test:
   override:
-    - make test 
+    - make test
