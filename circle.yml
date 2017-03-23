@@ -1,5 +1,9 @@
 dependencies:
   pre:
   override:
-    - make all
+    - make pgglaskugel 
     - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
+
+test:
+  override:
+    - make test 
