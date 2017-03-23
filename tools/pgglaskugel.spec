@@ -1,12 +1,12 @@
 Name:           pgglaskugel
-Version:        0.4
+Version:        0.5
 Release:        1
 BuildArch:      x86_64
 Summary:        A tool that helps you to manage your PostgreSQL backups
 License:        MIT
 URL:            https://github.com/xxorde/%{name}
 Source0:        https://circleci.com/api/v1/project/xxorde/pgglaskugel/latest/artifacts/0/$CIRCLE_ARTIFACTS/pgGlaskugel.tar.xz
-Requires: postgresql, zstd, tar
+Requires: postgresql, gpg, tar, zstd
 
 %description
 This is a personal work-in-progress project! Do not expect anything to work as intended jet!

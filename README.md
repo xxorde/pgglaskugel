@@ -155,7 +155,7 @@ Have a look at https://golang.org/doc/code.html
 Setup go build environment.
 
 ```
-# install Go >= 1.7
+# install Go >= 1.8
 mkdir $HOME/work
 export GOPATH=$HOME/work
 export PATH=$PATH:$GOPATH/bin
@@ -166,6 +166,11 @@ Install pgglaskugel.
 ```
 go get -u github.com/xxorde/pgglaskugel
 go install github.com/xxorde/pgglaskugel
+```
+
+To build with defined dependency versions
+```
+make
 ```
 
 ## Runtime Dependencies
