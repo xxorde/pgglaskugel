@@ -1,10 +1,10 @@
 {
-    "memo": "0357e657fbfe4ab7ad322be42381d08bd64a9c3c17a2844e48c28dc6c7ffd37e",
+    "memo": "0d3953f48b2d35847467c0760254a923a0205ccaa937d4e320ec1d8a6eec043f",
     "projects": [
         {
             "name": "github.com/Sirupsen/logrus",
-            "branch": "master",
-            "revision": "10f801ebc38b33738c9d17d50860f484a0988ff5",
+            "version": "v0.11.5",
+            "revision": "ba1b36c82c5e05c4f912a88eab0dcd91a171688f",
             "packages": [
                 "."
             ]
@@ -84,8 +84,8 @@
         },
         {
             "name": "github.com/minio/minio-go",
-            "branch": "master",
-            "revision": "6c345016aa12005b8171a6e9499aa0adefa2bb6e",
+            "version": "v2.0.4",
+            "revision": "dcaae9ec4d0b0a81d17f22f6d7a186491f6a55ec",
             "packages": [
                 ".",
                 "pkg/policy",
