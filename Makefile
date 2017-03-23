@@ -1,17 +1,26 @@
-NAME := pgglaskugel
-BUILD := "_build"
-INSTALL := /
+NAME = pgglaskugel
+PACKAGE = github.com/xxorde/$(NAME)
+VERSION = 0.5
+BUILD_TIME = $(shell date +%FT%T%z)
+LDFLAGS = -ldflags "-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.Buildtime=$(BUILD_TIME)"
 
-BIN := /usr/bin
-SHARE := /usr/share/$(NAME)
-ARCHIVE_NAME := pgGlaskugel.tar.xz
+BUILD = "_build"
+INSTALL = /
 
-.PHONY: all test $(NAME) clean 
+BIN = /usr/bin
+SHARE = /usr/share/$(NAME)
+ARCHIVE_NAME = pgGlaskugel.tar.xz
 
-all: $(NAME) 
+.PHONY: all vendor test $(NAME) clean 
+
+all: vendor $(NAME) test tarball
+
+vendor:
+	go get -u github.com/golang/dep/...
+	dep ensure
 
 $(NAME):
-	go build -o $(NAME)
+	go build -race $(LDFLAGS) -o $(NAME)
 
 test:
 	go test -v -race
@@ -32,6 +41,7 @@ install:
 	cp -r docs $(INSTALL)/$(SHARE)
 
 clean:
+	go clean
 	rm -rf $(BUILD)
 	rm -rf $(NAME) 
 	rm -rf *.tar*

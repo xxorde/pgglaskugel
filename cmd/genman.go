@@ -40,7 +40,7 @@ var (
 			header := &doc.GenManHeader{
 				Section: "1",
 				Manual:  "pgGlaskugel Manual",
-				Source:  fmt.Sprintf("pgGlaskugel %s", myVersion),
+				Source:  fmt.Sprintf("pgGlaskugel %s", Version),
 			}
 			log.Debug("manDir: ", manDir)
 			cmd.Root().DisableAutoGenTag = true

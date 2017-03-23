@@ -14,7 +14,7 @@ URL:            https://github.com/xxorde/%{name}
 # to get the sources for the release, if it changes
 Source0:        https://github.com/xxorde/%{name}/archive/v%{version}.tar.gz
 
-BuildRequires:  golang >= 1.6
+#BuildRequires:  golang >= 1.6
 
 Requires: postgresql, zstd, tar
 
