@@ -1,0 +1,134 @@
+.TH "PGGLASKUGEL" "1" "Mar 2017" "pgGlaskugel 0.5" "pgGlaskugel Manual" 
+.nh
+.ad l
+
+
+.SH NAME
+.PP
+pgglaskugel \- A tool to backup PostgreSQL databases
+
+
+.SH SYNOPSIS
+.PP
+\fBpgglaskugel\fP
+
+
+.SH DESCRIPTION
+.PP
+A tool that helps you to manage your PostgreSQL backups.
+     \_\_\_\_\_\_\_\_\_\_
+    /          \\
+   /   \_\_\_\_\_\_   \\
+  /   /     0\\   \\
+ /   /        \\   \\
+ \\   \\        /   /
+  \\   \_\_\_\s+2/   /
+   \\  /\s-2\s+2\\  /
+    \_\s-2\_\_\_\_\_\_/
+
+
+.SH OPTIONS
+.PP
+\fB\-\-archive\_to\fP="file"
+    WAL destination (file|s3)
+
+.PP
+\fB\-\-archivedir\fP="/var/lib/postgresql/backup/pgglaskugel"
+    Dir where the backups
+
+.PP
+\fB\-\-backup\_to\fP="file"
+    Backup destination (file|s3)
+
+.PP
+\fB\-\-cluster\_name\fP="kerrigan"
+    Name of the cluster, used in backup name
+
+.PP
+\fB\-\-config\fP=""
+    Config file
+
+.PP
+\fB\-\-connection\fP="host=/var/run/postgresql user=postgres dbname=postgres"
+    Connection string to connect to the database
+
+.PP
+\fB\-\-debug\fP[=false]
+    Enable debug mode to increase verbosity
+
+.PP
+\fB\-\-encrypt\fP[=false]
+    Enable encryption for S3 storage
+
+.PP
+\fB\-j\fP, \fB\-\-jobs\fP=4
+    The number of jobs to run parallel. default depends on cores
+
+.PP
+\fB\-\-json\fP[=false]
+    Generate output as JSON
+
+.PP
+\fB\-\-path\_to\_basebackup\fP="/usr/bin/pg\_basebackup"
+    Path to the basebackup command
+
+.PP
+\fB\-\-path\_to\_gpg\fP="/usr/bin/gpg"
+    Path to the gpg command
+
+.PP
+\fB\-\-path\_to\_tar\fP="/bin/tar"
+    Path to the tar command
+
+.PP
+\fB\-\-path\_to\_zstd\fP="/usr/bin/zstd"
+    Path to the zstd command
+
+.PP
+\fB\-\-path\_to\_zstdcat\fP="/usr/bin/zstdcat"
+    Path to the zstdcat command
+
+.PP
+\fB\-D\fP, \fB\-\-pgdata\fP="$PGDATA"
+    Base directory of your PostgreSQL instance aka. pg\_data
+
+.PP
+\fB\-\-pgdata\-auto\fP[=true]
+    Try to find pgdata if not set correctly (via SQL)
+
+.PP
+\fB\-\-recipient\fP="pgglaskugel"
+    The recipient for PGP encryption (key identifier)
+
+.PP
+\fB\-\-s3\_access\_key\fP="TUMO1VCSJF7R2LC39A24"
+    access\_key
+
+.PP
+\fB\-\-s3\_bucket\_backup\fP="pgglaskugel\-basebackup"
+    Bucket name for base backups
+
+.PP
+\fB\-\-s3\_bucket\_wal\fP="pgglaskugel\-wal"
+    Bucket name for WAL files
+
+.PP
+\fB\-\-s3\_endpoint\fP="127.0.0.1:9000"
+    S3 endpoint
+
+.PP
+\fB\-\-s3\_location\fP="us\-east\-1"
+    S3 datacenter location
+
+.PP
+\fB\-\-s3\_secret\_key\fP="yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC"
+    secret\_key
+
+.PP
+\fB\-\-s3\_ssl\fP[=true]
+    If SSL (TLS) should be used for S3
+
+
+.SH SEE ALSO
+.PP
+\fBpgglaskugel\-archive(1)\fP, \fBpgglaskugel\-basebackup(1)\fP, \fBpgglaskugel\-cleanup(1)\fP, \fBpgglaskugel\-fetch(1)\fP, \fBpgglaskugel\-genman(1)\fP, \fBpgglaskugel\-ls(1)\fP, \fBpgglaskugel\-lswal(1)\fP, \fBpgglaskugel\-restore(1)\fP, \fBpgglaskugel\-setup(1)\fP, \fBpgglaskugel\-tutor(1)\fP, \fBpgglaskugel\-version(1)\fP

@@ -11,9 +11,9 @@ BIN = /usr/bin
 SHARE = /usr/share/$(NAME)
 ARCHIVE_NAME = pgGlaskugel.tar.xz
 
-.PHONY: all vendor test $(NAME) clean 
+.PHONY: all vendor test $(NAME) man clean 
 
-all: vendor $(NAME) test tarball
+all: vendor $(NAME) test man tarball
 
 vendor:
 	go get -u github.com/golang/dep/...
@@ -22,16 +22,17 @@ vendor:
 $(NAME):
 	go build -race $(LDFLAGS) -o $(NAME)
 
+man:
+	./$(NAME) genman
+
 test:
 	go test -v -race
 
 tarball:
-	mkdir -p $(BUILD)
-	mkdir -p $(BUILD)/$(SHARE)
-	mkdir -p $(BUILD)/$(BIN)
-	install -m 755 $(NAME) $(BUILD)/$(BIN)	
-	install -m 644 README.md LICENSE $(BUILD)/$(SHARE)
-	cp -r docs $(BUILD)/$(SHARE)
+	mkdir -p $(BUILD)/docs
+	install -m 755 $(NAME) $(BUILD)
+	install -m 644 README.md LICENSE $(BUILD)/docs
+	cp -r docs/* $(BUILD)/docs
 	tar cfJ $(ARCHIVE_NAME) -C $(BUILD) .
 
 install:

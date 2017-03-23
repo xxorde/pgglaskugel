@@ -1,4 +1,5 @@
 dependencies:
+  pre:
   override:
   post:
     - make pgglaskugel
