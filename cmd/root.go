@@ -551,9 +551,10 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 	}
 
 	// Watch output on stderror
+	compressDone := make(chan struct{}) // Chanel to wait for WatchOutput
 	compressStderror, err := compressCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(compressStderror, log.Info, nil)
+	go util.WatchOutput(compressStderror, log.Info, compressDone)
 
 	// Pipe the backup in the compression
 	compressCmd.Stdin = *input
@@ -598,6 +599,9 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 
 	// Store the streamed data
 	storageBackend(&dataStream, name)
+
+	// Wait for watch goroutine before Cmd.Wait(), race condition!
+	<-compressDone
 
 	// Wait for compression to finish
 	// If there is still data in the output pipe it can be lost!
