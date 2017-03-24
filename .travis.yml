@@ -1,0 +1,18 @@
+---
+language: go
+sudo: required
+services:
+  - docker
+go:
+  - 1.6.x
+  - 1.7.x
+  - 1.8.x
+  - master
+os:
+  - linux
+script:
+  - go get
+  - make pgglaskugel
+  - make tarball
+  - make test
+  - cd tools/Test-CentOS7; ./run_test_in_docker.sh

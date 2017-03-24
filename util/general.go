@@ -65,7 +65,7 @@ func MustAnswerConfirmation(msg string) (confirmed bool) {
 	return MustAnswerConfirmation(msg)
 }
 
-func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {
+func WatchOutput(input io.Reader, outputFunc func(args ...interface{}), done chan struct{}) {
 	log.Debug("watchOutput started")
 	scanner := bufio.NewScanner(input)
 	for scanner.Scan() {
@@ -75,6 +75,7 @@ func WatchOutput(input io.Reader, outputFunc func(args ...interface{})) {
 		outputFunc("error reading input:", err)
 	}
 	log.Debug("watchOutput end")
+	done <- struct{}{}
 }
 
 // Exists returns whether the given file or directory exists or not

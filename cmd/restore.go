@@ -145,14 +145,16 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	}
 
 	// Watch stderror of inflation
+	inflateDone := make(chan struct{}) // Chanel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Watch stderror of untar
+	untarDone := make(chan struct{}) // Chanel to wait for WatchOutput
 	untarStderror, err := untarCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(untarStderror, log.Info)
+	go util.WatchOutput(untarStderror, log.Info, untarDone)
 
 	// Pipe the the inflated backup in untar
 	untarCmd.Stdin = inflateStdout
@@ -174,7 +176,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Info)
+		go util.WatchOutput(gpgStderror, log.Info, nil)
 	} else {
 		log.Debug("Backup will not be encrypted")
 		// Encryption is not used, inflate data stream
@@ -214,6 +216,19 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		log.Debug("gpg started")
 	}
 
+	// Wait for output watchers to finish
+	// If the Cmd.Wait() is called while another process is reading
+	// from Stdout / Stderr this is a race condition.
+	// So we are waiting for the watchers first
+	<-inflateDone
+	<-untarDone
+
+	// Wait for compression to finish
+	err = inflateCmd.Wait()
+	if err != nil {
+		log.Fatal("inflateCmd failed after startup, ", err)
+	}
+
 	// WAIT! If there is still data in the output pipe it can be lost!
 	// Wait for backup to finish
 	err = untarCmd.Wait()
@@ -221,12 +236,6 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		log.Fatal("untarCmd failed after startup, ", err)
 	}
 	log.Debug("untarCmd done")
-
-	// Wait for compression to finish
-	err = inflateCmd.Wait()
-	if err != nil {
-		log.Fatal("inflateCmd failed after startup, ", err)
-	}
 
 	// Tell the backup source that the chain is finished
 	wgRestoreDone.Done()

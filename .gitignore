@@ -1,5 +1,5 @@
 debug
-docs/man
+_build
 pgglaskugel
 pgGlaskugel
 pgglaskugel.tar*
@@ -12,7 +12,5 @@ pgGlaskugel.tar*
 *.app
 *.swp
 .minio.sys/
-.#*
-*#*#
 .vagrant
 vendor/

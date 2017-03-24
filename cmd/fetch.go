@@ -108,7 +108,7 @@ func fetchFromFile(walTarget string, walName string) (err error) {
 	// Watch output on stderror
 	gpgStderror, err := gpgCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(gpgStderror, log.Info)
+	go util.WatchOutput(gpgStderror, log.Info, nil)
 
 	// Start decryption
 	if err := gpgCmd.Start(); err != nil {
@@ -120,9 +120,11 @@ func fetchFromFile(walTarget string, walName string) (err error) {
 	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
 
 	// Watch output on stderror
+	inflateDone := make(chan struct{}) // Chanel to wait for WatchOutput
+
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Assign inflationInput as Stdin for the inflate command
 	inflateCmd.Stdin = gpgStout
@@ -132,6 +134,9 @@ func fetchFromFile(walTarget string, walName string) (err error) {
 		log.Fatal("zstd failed on startup, ", err)
 	}
 	log.Debug("Inflation started")
+
+	// Wait for watch goroutine before Cmd.Wait(), race condition!
+	<-inflateDone
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
@@ -194,7 +199,7 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Info)
+		go util.WatchOutput(gpgStderror, log.Info, nil)
 
 		// Start decryption
 		if err := gpgCmd.Start(); err != nil {
@@ -207,9 +212,10 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
 
 	// Watch output on stderror
+	inflateDone := make(chan struct{}) // Chanel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Assign inflationInput as Stdin for the inflate command
 	if gpgStout != nil {
@@ -225,6 +231,9 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 		log.Fatal("zstd failed on startup, ", err)
 	}
 	log.Debug("Inflation started")
+
+	// Wait for watch goroutine before Cmd.Wait(), race condition!
+	<-inflateDone
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()

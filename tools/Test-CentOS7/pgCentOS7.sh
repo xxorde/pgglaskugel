@@ -1,6 +1,5 @@
 #!/bin/bash
 
-
 # Copyright © 2017 Hendrik Siewert <hendrik.siewert@credativ.de>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -331,7 +330,7 @@ cleandirs()
       if [ ! -z "$(ls $PGDATA)" ]
         then
           $DBUSER_DO $PG_CTL  stop -D $PGDATA -s -m fast
-          rm -rf $PGDATA/*   
+          rm -rf $PGDATA/*
           echo "Cleaning data dir..."
       fi
   fi
@@ -553,7 +552,6 @@ pgglaskugelbasebackup()
   returnfunc $? "pgglaskugelbasebackup"
   echo "Creating basebackup"
   $DBUSER_DO pgglaskugel basebackup --config $TESTDIR/.pgglaskugel/config.yml
-  returnfunc $? "pgglaskugelbasebackup"
   #another one
   $DBUSER_DO psql -c "create table test2 (num int, Primary Key(num));"
   returnfunc $? "pgglaskugelbasebackup"
