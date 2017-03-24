@@ -75,7 +75,7 @@ var (
 			// Watch output on stderror
 			backupStderror, err := backupCmd.StderrPipe()
 			ec.Check(err)
-			go util.WatchOutput(backupStderror, log.Info)
+			go util.WatchOutput(backupStderror, log.Info, nil)
 
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)

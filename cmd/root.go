@@ -553,7 +553,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 	// Watch output on stderror
 	compressStderror, err := compressCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(compressStderror, log.Info)
+	go util.WatchOutput(compressStderror, log.Info, nil)
 
 	// Pipe the backup in the compression
 	compressCmd.Stdin = *input
@@ -584,7 +584,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Warn)
+		go util.WatchOutput(gpgStderror, log.Warn, nil)
 
 		// Start encryption
 		if err := gpgCmd.Start(); err != nil {

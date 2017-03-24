@@ -108,7 +108,7 @@ func fetchFromFile(walTarget string, walName string) (err error) {
 	// Watch output on stderror
 	gpgStderror, err := gpgCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(gpgStderror, log.Info)
+	go util.WatchOutput(gpgStderror, log.Info, nil)
 
 	// Start decryption
 	if err := gpgCmd.Start(); err != nil {
@@ -122,7 +122,7 @@ func fetchFromFile(walTarget string, walName string) (err error) {
 	// Watch output on stderror
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info, nil)
 
 	// Assign inflationInput as Stdin for the inflate command
 	inflateCmd.Stdin = gpgStout
@@ -194,7 +194,7 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Info)
+		go util.WatchOutput(gpgStderror, log.Info, nil)
 
 		// Start decryption
 		if err := gpgCmd.Start(); err != nil {
@@ -209,7 +209,7 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 	// Watch output on stderror
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info)
+	go util.WatchOutput(inflateStderror, log.Info, nil)
 
 	// Assign inflationInput as Stdin for the inflate command
 	if gpgStout != nil {

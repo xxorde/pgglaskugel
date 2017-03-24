@@ -216,7 +216,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 			// Use backupLabel as input for catCmd
 			catCmd.Stdin = bytes.NewReader(bufCompressed)
 			catCmdStderror, err := catCmd.StderrPipe()
-			go WatchOutput(catCmdStderror, log.Debug)
+			go WatchOutput(catCmdStderror, log.Debug, nil)
 
 			err = catCmd.Start()
 			if err != nil {
