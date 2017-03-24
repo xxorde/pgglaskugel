@@ -162,6 +162,18 @@ exit \$script_result
 EOL
 }
 
+returnfunc(){
+  if [ $# -eq 2 ]
+    then
+      if [ $1 -eq 1 ]
+        then
+          echo "ERROR in function: $2"
+          echo " Exiting..."
+          exit 1
+      fi
+  fi
+}
+
 # check distro and version
 checkdistroversion()
 {
@@ -319,7 +331,6 @@ cleandirs()
       if [ ! -z "$(ls $PGDATA)" ]
         then
           $DBUSER_DO $PG_CTL  stop -D $PGDATA -s -m fast
-
           rm -rf $PGDATA/*   
           echo "Cleaning data dir..."
       fi
@@ -400,6 +411,7 @@ Init ()
 {
   echo "Configuring new cluster..."
   $DBUSER_DO $PG_CTL start -D $PGDATA -w -t 300 > /dev/null  2>&1
+  returnfunc $? "Init"
   echo "Editing pg_hba.conf..."
 cat > $PGDATA/pg_hba.conf << EOL
 host    all             all             127.0.0.1/32            md5
@@ -527,18 +539,24 @@ pgglaskugelsetup()
   echo "Starting pgGlaskugel setup..."
   $DBUSER_DO pgglaskugel setup --config $TESTDIR/.pgglaskugel/config.yml
   $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
+  returnfunc $? "pgglaskugelsetup"
   $DBUSER_DO $PG_CTL start -D $PGDATA -s -w -t 300
+  returnfunc $? "pgglaskugelsetup"
 }
 
 pgglaskugelbasebackup()
 {
   #test data
   $DBUSER_DO psql -c "create table test0 (num int, Primary Key(num));"
+  returnfunc $? "pgglaskugelbasebackup"
   $DBUSER_DO psql -c "create table test1 (num int, Primary Key(num));"
+  returnfunc $? "pgglaskugelbasebackup"
   echo "Creating basebackup"
   $DBUSER_DO pgglaskugel basebackup --config $TESTDIR/.pgglaskugel/config.yml
+  returnfunc $? "pgglaskugelbasebackup"
   #another one
   $DBUSER_DO psql -c "create table test2 (num int, Primary Key(num));"
+  returnfunc $? "pgglaskugelbasebackup"
   #switch_xlog
   $DBUSER_DO psql -c "SELECT pg_switch_xlog();"
   #save tables in var
@@ -574,6 +592,10 @@ testingtables()
   ## Compare postgres tables. save \dt in variables and compare
   Test2=$($DBUSER_DO psql -c "\dt")
   echo "TESTING NOW..."
+  echo "Tables in the first cluster:"
+  echo "$Test1"
+  echo "Tables in the second cluster:"
+  echo "$Test2"
   if [ "$Test1" == "$Test2" ] && [[ $Test1 =~ .*test0.*test1.*test2.* ]] && [[ $Test2 =~ .*test0.*test1.*test2.* ]] 
     then
       echo "THIS TEST WAS SUCCESSFUL!"
@@ -587,6 +609,7 @@ dropoldcluster()
 {
   echo "Dropping old cluster..."
   $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
+  returnfunc $? "dropoldcluster"
   rm -rf $PGDATA/*
 }
 
@@ -594,6 +617,7 @@ preparetest()
 {
   cleandirs
   /usr/pgsql-$PG_VERSION/bin/postgresql95-setup initdb
+  returnfunc $? "preparetest"
   Init
 }
 
