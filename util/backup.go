@@ -214,9 +214,10 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 			}
 
 			// Use backupLabel as input for catCmd
+			catDone := make(chan struct{}) // Chanel to wait for WatchOutput
 			catCmd.Stdin = bytes.NewReader(bufCompressed)
 			catCmdStderror, err := catCmd.StderrPipe()
-			go WatchOutput(catCmdStderror, log.Debug, nil)
+			go WatchOutput(catCmdStderror, log.Debug, catDone)
 
 			err = catCmd.Start()
 			if err != nil {
@@ -230,6 +231,13 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 				continue
 			}
 
+			// Wait for output watchers to finish
+			// If the Cmd.Wait() is called while another process is reading
+			// from Stdout / Stderr this is a race condition.
+			// So we are waiting for the watchers first
+			<-catDone
+
+			// Wait for the command to finish
 			err = catCmd.Wait()
 			if err != nil {
 				// We ignore errors here, zstd returns 1 even if everything is fine here

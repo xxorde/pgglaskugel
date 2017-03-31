@@ -73,9 +73,10 @@ var (
 			}
 
 			// Watch output on stderror
+			backupDone := make(chan struct{}) // Chanel to wait for WatchOutput
 			backupStderror, err := backupCmd.StderrPipe()
 			ec.Check(err)
-			go util.WatchOutput(backupStderror, log.Info, nil)
+			go util.WatchOutput(backupStderror, log.Info, backupDone)
 
 			// Add one worker to our waiting group (for waiting later)
 			wg.Add(1)
@@ -88,6 +89,12 @@ var (
 				log.Fatal("pg_basebackup failed on startup, ", err)
 			}
 			log.Info("Backup was started")
+
+			// Wait for output watchers to finish
+			// If the Cmd.Wait() is called while another process is reading
+			// from Stdout / Stderr this is a race condition.
+			// So we are waiting for the watchers first
+			<-backupDone
 
 			// Wait for workers to finish
 			//(WAIT FOR THE WORKER FIRST OR WE CAN LOOSE DATA)
