@@ -68,7 +68,7 @@
         {
             "name": "github.com/lib/pq",
             "branch": "master",
-            "revision": "472a0745531a17dbac346e828b4c60e73ddff30c",
+            "revision": "2704adc878c21e1329f46f6e56a1c387d788ff94",
             "packages": [
                 ".",
                 "oid"
@@ -171,7 +171,7 @@
         {
             "name": "github.com/spf13/pflag",
             "branch": "master",
-            "revision": "9ff6c6923cfffbcd502984b8e0c80539a94968b7",
+            "revision": "d16db1e50e33dff1b6cdf37596cef36742128670",
             "packages": [
                 "."
             ]
@@ -187,7 +187,7 @@
         {
             "name": "golang.org/x/sys",
             "branch": "master",
-            "revision": "8fd966b47dbdd4faa03de0d06e3d733baeb9a1a9",
+            "revision": "9a7256cb28ed514b4e1e5f68959914c4c28a92e0",
             "packages": [
                 "unix"
             ]
@@ -195,7 +195,7 @@
         {
             "name": "golang.org/x/text",
             "branch": "master",
-            "revision": "08e2be0e61b04895bf20488c7b26d146fe8a1be9",
+            "revision": "3aa6d803466d99ea1bdf4af99e6db53299c02bd7",
             "packages": [
                 "internal/gen",
                 "internal/triegen",

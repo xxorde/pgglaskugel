@@ -69,8 +69,8 @@ var (
 	// Version holds the current version
 	Version string
 
-	// Buildtime holds the timestamp during the build
-	Buildtime string
+	// GitHash holds the hash for the current commit
+	GitHash string
 
 	// Name of the current host
 	hostname string

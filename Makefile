@@ -1,8 +1,8 @@
 NAME = pgglaskugel
 PACKAGE = github.com/xxorde/$(NAME)
-VERSION = 0.6
-BUILD_TIME = $(shell date +%FT%T%z)
-LDFLAGS = -ldflags "-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.Buildtime=$(BUILD_TIME)"
+VERSION = $(shell git describe --tags --abbrev=0 | sed "s/^v//")
+GITHASH = $(shell git rev-parse HEAD)
+LDFLAGS = -ldflags "-X $(PACKAGE)/cmd.Version=$(VERSION) -X $(PACKAGE)/cmd.GitHash=$(GITHASH)"
 
 BUILD = _build
 INSTALL = /
@@ -20,6 +20,7 @@ vendor:
 	dep ensure
 
 $(NAME):
+	echo $(LDFLAGS)
 	go build -race $(LDFLAGS) -o $(NAME)
 
 man:

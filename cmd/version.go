@@ -32,7 +32,7 @@ var versionCmd = &cobra.Command{
 	Short: "Shows the version of pgGlaskugel you are using",
 	Long:  `You can look online if you need a newer version of this software.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Info("pg_gobackup version " + Version + ", build time " + Buildtime + ", OMG do not use this!!!")
+		log.Info("pgglaskugel version " + Version + ", git hash " + GitHash)
 	},
 }
 
