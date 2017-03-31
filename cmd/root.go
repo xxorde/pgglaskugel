@@ -177,6 +177,7 @@ func init() {
 	RootCmd.PersistentFlags().String("s3_secret_key", "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC", "secret_key")
 	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
+	RootCmd.PersistentFlags().Int("s3_protocol_version", -1, "Version of the S3 protocol version (2,4,-1=auto)")
 	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
 	RootCmd.PersistentFlags().String("recipient", "pgglaskugel", "The recipient for PGP encryption (key identifier)")
 	RootCmd.PersistentFlags().String("path_to_tar", "/bin/tar", "Path to the tar command")
@@ -204,6 +205,7 @@ func init() {
 	viper.BindPFlag("s3_secret_key", RootCmd.PersistentFlags().Lookup("s3_secret_key"))
 	viper.BindPFlag("s3_location", RootCmd.PersistentFlags().Lookup("s3_location"))
 	viper.BindPFlag("s3_ssl", RootCmd.PersistentFlags().Lookup("s3_ssl"))
+	viper.BindPFlag("s3_protocol_version", RootCmd.PersistentFlags().Lookup("s3_protocol_version"))
 	viper.BindPFlag("encrypt", RootCmd.PersistentFlags().Lookup("encrypt"))
 	viper.BindPFlag("recipient", RootCmd.PersistentFlags().Lookup("recipient"))
 	viper.BindPFlag("path_to_tar", RootCmd.PersistentFlags().Lookup("path_to_tar"))
@@ -480,17 +482,31 @@ func getS3Connection() (minioClient minio.Client) {
 	accessKeyID := viper.GetString("s3_access_key")
 	secretAccessKey := viper.GetString("s3_secret_key")
 	ssl := viper.GetBool("s3_ssl")
+	version := viper.GetInt("s3_protocol_version")
+
+	var client *minio.Client
+	var err error
 
 	// Initialize minio client object.
-	tmp, err := minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+	switch version {
+	case 4:
+		log.Debug("Using S3 version 4")
+		client, err = minio.NewV4(endpoint, accessKeyID, secretAccessKey, ssl)
+	case 2:
+		log.Debug("Using S3 version 2")
+		client, err = minio.NewV2(endpoint, accessKeyID, secretAccessKey, ssl)
+	default:
+		log.Debug("Autodetecting S3 version")
+		client, err = minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	tmp.SetAppInfo(myName, Version)
+	client.SetAppInfo(myName, Version)
 	log.Debug("minioClient: ", minioClient)
 
-	return *tmp
+	return *client
 }
 
 func getMyBackups() (backups util.Backups) {

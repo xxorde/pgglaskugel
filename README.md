@@ -66,7 +66,7 @@ This is not the intended use so this kind of setup is not as convenient.
 Backups are called via cronjob or another tool according to schedule.
 For every server to backup there is a different config file.
 ```yaml
-pgGlaskugel --config server_to_backup.yml archive %p
+pgglaskugel --config server_to_backup.yml basebackup
 ```
 
 Orchestration will maybe integrated later. 
@@ -132,6 +132,7 @@ Flags:
       --s3_bucket_wal string        Bucket name for WAL files (default "pgglaskugel-wal")
       --s3_endpoint string          S3 endpoint (default "127.0.0.1:9000")
       --s3_location string          S3 datacenter location (default "us-east-1")
+      --s3_protocol_version int     Version of the S3 protocol version (2,4,-1=auto) (default -1)
       --s3_secret_key string        secret_key (default "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC")
       --s3_ssl                      If SSL (TLS) should be used for S3 (default true)
 
