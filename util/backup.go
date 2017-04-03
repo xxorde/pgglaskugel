@@ -214,7 +214,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 			}
 
 			// Use backupLabel as input for catCmd
-			catDone := make(chan struct{}) // Chanel to wait for WatchOutput
+			catDone := make(chan struct{}) // Channel to wait for WatchOutput
 			catCmd.Stdin = bytes.NewReader(bufCompressed)
 			catCmdStderror, err := catCmd.StderrPipe()
 			go WatchOutput(catCmdStderror, log.Debug, catDone)

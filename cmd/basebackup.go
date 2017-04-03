@@ -73,7 +73,7 @@ var (
 			}
 
 			// Watch output on stderror
-			backupDone := make(chan struct{}) // Chanel to wait for WatchOutput
+			backupDone := make(chan struct{}) // Channel to wait for WatchOutput
 			backupStderror, err := backupCmd.StderrPipe()
 			ec.Check(err)
 			go util.WatchOutput(backupStderror, log.Info, backupDone)

@@ -1,5 +1,5 @@
 Name:           pgglaskugel
-Version:        0.7
+Version:        0.8
 Release:        1
 BuildArch:      x86_64
 Summary:        A tool that helps you to manage your PostgreSQL backups

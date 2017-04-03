@@ -145,13 +145,13 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	}
 
 	// Watch stderror of inflation
-	inflateDone := make(chan struct{}) // Chanel to wait for WatchOutput
+	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
 	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Watch stderror of untar
-	untarDone := make(chan struct{}) // Chanel to wait for WatchOutput
+	untarDone := make(chan struct{}) // Channel to wait for WatchOutput
 	untarStderror, err := untarCmd.StderrPipe()
 	ec.Check(err)
 	go util.WatchOutput(untarStderror, log.Info, untarDone)

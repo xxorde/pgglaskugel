@@ -567,7 +567,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 	}
 
 	// Watch output on stderror
-	compressDone := make(chan struct{}) // Chanel to wait for WatchOutput
+	compressDone := make(chan struct{}) // Channel to wait for WatchOutput
 	compressStderror, err := compressCmd.StderrPipe()
 	ec.Check(err)
 	go util.WatchOutput(compressStderror, log.Info, compressDone)
@@ -586,7 +586,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 
 	// Handle encryption
 	var gpgCmd *exec.Cmd
-	var gpgDone chan struct{} // Chanel to wait for WatchOutput
+	var gpgDone chan struct{} // Channel to wait for WatchOutput
 	if encrypt {
 		log.Debug("Encrypt data, encrypt: ", encrypt)
 		// Encrypt the compressed data
@@ -603,7 +603,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		ec.Check(err)
-		go util.WatchOutput(gpgStderror, log.Warn, nil)
+		go util.WatchOutput(gpgStderror, log.Warn, gpgDone)
 
 		// Start encryption
 		if err := gpgCmd.Start(); err != nil {

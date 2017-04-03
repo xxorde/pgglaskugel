@@ -120,7 +120,7 @@ func fetchFromFile(walTarget string, walName string) (err error) {
 	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
 
 	// Watch output on stderror
-	inflateDone := make(chan struct{}) // Chanel to wait for WatchOutput
+	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
@@ -212,7 +212,7 @@ func fetchFromS3(walTarget string, walName string) (err error) {
 	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
 
 	// Watch output on stderror
-	inflateDone := make(chan struct{}) // Chanel to wait for WatchOutput
+	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
 	ec.Check(err)
 	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
