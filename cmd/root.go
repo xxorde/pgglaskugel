@@ -586,9 +586,11 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 
 	// Handle encryption
 	var gpgCmd *exec.Cmd
+	var gpgDone chan struct{} // Chanel to wait for WatchOutput
 	if encrypt {
 		log.Debug("Encrypt data, encrypt: ", encrypt)
 		// Encrypt the compressed data
+		gpgDone = make(chan struct{})
 		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
 		// Set the encryption output as input for S3
 		var err error
@@ -631,6 +633,13 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 	// If encryption is used wait for it to finish
 	if encrypt {
 		log.Debug("Wait for gpgCmd")
+		// Wait for output watchers to finish
+		// If the Cmd.Wait() is called while another process is reading
+		// from Stdout / Stderr this is a race condition.
+		// So we are waiting for the watchers first
+		<-gpgDone
+
+		// Wait for the command itself
 		err = gpgCmd.Wait()
 		if err != nil {
 			log.Fatal("gpg failed after startup, ", err)
