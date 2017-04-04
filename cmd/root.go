@@ -167,7 +167,7 @@ func init() {
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
-	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel. default depends on cores ")
+	RootCmd.PersistentFlags().IntP("jobs", "j", defaultJobs, "The number of jobs to run parallel, default depends on cores ")
 	RootCmd.PersistentFlags().String("backup_to", "file", "Backup destination (file|s3)")
 	RootCmd.PersistentFlags().String("archive_to", "file", "WAL destination (file|s3)")
 	RootCmd.PersistentFlags().String("s3_endpoint", "127.0.0.1:9000", "S3 endpoint")
