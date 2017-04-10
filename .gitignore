@@ -14,5 +14,6 @@ pgGlaskugel.tar*
 *.swp
 .vagrant
 vendor
+vendor/
 *.xz
 *.zst

@@ -94,15 +94,17 @@ var (
 			// If the Cmd.Wait() is called while another process is reading
 			// from Stdout / Stderr this is a race condition.
 			// So we are waiting for the watchers first
+			log.Debug("Wait for <-backupDone")
 			<-backupDone
 
 			// Wait for workers to finish
 			//(WAIT FOR THE WORKER FIRST OR WE CAN LOOSE DATA)
+			log.Debug("Wait for wg.Wait()")
 			wg.Wait()
 
 			// Wait for backup to finish
 			// If there is still data in the output pipe it can be lost!
-			log.Debug("Wait for backupCmd")
+			log.Debug("Wait for backupCmd.Wait()")
 			err = backupCmd.Wait()
 			if err != nil {
 				log.Fatal("pg_basebackup failed after startup, ", err)

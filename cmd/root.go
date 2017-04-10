@@ -32,6 +32,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strconv"
 	"strings"
 	"sync"
@@ -46,6 +47,9 @@ import (
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+
+	"net/http"
+	_ "net/http/pprof"
 )
 
 const (
@@ -179,13 +183,16 @@ func init() {
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
 	RootCmd.PersistentFlags().Int("s3_protocol_version", -1, "Version of the S3 protocol version (2,4,-1=auto)")
 	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
-	RootCmd.PersistentFlags().String("recipient", "pgglaskugel", "The recipient for PGP encryption (key identifier)")
+	RootCmd.PersistentFlags().StringArray("recipient", []string{"pgglaskugel"}, "The recipient for PGP encryption (key identifier)")
 	RootCmd.PersistentFlags().String("path_to_tar", "/bin/tar", "Path to the tar command")
 	RootCmd.PersistentFlags().String("path_to_basebackup", "/usr/bin/pg_basebackup", "Path to the basebackup command")
 	RootCmd.PersistentFlags().String("path_to_zstd", "/usr/bin/zstd", "Path to the zstd command")
 	RootCmd.PersistentFlags().String("path_to_zstdcat", "/usr/bin/zstdcat", "Path to the zstdcat command")
 	RootCmd.PersistentFlags().String("path_to_gpg", "/usr/bin/gpg", "Path to the gpg command")
 	RootCmd.PersistentFlags().Bool("no_tool_check", false, "Do not check the used tools")
+	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile `file`")
+	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile `file`")
+	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -215,6 +222,9 @@ func init() {
 	viper.BindPFlag("path_to_zstdcat", RootCmd.PersistentFlags().Lookup("path_to_zstdcat"))
 	viper.BindPFlag("path_to_gpg", RootCmd.PersistentFlags().Lookup("path_to_gpg"))
 	viper.BindPFlag("no_tool_check", RootCmd.PersistentFlags().Lookup("no_tool_check"))
+	viper.BindPFlag("cpuprofile", RootCmd.PersistentFlags().Lookup("cpuprofile"))
+	viper.BindPFlag("memprofile", RootCmd.PersistentFlags().Lookup("memprofile"))
+	viper.BindPFlag("http_pprof", RootCmd.PersistentFlags().Lookup("http_pprof"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -246,6 +256,41 @@ func initConfig() {
 	if viper.GetBool("debug") == true {
 		log.SetLevel(log.DebugLevel)
 		log.Debug("Running with debug mode")
+	}
+
+	// Start DEBUG server
+	if viper.GetBool("http_pprof") {
+		log.Debug("Start DEBUG server")
+		go func() { log.Println(http.ListenAndServe("localhost:6060", nil)) }()
+	}
+
+	// Enable CPU profiling
+	cpuprofile := viper.GetString("cpuprofile")
+	if cpuprofile != "" {
+		log.Debug("Start cpuprofile")
+		f, err := os.Create(cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+
+	// Enable memory profiling
+	memprofile := viper.GetString("memprofile")
+	log.Debug("Start memprofile")
+	if memprofile != "" {
+		f, err := os.Create(memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
+		f.Close()
 	}
 
 	// Set clusterName
@@ -562,7 +607,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 
 	// Are we using encryption?
 	encrypt := viper.GetBool("encrypt")
-	recipient := viper.GetString("recipient")
+	recipient := viper.GetStringSlice("recipient")
 
 	// This command is used to compress the backup
 	compressCmd := exec.Command(cmdZstd)
@@ -598,7 +643,14 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 		log.Debug("Encrypt data, encrypt: ", encrypt)
 		// Encrypt the compressed data
 		gpgDone = make(chan struct{})
-		gpgCmd = exec.Command(cmdGpg, "--encrypt", "-o", "-", "--recipient", recipient)
+		gpgArgs := []string{"--encrypt", "-o", "-"}
+
+		// Add all recipients to the command
+		for _, r := range recipient {
+			gpgArgs = append(gpgArgs, "--recipient", r)
+		}
+
+		gpgCmd = exec.Command(cmdGpg, gpgArgs...)
 		// Set the encryption output as input for S3
 		var err error
 		dataStream, err = gpgCmd.StdoutPipe()
@@ -670,7 +722,9 @@ func writeStreamToFile(input *io.Reader, filepath string) {
 	}
 
 	log.Infof("%d bytes were written, waiting for file.Sync()", written)
+	log.Debug("Wait for file.Sync()", filepath)
 	file.Sync()
+	log.Debug("Done waiting for file.Sync()", filepath)
 }
 
 // writeStreamToS3 handles a stream and writes it to S3 storage
