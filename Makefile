@@ -32,7 +32,7 @@ test:
 testsuite:
 	cd tools/Test-CentOS7; ./run_test_in_docker.sh
 
-tarball:
+tarball: man
 	mkdir -p $(BUILD)/docs
 	install -m 755 $(NAME) $(BUILD)
 	install -m 644 README.md LICENSE $(BUILD)/docs
