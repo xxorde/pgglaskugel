@@ -4,12 +4,13 @@ machine:
 
 dependencies:
   pre:
+    - sudo apt-get update
+    - sudo apt-get install zstd
   override:
   post:
     - make pgglaskugel
     - make tarball 
     - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
-
 test:
   override:
     - make test

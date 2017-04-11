@@ -10,6 +10,9 @@ go:
   - master
 os:
   - linux
+before_install:
+  - sudo apt-get update
+  - sudo apt-get install zstd
 script:
   - go get
   - make pgglaskugel
