@@ -185,6 +185,7 @@ func init() {
 	RootCmd.PersistentFlags().String("path_to_zstd", "/usr/bin/zstd", "Path to the zstd command")
 	RootCmd.PersistentFlags().String("path_to_zstdcat", "/usr/bin/zstdcat", "Path to the zstdcat command")
 	RootCmd.PersistentFlags().String("path_to_gpg", "/usr/bin/gpg", "Path to the gpg command")
+	RootCmd.PersistentFlags().Bool("no_tool_check", false, "Do not check the used tools")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -213,6 +214,7 @@ func init() {
 	viper.BindPFlag("path_to_zstd", RootCmd.PersistentFlags().Lookup("path_to_zstd"))
 	viper.BindPFlag("path_to_zstdcat", RootCmd.PersistentFlags().Lookup("path_to_zstdcat"))
 	viper.BindPFlag("path_to_gpg", RootCmd.PersistentFlags().Lookup("path_to_gpg"))
+	viper.BindPFlag("no_tool_check", RootCmd.PersistentFlags().Lookup("no_tool_check"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -288,6 +290,11 @@ func printDone() {
 
 // testTools test if all tools in tools are installed by trying to run them
 func testTools(tools []string) (err error) {
+	if viper.GetBool("no_tool_check") {
+		log.Debug("testTools will be ignored because of no_tool_check")
+		return nil
+	}
+
 	failCounter := 0
 	for _, tool := range tools {
 		err = testTool(tool)

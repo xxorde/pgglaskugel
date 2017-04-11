@@ -1,4 +1,6 @@
 ---
+env:
+  - NO_TOOL_CHECK=True
 language: go
 sudo: required
 services:
@@ -10,9 +12,6 @@ go:
   - master
 os:
   - linux
-before_install:
-  - sudo apt-get update
-  - sudo apt-get install zstd
 script:
   - go get
   - make pgglaskugel
