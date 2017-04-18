@@ -60,7 +60,7 @@ func AnswerConfirmation(msg string) (confirmed bool, err error) {
 	return false, doesNotParse
 }
 
-// MustAnswerConfirmation to evaluate the answers from a user, if neccessary
+// MustAnswerConfirmation to evaluate the answers from a user, if necessary
 func MustAnswerConfirmation(msg string) (confirmed bool) {
 	if confirmed, err := AnswerConfirmation(msg); err == nil {
 		return confirmed
