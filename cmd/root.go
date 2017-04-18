@@ -182,7 +182,7 @@ func init() {
 	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
 	RootCmd.PersistentFlags().Int("s3_protocol_version", -1, "Version of the S3 protocol version (2,4,-1=auto)")
-	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
+	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 and/or file storage")
 	RootCmd.PersistentFlags().StringArray("recipient", []string{"pgglaskugel"}, "The recipient for PGP encryption (key identifier)")
 	RootCmd.PersistentFlags().String("path_to_tar", "/bin/tar", "Path to the tar command")
 	RootCmd.PersistentFlags().String("path_to_basebackup", "/usr/bin/pg_basebackup", "Path to the basebackup command")
