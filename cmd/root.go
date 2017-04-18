@@ -167,7 +167,7 @@ func init() {
 	RootCmd.PersistentFlags().String("cluster_name", hostname, "Name of the cluster, used in backup name")
 	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().Bool("pgdata-auto", true, "Try to find pgdata if not set correctly (via SQL)")
-	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups")
+	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups should be stored")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
@@ -190,8 +190,8 @@ func init() {
 	RootCmd.PersistentFlags().String("path_to_zstdcat", "/usr/bin/zstdcat", "Path to the zstdcat command")
 	RootCmd.PersistentFlags().String("path_to_gpg", "/usr/bin/gpg", "Path to the gpg command")
 	RootCmd.PersistentFlags().Bool("no_tool_check", false, "Do not check the used tools")
-	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile `file`")
-	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile `file`")
+	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile to given filename")
+	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile to given filename")
 	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
 
 	// Bind flags to viper
