@@ -33,7 +33,7 @@ import (
 	wal "github.com/xxorde/pgglaskugel/wal"
 )
 
-// some constants, neccessary for the backupprocess
+// some constants, necessary for the backupprocess
 const (
 	BackupTimeFormat  = time.RFC3339
 	saneBackupMinSize = 2 * 1000000 // ~ 4MB
