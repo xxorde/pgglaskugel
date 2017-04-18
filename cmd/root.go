@@ -167,7 +167,7 @@ func init() {
 	RootCmd.PersistentFlags().String("cluster_name", hostname, "Name of the cluster, used in backup name")
 	RootCmd.PersistentFlags().StringP("pgdata", "D", "$PGDATA", "Base directory of your PostgreSQL instance aka. pg_data")
 	RootCmd.PersistentFlags().Bool("pgdata-auto", true, "Try to find pgdata if not set correctly (via SQL)")
-	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups")
+	RootCmd.PersistentFlags().String("archivedir", "/var/lib/postgresql/backup/pgglaskugel", "Dir where the backups should be stored")
 	RootCmd.PersistentFlags().Bool("debug", false, "Enable debug mode to increase verbosity")
 	RootCmd.PersistentFlags().Bool("json", false, "Generate output as JSON")
 	RootCmd.PersistentFlags().String("connection", "host=/var/run/postgresql user=postgres dbname=postgres", "Connection string to connect to the database")
@@ -182,7 +182,7 @@ func init() {
 	RootCmd.PersistentFlags().String("s3_location", "us-east-1", "S3 datacenter location")
 	RootCmd.PersistentFlags().Bool("s3_ssl", true, "If SSL (TLS) should be used for S3")
 	RootCmd.PersistentFlags().Int("s3_protocol_version", -1, "Version of the S3 protocol version (2,4,-1=auto)")
-	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 storage")
+	RootCmd.PersistentFlags().Bool("encrypt", false, "Enable encryption for S3 and/or file storage")
 	RootCmd.PersistentFlags().StringArray("recipient", []string{"pgglaskugel"}, "The recipient for PGP encryption (key identifier)")
 	RootCmd.PersistentFlags().String("path_to_tar", "/bin/tar", "Path to the tar command")
 	RootCmd.PersistentFlags().String("path_to_basebackup", "/usr/bin/pg_basebackup", "Path to the basebackup command")
@@ -190,8 +190,8 @@ func init() {
 	RootCmd.PersistentFlags().String("path_to_zstdcat", "/usr/bin/zstdcat", "Path to the zstdcat command")
 	RootCmd.PersistentFlags().String("path_to_gpg", "/usr/bin/gpg", "Path to the gpg command")
 	RootCmd.PersistentFlags().Bool("no_tool_check", false, "Do not check the used tools")
-	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile `file`")
-	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile `file`")
+	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile to given filename")
+	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile to given filename")
 	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
 
 	// Bind flags to viper

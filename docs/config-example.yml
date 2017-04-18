@@ -1,42 +1,163 @@
 ---
-# general
-pgdata: $PGDATA
-pgdata-auto: true
-archivedir: /var/lib/postgresql/backup/pgglaskugel
-debug: false
-json: false
-connection: host=/var/run/postgresql user=postgres dbname=postgres
-# jobs: 4 # Concurrent threads, default: calculateted based on cores
+###############################################################
+# This is a complete overview of all possible configurations  #
+# Default-Values are commented,                               #
+# and initial set in the seperate module files                #
+#                                                             #
+# You can copy this file and change what you like             #
+###############################################################
 
-backup_to: file # (file|s3)
-archive_to: file # (file|s3)
 
-s3_endpoint: 127.0.0.1:9000
-s3_bucket_backup: pgglaskugel-basebackup
-s3_bucket_wal: pgglaskugel-wal
-s3_access_key: TUMO1VCSJF7R2LC39A24
-s3_secret_key: yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC
-s3_location: us-east-1
-s3_ssl: true
-s3_protocol_version: -1 # Version of the S3 protocol (2,4,-1=auto)
+###########
+# general #
+###########
 
-# basebackup
+# Name of the cluster, used in backup name, Default is os.Hostname()
+#cluster_name: 
+
+# Base directory of your PostgreSQL instance aka. pg_data
+#pgdata: $PGDATA
+
+# Try to find pgdata if not set correctly (via SQL)
+#pgdata-auto: true
+
+# Dir where the backups should be stored. We create subdirs für basebackup and wal
+#archivedir: /var/lib/postgresql/backup/pgglaskugel
+
+# Enable debug mode to increase verbosity
+#debug: false
+
+# Generate output as JSON
+#json: false
+
+# Connection string to connect to the database
+#connection: host=/var/run/postgresql user=postgres dbname=postgres
+
+# Concurrent threads, default: calculateted based on cores
+#jobs: 4 
+
+# Backup destination (file|s3)
+#backup_to: file 
+
+# WAL destination (file|s3)
+#archive_to: file 
+
+# S3 Endpoint IP and Port
+#s3_endpoint: 127.0.0.1:9000
+
+# Bucket name for base backups
+#s3_bucket_backup: pgglaskugel-basebackup
+
+# Bucket name for WAL files
+#s3_bucket_wal: pgglaskugel-wal
+
+# S3 access-key
+#s3_access_key: TUMO1VCSJF7R2LC39A24
+
+# S3 secret
+#s3_secret_key: yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC
+
+# S3 datacenter location
+#s3_location: us-east-1
+
+# If SSL (TLS) should be used for S3
+#s3_ssl: true
+
+# Version of the S3 protocol (2,4,-1=auto)
+#s3_protocol_version: -1 
+
+# Enable encryption for S3 and/or file storage
+#encrypt: true
+
+# The recipient for PGP encryption (key identifier). 
+# This can be a single value or a list
+#recipient: pgglaskugel
+#
+# list example:
+#recipient:
+#  - pgglaskugel
+
+# Path to the tar binary
+#path_to_tar: /bin/tar
+
+# Path to the basebackup binary
+#path_to_basebackup: /usr/bin/pg_basebackup
+
+# Path to the zstd binary
+#path_to_zstd: /usr/bin/zstd
+
+# Path to the zstdcat binary
+#path_to_zstdcat: /usr/bin/zstdcat
+
+# Path to the gpg binary
+#path_to_gpg: /usr/bin/gpg
+
+# Do not check the used tools (e.g. tools above).
+# ! It is not recommended to deactivate the checks in production. 
+# ! Could be usefule for e.g. CI
+#no_tool_check: false
+
+# Write cpu profile in given filename. Deactivated if filename is empty
+#cpuprofile:
+
+# Write memory profile in given filename. Deactivated if filename is empty
+#memprofile:
+
+# Start net/http/pprof profiler (localhost:6060)
+#http_pprof: false
+
+##############
+# basebackup #
+##############
+
 # Do not include needed WAL data in backup, can reduce redundancy if archive is used
 # IF SET TO TRUE THE WALs FROM THE ARCHIVE ARE NEEDED TO RESTORE THE BACKUPS!
-no-standalone: false
+#no-standalone: false
 
-# cleanup
-retain: 0
-force-delete: false
+###########
+# cleanup #
+###########
 
-# restore
-backup: "myBackup@2016-11-04T21:52:57" # The backup to restore"
-restore-to: "/var/lib/postgres/pgGlaskugel-restore" # The destination to restore to
-force-restore: false # "Force the deletion of existing data (danger zone)!"
+# How many base-backups should be kept. Must be > 0
+#retain: 0
 
-# setup
-archive_command: "" # "The command to archive WAL files
-archive_mode: on # The archive mode (should be 'on' to archive)
-wal_level: hot_standby # The level of information to include in WAL files
-max_wal_senders: 3 # The max number of walsender processes
-check: false # "Perform only a dry run without doing changes")
+# Force the deletion of old backups, without asking!
+#force-delete: false
+
+###########
+# restore #
+###########
+
+# Name of the backup to restore"
+#backup:  
+
+# The destination to restore to
+#restore-to: "/var/lib/postgres/pgGlaskugel-restore"
+
+# "Force the deletion of existing data when restoring a backup (danger zone)!"
+#force-restore: false 
+
+# Automatic create a recovery.conf to replay WAL from archive
+#write-recovery-conf: true
+
+
+#########
+# setup #
+#########
+
+# "The command to archive WAL files
+# Default will be set if this is empty and depends on configuration.
+# e.g. "/usr/bin/pgglaskugel --config /etc/pgglaskugel archive %p"
+#archive_command:  
+
+# The archive mode (should be 'on' to archive)
+#archive_mode: on 
+
+# The level of information to include in WAL files
+#wal_level: hot_standby 
+
+# The max number of walsender processes
+#max_wal_senders: 3
+
+# "Perform only a dry run without doing changes
+#check: false
