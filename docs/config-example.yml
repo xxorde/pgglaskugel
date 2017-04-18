@@ -21,7 +21,7 @@
 # Try to find pgdata if not set correctly (via SQL)
 #pgdata-auto: true
 
-# Dir where the backups should be stored
+# Dir where the backups should be stored. We create subdirs für basebackup and wal
 #archivedir: /var/lib/postgresql/backup/pgglaskugel
 
 # Enable debug mode to increase verbosity
@@ -66,11 +66,16 @@
 # Version of the S3 protocol (2,4,-1=auto)
 #s3_protocol_version: -1 
 
-# Enable encryption for S3 storage
+# Enable encryption for S3 and/or file storage
 #encrypt: true
 
-# The recipient for PGP encryption (key identifier)
+# The recipient for PGP encryption (key identifier). 
+# This can be a single value or a list
 #recipient: pgglaskugel
+#
+# list example:
+#recipient:
+#  - pgglaskugel
 
 # Path to the tar binary
 #path_to_tar: /bin/tar
@@ -87,7 +92,9 @@
 # Path to the gpg binary
 #path_to_gpg: /usr/bin/gpg
 
-# Do not check the used tools (i.e. tools above)
+# Do not check the used tools (e.g. tools above).
+# ! It is not recommended to deactivate the checks in production. 
+# ! Could be usefule for e.g. CI
 #no_tool_check: false
 
 # Write cpu profile in given filename. Deactivated if filename is empty
@@ -139,7 +146,9 @@
 #########
 
 # "The command to archive WAL files
-#archive_command: "" 
+# Default will be set if this is empty and depends on configuration.
+# e.g. "/usr/bin/pgglaskugel --config /etc/pgglaskugel archive %p"
+#archive_command:  
 
 # The archive mode (should be 'on' to archive)
 #archive_mode: on 
