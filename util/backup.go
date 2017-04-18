@@ -1,3 +1,4 @@
+// Package util - backup module
 // Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -32,6 +33,7 @@ import (
 	wal "github.com/xxorde/pgglaskugel/wal"
 )
 
+// some constants, neccessary for the backupprocess
 const (
 	BackupTimeFormat  = time.RFC3339
 	saneBackupMinSize = 2 * 1000000 // ~ 4MB

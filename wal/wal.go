@@ -1,3 +1,4 @@
+// Package wal module wal
 // Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -47,12 +48,16 @@ const (
 	// StorageTypeS3 represents an S3 backend
 	StorageTypeS3 = "s3"
 
-	// Regex to represent the ...
-	RegFullWal     = `^[0-9A-Za-z]{24}`                           // ... name of a WAL file
-	RegWalWithExt  = `^([0-9A-Za-z]{24})(.*)`                     // ... name of a WAL file wit extension
-	RegTimeline    = `^[0-9A-Za-z]{8}`                            // ... timeline of a given WAL file name
-	RegCounter     = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`         // ... segment counter in the given timeline
-	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*` // ... backup label with any additional extension
+	// RegFullWal - name of a WAL file
+	RegFullWal = `^[0-9A-Za-z]{24}`
+	// RegWalWithExt - name of a WAL file wit extension
+	RegWalWithExt = `^([0-9A-Za-z]{24})(.*)`
+	// RegTimeline - timeline of a given WAL file name
+	RegTimeline = `^[0-9A-Za-z]{8}`
+	// RegCounter segment counter in the given timeline
+	RegCounter = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
+	// RegBackupLabel backup label with any additional extension
+	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*`
 )
 
 var (
@@ -109,7 +114,7 @@ func (w *Wal) Timeline() (timeline string) {
 	return timeline
 }
 
-// Counter returns the counter / postion in the current timeline
+// Counter returns the counter / position in the current timeline
 func (w *Wal) Counter() (counter string) {
 	counterRaw := counterFinder.FindStringSubmatch(w.Name)
 

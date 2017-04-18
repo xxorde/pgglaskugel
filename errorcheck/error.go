@@ -22,23 +22,27 @@ package errorcheck
 
 import log "github.com/Sirupsen/logrus"
 
-// Nice coating of indirection for error handling and logging
+//Check function is a nice coating of indirection for error handling and logging
 func Check(err error) error {
 	return CheckFatal(err)
 }
 
+// CheckCustom calls and returns CheckFatalCustom
 func CheckCustom(err error, output string) error {
 	return CheckFatalCustom(err, output)
 }
 
+// CheckFatal calls and returns CheckFatalCustom
 func CheckFatal(err error) error {
 	return CheckFatalCustom(err, "")
 }
 
+// CheckError calls and returns CheckErrorCustom
 func CheckError(err error) error {
 	return CheckErrorCustom(err, "")
 }
 
+// CheckFatalCustom logs output/error and returns error, if one is given
 func CheckFatalCustom(err error, output string) error {
 	if err != nil {
 		log.Fatal(output, err)
@@ -47,6 +51,7 @@ func CheckFatalCustom(err error, output string) error {
 	return nil
 }
 
+// CheckErrorCustom logs output/error and returns error, if one is given
 func CheckErrorCustom(err error, output string) error {
 	if err != nil {
 		log.Error(output, err)
