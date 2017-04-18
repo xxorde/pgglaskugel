@@ -1,6 +1,6 @@
 [![CircleCI](https://circleci.com/gh/xxorde/pgglaskugel.svg?style=svg)](https://circleci.com/gh/xxorde/pgglaskugel)
 [![travis-ci](https://travis-ci.org/xxorde/pgglaskugel.svg?branch=master)](https://travis-ci.org/xxorde/pgglaskugel)
-
+[![goreportcard](https://goreportcard.com/badge/github.com/xxorde/pgglaskugel)](https://goreportcard.com/report/github.com/xxorde/pgglaskugel)
 
 ![logo](docs/img/glaskugel.png)
 
