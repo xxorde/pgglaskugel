@@ -1,3 +1,4 @@
+// Package util - general module
 // Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -30,6 +31,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
+// AnswerConfirmation is a wrapper to parse possible ser answers
 func AnswerConfirmation(msg string) (confirmed bool, err error) {
 	var input string
 	log.Warn(msg)
@@ -58,6 +60,7 @@ func AnswerConfirmation(msg string) (confirmed bool, err error) {
 	return false, doesNotParse
 }
 
+// MustAnswerConfirmation to evaluate the answers from a user, if necessary
 func MustAnswerConfirmation(msg string) (confirmed bool) {
 	if confirmed, err := AnswerConfirmation(msg); err == nil {
 		return confirmed
@@ -65,6 +68,7 @@ func MustAnswerConfirmation(msg string) (confirmed bool) {
 	return MustAnswerConfirmation(msg)
 }
 
+// WatchOutput logs debug output
 func WatchOutput(input io.Reader, outputFunc func(args ...interface{}), done chan struct{}) {
 	log.Debug("watchOutput started")
 	scanner := bufio.NewScanner(input)
