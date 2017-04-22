@@ -49,7 +49,7 @@ import (
 	"github.com/spf13/viper"
 
 	"net/http"
-	// this is jst for easier handling
+	// Enable server runtime profiling
 	_ "net/http/pprof"
 )
 
