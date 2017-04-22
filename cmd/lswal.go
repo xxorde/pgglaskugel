@@ -29,7 +29,7 @@ import (
 var lswalCmd = &cobra.Command{
 	Use:   "lswal",
 	Short: "Show all WAL files in archive",
-	Long: "Show a detailed list of the archived WAL files already backuped",
+	Long:  "Show a detailed list of the archived WAL files already backuped",
 	Run: func(cmd *cobra.Command, args []string) {
 		showWals()
 		printDone()
