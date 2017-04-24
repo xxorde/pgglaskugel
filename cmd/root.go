@@ -139,9 +139,17 @@ type storeStream func(*io.Reader, string)
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := RootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
+	pidfile := viper.GetString("pidpath")
+	log.Infof("pidfile is %s", pidfile)
+	if err := util.WritePidFile(pidfile); err != nil {
+		log.Error(err)
+		os.Exit(1)
+	} else {
+		defer util.DeletePidFile(pidfile)
+		if err := RootCmd.Execute(); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
 	}
 }
 

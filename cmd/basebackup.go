@@ -130,18 +130,8 @@ func storeBackupStream(input *io.Reader, name string) {
 }
 
 func init() {
-	pidfile := viper.GetString("pidpath")
-	if err := util.CheckPid(pidfile); err != nil {
-		log.Error(err)
-	} else {
-		if err := util.WritePidFile(pidfile); err != nil {
-			log.Error(err)
-		} else {
-			defer util.DeletePidFile(pidfile)
-			RootCmd.AddCommand(basebackupCmd)
-			basebackupCmd.PersistentFlags().Bool("no-standalone", false, "Do not include WAL files in backup. If set all needed WAL files need to be available via the Archive! If set to false the archive is still needed for 'point in time recovery'!")
-			// Bind flags to viper
-			viper.BindPFlag("no-standalone", basebackupCmd.PersistentFlags().Lookup("no-standalone"))
-		}
-	}
+	RootCmd.AddCommand(basebackupCmd)
+	basebackupCmd.PersistentFlags().Bool("no-standalone", false, "Do not include WAL files in backup. If set all needed WAL files need to be available via the Archive! If set to false the archive is still needed for 'point in time recovery'!")
+	// Bind flags to viper
+	viper.BindPFlag("no-standalone", basebackupCmd.PersistentFlags().Lookup("no-standalone"))
 }

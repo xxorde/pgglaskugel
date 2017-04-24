@@ -29,11 +29,17 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"syscall"
 
 	log "github.com/Sirupsen/logrus"
 )
 
-// WritePidFile checks for existent files and writes the pidfile.
+func closepidfile(pidfile *os.File) {
+	syscall.Flock(int(pidfile.Fd()), syscall.LOCK_UN)
+	pidfile.Close()
+}
+
+// WritePidFile checks for existent files and writes the pidfile if the check is succesful
 func WritePidFile(pidfile string) error {
 	if pidfile == "" {
 		return errors.New("pidfile is not configured/empty")
@@ -44,72 +50,68 @@ func WritePidFile(pidfile string) error {
 		return err
 	}
 
-	file, err := os.Create(pidfile)
+	// check the pidfile and get the filehandle if everything is fine
+	file, err := checkpid(pidfile)
 	if err != nil {
-		log.Errorf("error opening pidfile %s: %s", pidfile, err)
-		return fmt.Errorf("error opening pidfile %s: %s", pidfile, err)
+		return err
 	}
-	defer file.Close()
+	defer closepidfile(file)
 
 	_, err = fmt.Fprintf(file, "%d", os.Getpid())
 	if err != nil {
 		return err
 	}
 
-	err = file.Close()
-	if err != nil {
-		return err
-	}
-
 	return nil
-}
-
-// ReadPid from the configured file. It is an error if the pidfile hasn't
-// been configured.
-func ReadPid(pidfile string) (int, error) {
-	pidcontent, err := ioutil.ReadFile(pidfile)
-	if err != nil {
-		return 0, err
-	}
-
-	pid, err := strconv.Atoi(string(bytes.TrimSpace(pidcontent)))
-	if err != nil {
-		log.Errorf("error parsing pid from %s: %s", pidfile, err)
-		return 0, fmt.Errorf("error parsing pid from %s: %s", pidfile, err)
-	}
-
-	return pid, nil
 }
 
 // DeletePidFile deletes the pidfile and returns an error if something fails
 func DeletePidFile(pidfile string) error {
 	if err := os.Remove(pidfile); err != nil {
-		log.Errorf("error deleting pidfile %s : %s", pidfile, err)
 		return fmt.Errorf("error deleting pidfile %s : %s", pidfile, err)
 	}
 	return nil
 }
 
-//CheckPid gives an error if the PID does not exist on the system
+//checkpid gives an error if the PID does not exist on the system
 // returns true if the actual pid is the same as the stored pid
-func CheckPid(pidfile string) error {
+func checkpid(pidfile string) (*os.File, error) {
+
+	// if the file doesn't exist, create the file, lock it, and return the filehandle
+	// so writepid kann write it
 	if _, err := os.Stat(pidfile); os.IsNotExist(err) {
-		return nil
+		file, err := os.Create(pidfile)
+		if err != nil {
+			return nil, fmt.Errorf("error opening pidfile %s: %s", pidfile, err)
+		}
+		syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
+		return file, nil
 	}
 
+	// if the file exists, compare the stored pid with the actual and give a reply
 	actualpid := os.Getpid()
-	storedpid, err := ReadPid(pidfile)
+
+	file, err := os.Open(pidfile)
+	syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
+
+	pidcontent, err := ioutil.ReadAll(file)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	storedpid, err := strconv.Atoi(string(bytes.TrimSpace(pidcontent)))
+	if err != nil {
+		log.Errorf("error parsing pid from %s: %s", pidfile, err)
+		return nil, fmt.Errorf("error parsing pid from %s: %s", pidfile, err)
+	}
+
 	// if the actual pid differs from the stored pid, look if its an old entry or still active via /proc
 	if actualpid != storedpid {
 		procstatfile := fmt.Sprintf("/proc/%d/stat", storedpid)
 		if _, err := os.Stat(procstatfile); err == nil {
-			return fmt.Errorf("Pid in pidfile(%d) differs from actual pid(%d) and is still active", storedpid, actualpid)
+			return nil, fmt.Errorf("Pid in pidfile(%s : %d) differs from actual pid(%d) and is still active", pidfile, storedpid, actualpid)
 		}
 		// There is an old pid in the file, but the process is not active anymore. We can delete it and go on
 		DeletePidFile(pidfile)
 	}
-	return nil
+	return file, nil
 }

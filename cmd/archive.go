@@ -29,7 +29,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/xxorde/pgglaskugel/util"
 	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
@@ -123,16 +122,5 @@ func storeWalStream(input *io.Reader, name string) {
 }
 
 func init() {
-	pidfile := viper.GetString("pidpath")
-	if err := util.CheckPid(pidfile); err != nil {
-		log.Error(err)
-	} else {
-		if err := util.WritePidFile(pidfile); err != nil {
-			log.Error(err)
-		} else {
-			defer util.DeletePidFile(pidfile)
-			RootCmd.AddCommand(archiveCmd)
-		}
-	}
-
+	RootCmd.AddCommand(archiveCmd)
 }
