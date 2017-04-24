@@ -1,4 +1,4 @@
-memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
+memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
 
 [[projects]]
   branch = "master"
@@ -7,10 +7,10 @@ memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
   revision = "10f801ebc38b33738c9d17d50860f484a0988ff5"
 
 [[projects]]
-  branch = "master"
   name = "github.com/cpuguy83/go-md2man"
   packages = ["md2man"]
   revision = "a65d4d2de4d5f7c74868dfa9b202a3c8be315aaa"
+  version = "v1.0.6"
 
 [[projects]]
   branch = "master"
@@ -19,16 +19,16 @@ memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
   revision = "259d2a102b871d17f30e3cd9881a642961a1e486"
 
 [[projects]]
-  branch = "master"
   name = "github.com/fsnotify/fsnotify"
   packages = ["."]
-  revision = "4da3e2cfbabc9f751898f250b49f2439785783a1"
+  revision = "629574ca2a5df945712d3079857300b5e4da0236"
+  version = "v1.4.2"
 
 [[projects]]
   branch = "master"
   name = "github.com/hashicorp/hcl"
   packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
-  revision = "630949a3c5fa3c613328e1b8256052cbc2327c9b"
+  revision = "7fa7fff964d035e8a162cce3a164b3ad02ad651b"
 
 [[projects]]
   branch = "master"
@@ -49,10 +49,10 @@ memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
   revision = "2704adc878c21e1329f46f6e56a1c387d788ff94"
 
 [[projects]]
-  branch = "master"
   name = "github.com/magiconair/properties"
   packages = ["."]
-  revision = "51463bfca2576e06c62a8504b5c0f06d61312647"
+  revision = "f917359f079a3759162704eaa8caeec3d01d9f91"
+  version = "v1.7.2"
 
 [[projects]]
   name = "github.com/minio/minio-go"
@@ -64,30 +64,31 @@ memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
   branch = "master"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
-  revision = "53818660ed4955e899c0bcafa97299a388bd7c8e"
+  revision = "cc8532a8e9a55ea36402aa21efdf403a60d34096"
 
 [[projects]]
-  branch = "master"
   name = "github.com/pelletier/go-buffruneio"
   packages = ["."]
   revision = "c37440a7cf42ac63b919c752ca73a85067e05992"
+  version = "v0.2.0"
 
 [[projects]]
-  branch = "master"
   name = "github.com/pelletier/go-toml"
   packages = ["."]
-  revision = "e32a2e04744250647a72bf17da1b09befc03b6b1"
+  revision = "13d49d4606eb801b8f01ae542b4afc4c6ee3d84a"
+  version = "v0.5.0"
 
 [[projects]]
   name = "github.com/russross/blackfriday"
   packages = ["."]
-  revision = "2004188462c3946efefbdcd91aa83e49b4175bfb"
+  revision = "0b647d0506a698cca42caca173e55559b12a69f2"
+  version = "v1.4"
 
 [[projects]]
   branch = "master"
   name = "github.com/shurcooL/sanitized_anchor_name"
   packages = ["."]
-  revision = "10ef21a441db47d8b13ebcc5fd2310f636973c77"
+  revision = "79c90efaf01eddc01945af5bc1797859189b830b"
 
 [[projects]]
   branch = "master"
@@ -96,16 +97,16 @@ memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
   revision = "9be650865eab0c12963d8753212f4f9c66cdcf12"
 
 [[projects]]
-  branch = "master"
   name = "github.com/spf13/cast"
   packages = ["."]
-  revision = "ce135a4ebeee6cfe9a26c93ee0d37825f26113c7"
+  revision = "acbeb36b902d72a7a4c18e8f3241075e7ab763e4"
+  version = "v1.1.0"
 
 [[projects]]
   branch = "master"
   name = "github.com/spf13/cobra"
   packages = [".","doc"]
-  revision = "7aeaa2cce6ae7e18d2a6ee597b60ee137e999bd9"
+  revision = "63121c8814fc0b99184dbc1c8b7ef4fddae437c3"
 
 [[projects]]
   branch = "master"
@@ -117,28 +118,28 @@ memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
   branch = "master"
   name = "github.com/spf13/pflag"
   packages = ["."]
-  revision = "d16db1e50e33dff1b6cdf37596cef36742128670"
+  revision = "2300d0f8576fe575f71aaa5b9bbe4e1b0dc2eb51"
 
 [[projects]]
   branch = "master"
   name = "github.com/spf13/viper"
   packages = ["."]
-  revision = "84f94806c67f59dd7ae87bc5351f7a9c94a4558d"
+  revision = "0967fc9aceab2ce9da34061253ac10fb99bba5b2"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "493114f68206f85e7e333beccfabc11e98cba8dd"
+  revision = "ea9bcade75cb975a0b9738936568ab388b845617"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
-  revision = "f4b4367115ec2de254587813edaa901bc1c723a8"
+  revision = "a9a820217f98f7c8a207ec1e45a874e1fe12c478"
 
 [[projects]]
-  branch = "master"
+  branch = "v2"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
-  revision = "a3f3340b5840cee44f372bddb5880fcbc419b46a"
+  revision = "cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b"
