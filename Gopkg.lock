@@ -1,0 +1,144 @@
+memo = "fa51a6c63c128c56b71d49320992d3bab84f2a373d1b0689ac793f59b8c2adb2"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/Sirupsen/logrus"
+  packages = ["."]
+  revision = "10f801ebc38b33738c9d17d50860f484a0988ff5"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/cpuguy83/go-md2man"
+  packages = ["md2man"]
+  revision = "a65d4d2de4d5f7c74868dfa9b202a3c8be315aaa"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/dustin/go-humanize"
+  packages = ["."]
+  revision = "259d2a102b871d17f30e3cd9881a642961a1e486"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/fsnotify/fsnotify"
+  packages = ["."]
+  revision = "4da3e2cfbabc9f751898f250b49f2439785783a1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/hashicorp/hcl"
+  packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
+  revision = "630949a3c5fa3c613328e1b8256052cbc2327c9b"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/inconshreveable/mousetrap"
+  packages = ["."]
+  revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/kardianos/osext"
+  packages = ["."]
+  revision = "9d302b58e975387d0b4d9be876622c86cefe64be"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/lib/pq"
+  packages = [".","oid"]
+  revision = "2704adc878c21e1329f46f6e56a1c387d788ff94"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/magiconair/properties"
+  packages = ["."]
+  revision = "51463bfca2576e06c62a8504b5c0f06d61312647"
+
+[[projects]]
+  name = "github.com/minio/minio-go"
+  packages = [".","pkg/policy","pkg/s3signer","pkg/s3utils","pkg/set"]
+  revision = "dcaae9ec4d0b0a81d17f22f6d7a186491f6a55ec"
+  version = "v2.0.4"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mitchellh/mapstructure"
+  packages = ["."]
+  revision = "53818660ed4955e899c0bcafa97299a388bd7c8e"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/pelletier/go-buffruneio"
+  packages = ["."]
+  revision = "c37440a7cf42ac63b919c752ca73a85067e05992"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/pelletier/go-toml"
+  packages = ["."]
+  revision = "e32a2e04744250647a72bf17da1b09befc03b6b1"
+
+[[projects]]
+  name = "github.com/russross/blackfriday"
+  packages = ["."]
+  revision = "2004188462c3946efefbdcd91aa83e49b4175bfb"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/shurcooL/sanitized_anchor_name"
+  packages = ["."]
+  revision = "10ef21a441db47d8b13ebcc5fd2310f636973c77"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/spf13/afero"
+  packages = [".","mem"]
+  revision = "9be650865eab0c12963d8753212f4f9c66cdcf12"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/spf13/cast"
+  packages = ["."]
+  revision = "ce135a4ebeee6cfe9a26c93ee0d37825f26113c7"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/spf13/cobra"
+  packages = [".","doc"]
+  revision = "7aeaa2cce6ae7e18d2a6ee597b60ee137e999bd9"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/spf13/jwalterweatherman"
+  packages = ["."]
+  revision = "fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/spf13/pflag"
+  packages = ["."]
+  revision = "d16db1e50e33dff1b6cdf37596cef36742128670"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/spf13/viper"
+  packages = ["."]
+  revision = "84f94806c67f59dd7ae87bc5351f7a9c94a4558d"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/sys"
+  packages = ["unix"]
+  revision = "493114f68206f85e7e333beccfabc11e98cba8dd"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/text"
+  packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
+  revision = "f4b4367115ec2de254587813edaa901bc1c723a8"
+
+[[projects]]
+  branch = "master"
+  name = "gopkg.in/yaml.v2"
+  packages = ["."]
+  revision = "a3f3340b5840cee44f372bddb5880fcbc419b46a"
