@@ -1,0 +1,24 @@
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/Sirupsen/logrus"
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/dustin/go-humanize"
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/kardianos/osext"
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/lib/pq"
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/spf13/cobra"
+
+[[dependencies]]
+  branch = "master"
+  name = "github.com/spf13/viper"
