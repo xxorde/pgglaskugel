@@ -133,11 +133,22 @@ var cleanupCmd = &cobra.Command{
 }
 
 func init() {
-	RootCmd.AddCommand(cleanupCmd)
-	cleanupCmd.PersistentFlags().Uint("retain", 0, "Number of (new) backups to keep?")
-	cleanupCmd.PersistentFlags().Bool("force-delete", false, "Force the deletion of old backups, without asking!")
+	pidfile := viper.GetString("pidpath")
+	if err := util.CheckPid(pidfile); err != nil {
+		log.Error(err)
+	} else {
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+		} else {
+			defer util.DeletePidFile(pidfile)
+			RootCmd.AddCommand(cleanupCmd)
+			cleanupCmd.PersistentFlags().Uint("retain", 0, "Number of (new) backups to keep?")
+			cleanupCmd.PersistentFlags().Bool("force-delete", false, "Force the deletion of old backups, without asking!")
 
-	// Bind flags to viper
-	viper.BindPFlag("retain", cleanupCmd.PersistentFlags().Lookup("retain"))
-	viper.BindPFlag("force-delete", cleanupCmd.PersistentFlags().Lookup("force-delete"))
+			// Bind flags to viper
+			viper.BindPFlag("retain", cleanupCmd.PersistentFlags().Lookup("retain"))
+			viper.BindPFlag("force-delete", cleanupCmd.PersistentFlags().Lookup("force-delete"))
+		}
+	}
+
 }

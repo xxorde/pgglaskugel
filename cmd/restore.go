@@ -322,15 +322,26 @@ func getFromS3(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitG
 }
 
 func init() {
-	RootCmd.AddCommand(restoreCmd)
-	restoreCmd.PersistentFlags().StringP("backup", "B", "", "The backup to restore")
-	restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgresql/pgGlaskugel-restore", "The destination to restore to")
-	restoreCmd.PersistentFlags().Bool("write-recovery-conf", true, "Automatic create a recovery.conf to replay WAL from archive")
-	restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
+	pidfile := viper.GetString("pidpath")
+	if err := util.CheckPid(pidfile); err != nil {
+		log.Error(err)
+	} else {
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+		} else {
+			defer util.DeletePidFile(pidfile)
+			RootCmd.AddCommand(restoreCmd)
+			restoreCmd.PersistentFlags().StringP("backup", "B", "", "The backup to restore")
+			restoreCmd.PersistentFlags().String("restore-to", "/var/lib/postgresql/pgGlaskugel-restore", "The destination to restore to")
+			restoreCmd.PersistentFlags().Bool("write-recovery-conf", true, "Automatic create a recovery.conf to replay WAL from archive")
+			restoreCmd.PersistentFlags().Bool("force-restore", false, "Force the deletion of existing data (danger zone)!")
 
-	// Bind flags to viper
-	viper.BindPFlag("backup", restoreCmd.PersistentFlags().Lookup("backup"))
-	viper.BindPFlag("restore-to", restoreCmd.PersistentFlags().Lookup("restore-to"))
-	viper.BindPFlag("write-recovery-conf", restoreCmd.PersistentFlags().Lookup("write-recovery-conf"))
-	viper.BindPFlag("force-restore", restoreCmd.PersistentFlags().Lookup("force-restore"))
+			// Bind flags to viper
+			viper.BindPFlag("backup", restoreCmd.PersistentFlags().Lookup("backup"))
+			viper.BindPFlag("restore-to", restoreCmd.PersistentFlags().Lookup("restore-to"))
+			viper.BindPFlag("write-recovery-conf", restoreCmd.PersistentFlags().Lookup("write-recovery-conf"))
+			viper.BindPFlag("force-restore", restoreCmd.PersistentFlags().Lookup("force-restore"))
+		}
+	}
+
 }

@@ -30,6 +30,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/util"
 	// This is needed but never directly called
 	_ "github.com/lib/pq"
 )
@@ -163,22 +164,33 @@ var (
 )
 
 func init() {
-	RootCmd.AddCommand(setupCmd)
+	pidfile := viper.GetString("pidpath")
+	if err := util.CheckPid(pidfile); err != nil {
+		log.Error(err)
+	} else {
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+		} else {
+			defer util.DeletePidFile(pidfile)
+			RootCmd.AddCommand(setupCmd)
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	setupCmd.PersistentFlags().String("archive_command", "", "The command to archive WAL files")
-	setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
-	setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
-	setupCmd.PersistentFlags().String("max_wal_senders", "3", "The max number of walsender processes")
-	setupCmd.PersistentFlags().Bool("check", false, "Perform only a dry run without doing changes")
+			// Cobra supports Persistent Flags which will work for this command
+			// and all subcommands, e.g.:
+			setupCmd.PersistentFlags().String("archive_command", "", "The command to archive WAL files")
+			setupCmd.PersistentFlags().String("archive_mode", "on", "The archive mode (should be 'on' to archive)")
+			setupCmd.PersistentFlags().String("wal_level", "hot_standby", "The level of information to include in WAL files")
+			setupCmd.PersistentFlags().String("max_wal_senders", "3", "The max number of walsender processes")
+			setupCmd.PersistentFlags().Bool("check", false, "Perform only a dry run without doing changes")
 
-	// Bind flags to viper
-	viper.BindPFlag("archive_command", setupCmd.PersistentFlags().Lookup("archive_command"))
-	viper.BindPFlag("archive_mode", setupCmd.PersistentFlags().Lookup("archive_mode"))
-	viper.BindPFlag("wal_level", setupCmd.PersistentFlags().Lookup("wal_level"))
-	viper.BindPFlag("max_wal_senders", setupCmd.PersistentFlags().Lookup("max_wal_senders"))
-	viper.BindPFlag("check", setupCmd.PersistentFlags().Lookup("check"))
+			// Bind flags to viper
+			viper.BindPFlag("archive_command", setupCmd.PersistentFlags().Lookup("archive_command"))
+			viper.BindPFlag("archive_mode", setupCmd.PersistentFlags().Lookup("archive_mode"))
+			viper.BindPFlag("wal_level", setupCmd.PersistentFlags().Lookup("wal_level"))
+			viper.BindPFlag("max_wal_senders", setupCmd.PersistentFlags().Lookup("max_wal_senders"))
+			viper.BindPFlag("check", setupCmd.PersistentFlags().Lookup("check"))
+		}
+	}
+
 }
 
 // pgRestartDB is called when PostgreSQL needs a restart

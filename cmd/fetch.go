@@ -61,7 +61,18 @@ It is intended to use as an restore_command in the recovery.conf.
 }
 
 func init() {
-	RootCmd.AddCommand(fetchCmd)
+	pidfile := viper.GetString("pidpath")
+	if err := util.CheckPid(pidfile); err != nil {
+		log.Error(err)
+	} else {
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+		} else {
+			defer util.DeletePidFile(pidfile)
+			RootCmd.AddCommand(fetchCmd)
+		}
+	}
+
 }
 
 // fetchWal recovers a WAL file with the configured method

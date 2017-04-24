@@ -20,25 +20,9 @@
 package main
 
 import (
-	"os"
-
-	log "github.com/Sirupsen/logrus"
 	"github.com/xxorde/pgglaskugel/cmd"
-	"github.com/xxorde/pgglaskugel/util"
 )
 
 func main() {
-	// TODO Maybe we find a better way to name handle the pidfile path.
-	var pidfile = "/tmp/pgglaskugel.pid"
-
-	// Try to write a pidfile
-	if err := util.WritePidFile(pidfile); err != nil {
-		log.Error(err)
-		os.Exit(1)
-	}
-
-	// Delete the pidfile wenn the function returns
-	defer util.DeletePidFile(pidfile)
-
 	cmd.Execute()
 }

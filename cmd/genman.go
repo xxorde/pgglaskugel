@@ -25,6 +25,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/cobra/doc"
+	"github.com/spf13/viper"
+	"github.com/xxorde/pgglaskugel/util"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -50,6 +52,17 @@ var (
 )
 
 func init() {
-	RootCmd.AddCommand(genmanCmd)
-	genmanCmd.Flags().StringVar(&manDir, "man-dir", "docs/man/", "Directory to put the manpage in")
+	pidfile := viper.GetString("pidpath")
+	if err := util.CheckPid(pidfile); err != nil {
+		log.Error(err)
+	} else {
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+		} else {
+			defer util.DeletePidFile(pidfile)
+			RootCmd.AddCommand(genmanCmd)
+			genmanCmd.Flags().StringVar(&manDir, "man-dir", "docs/man/", "Directory to put the manpage in")
+		}
+	}
+
 }

@@ -194,6 +194,7 @@ func init() {
 	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile to given filename")
 	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile to given filename")
 	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
+	RootCmd.PersistentFlags().String("pidpath", "/tmp/pgglaskugel.pid", "path and name for the pidfile")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -226,6 +227,7 @@ func init() {
 	viper.BindPFlag("cpuprofile", RootCmd.PersistentFlags().Lookup("cpuprofile"))
 	viper.BindPFlag("memprofile", RootCmd.PersistentFlags().Lookup("memprofile"))
 	viper.BindPFlag("http_pprof", RootCmd.PersistentFlags().Lookup("http_pprof"))
+	viper.BindPFlag("pidpath", RootCmd.PersistentFlags().Lookup("pidpath"))
 }
 
 // initConfig reads in config file and ENV variables if set.

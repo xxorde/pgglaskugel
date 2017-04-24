@@ -36,11 +36,7 @@ import (
 // WritePidFile checks for existent files and writes the pidfile.
 func WritePidFile(pidfile string) error {
 	if pidfile == "" {
-		return errors.New("pidfile not configured")
-	}
-
-	if err := CheckPid(pidfile); err != nil {
-		return err
+		return errors.New("pidfile is not configured/empty")
 	}
 
 	// if the paths to the pdfile doesn't exist, we create them
