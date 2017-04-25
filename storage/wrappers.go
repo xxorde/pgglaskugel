@@ -31,7 +31,7 @@ import (
 )
 
 // GetMyBackups does something
-func GetMyBackups(viper *Viper) (backups util.Backups) {
+func GetMyBackups(viper map) (backups util.Backups) {
 	log.Debug("Get backups from folder: ", viper.GetString("backupDir"))
 	backups.GetBackupsInDir(backupDir)
 	backups.WalDir = filepath.Join(viper.GetString("archivedir"), subDirWal)

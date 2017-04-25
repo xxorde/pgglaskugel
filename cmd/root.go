@@ -144,6 +144,10 @@ func Execute() {
 		os.Exit(1)
 	} else {
 		defer util.DeletePidFile(pidfile)
+		vipermap := viper.AllSettings
+		for key, value := range vipermap() {
+			log.Infof("%s %s", key, value)
+		}
 		if err := RootCmd.Execute(); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
