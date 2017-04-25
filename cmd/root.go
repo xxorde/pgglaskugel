@@ -202,7 +202,7 @@ func init() {
 	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile to given filename")
 	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile to given filename")
 	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
-	RootCmd.PersistentFlags().String("pidpath", "/var/run/pgglaskugel.pid", "path and name for the pidfile")
+	RootCmd.PersistentFlags().String("pidpath", "/var/tmp/pgglaskugel/pgglaskugel.pid", "path and name for the pidfile")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
