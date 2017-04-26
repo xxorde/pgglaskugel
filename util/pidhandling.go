@@ -107,8 +107,6 @@ func checkpid(pidfile string) (*os.File, error) {
 		if _, err := os.Stat(procstatfile); err == nil {
 			return nil, fmt.Errorf("Pid in pidfile(%s : %d) differs from actual pid(%d) and is still active", pidfile, storedpid, actualpid)
 		}
-		// There is an old pid in the file, but the process is not active anymore. We can delete it and go on
-		DeletePidFile(pidfile)
 	}
 	return file, nil
 }
