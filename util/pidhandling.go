@@ -53,13 +53,11 @@ func WritePidFile(pidfile string) error {
 	if err != nil {
 		return err
 	}
-	defer closepidfile(file)
-
 	_, err = fmt.Fprintf(file, "%d", os.Getpid())
 	if err != nil {
 		return err
 	}
-
+	closepidfile(file)
 	return nil
 }
 
@@ -71,6 +69,15 @@ func DeletePidFile(pidfile string) error {
 	return nil
 }
 
+func createpidfile(pidfile string) (*os.File, error) {
+	file, err := os.Create(pidfile)
+	if err != nil {
+		return nil, fmt.Errorf("error opening pidfile %s: %s", pidfile, err)
+	}
+	syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
+	return file, nil
+}
+
 //checkpid gives an error if the PID does not exist on the system
 // returns true if the actual pid is the same as the stored pid
 func checkpid(pidfile string) (*os.File, error) {
@@ -78,17 +85,11 @@ func checkpid(pidfile string) (*os.File, error) {
 	// if the file doesn't exist, create the file, lock it, and return the filehandle
 	// so writepid kann write it
 	if _, err := os.Stat(pidfile); os.IsNotExist(err) {
-		file, err := os.Create(pidfile)
-		if err != nil {
-			return nil, fmt.Errorf("error opening pidfile %s: %s", pidfile, err)
-		}
-		syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
-		return file, nil
+		return createpidfile(pidfile)
 	}
 
 	// if the file exists, compare the stored pid with the actual and give a reply
 	actualpid := os.Getpid()
-
 	file, err := os.Open(pidfile)
 	syscall.Flock(int(file.Fd()), syscall.LOCK_EX)
 
@@ -98,7 +99,9 @@ func checkpid(pidfile string) (*os.File, error) {
 	}
 	storedpid, err := strconv.Atoi(string(bytes.TrimSpace(pidcontent)))
 	if err != nil {
-		return nil, fmt.Errorf("error parsing pid from %s: %s", pidfile, err)
+		DeletePidFile(pidfile)
+		return createpidfile(pidfile)
+
 	}
 
 	// if the actual pid differs from the stored pid, look if its an old entry or still active via /proc
@@ -107,6 +110,9 @@ func checkpid(pidfile string) (*os.File, error) {
 		if _, err := os.Stat(procstatfile); err == nil {
 			return nil, fmt.Errorf("Pid in pidfile(%s : %d) differs from actual pid(%d) and is still active", pidfile, storedpid, actualpid)
 		}
+		// There is an old pid in the file, but the process is not active anymore. We can delete it and go on
+		DeletePidFile(pidfile)
+		return createpidfile(pidfile)
 	}
 	return file, nil
 }
