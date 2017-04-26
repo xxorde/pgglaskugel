@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	rootvars "../cmd"
 	"github.com/siddontang/go/log"
 	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/util"
@@ -37,15 +38,15 @@ func GetMyBackups(viper func() map[string]interface{}) (backups util.Backups) {
 		log.Debug("Get backups from S3")
 		// Initialize minio client object.
 		backups.MinioClient = GetS3Connection()
-		s3bucketname := fmt.Sprintf("%v", viper()["s3_bucket_backup"])
-		backups.GetBackupsInBucket(s3bucketname)
-		s3bucketwal := fmt.Sprintf("%v", viper()["s3_bucket_wal"])
-		backups.WalBucket = s3bucketwal
+		//s3bucketname := fmt.Sprintf("%v", viper()["s3_bucket_backup"])
+		backups.GetBackupsInBucket(viper()["s3_bucket_backup"])
+		//s3bucketwal := fmt.Sprintf("%v", viper()["s3_bucket_wal"])
+		backups.WalBucket = viper()["s3_bucket_wal"]
 	// default == file
 	default:
 		log.Debug("Get backups from folder: ", viper()["backupDir"])
-		backups.GetBackupsInDir(backupDir)
-		backups.WalDir = filepath.Join(viper()["archivedir"], subDirWal)
+		backups.GetBackupsInDir(viper()["backupDir"])
+		backups.WalDir = filepath.Join(viper()["archivedir"], rootvars.subDirWal)
 	}
 	return backups
 }
@@ -56,13 +57,23 @@ func GetMyWals() (archive wal.Archive) {
 	case "s3":
 		log.Debug("Get backups from S3")
 		// Initialize minio client object.
-		archive.MinioClient = storage.getS3Connection()
-		archive.Bucket = viper.GetString("s3_bucket_wal")
+		archive.MinioClient = GetS3Connection()		
+		archive.Bucket = viper()["s3_bucket_wal"]
 	default:
 		// Get WAL files from filesystem
-		log.Debug("Get WAL from folder: ", walDir)
-		archive.Path = walDir
+		log.Debug("Get WAL from folder: ", rootvars.walDir)
+		archive.Path = rootvars.walDir
 	}
 	archive.GetWals()
 	return archive
+}
+
+// storage.WriteStream
+func storage.WriteStream(input *io.Reader, name string) {
+	switch backend := viper()["archive_to"]; backend {
+		case "s3":
+		writeStreamToS3(input, viper()["s3_bucket_wal"], name)
+		default:
+		WriteStreamToFile(input, filepath.Join(walDir, name))
+	}
 }
