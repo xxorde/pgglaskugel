@@ -148,6 +148,7 @@ func Execute() {
 		for key, value := range vipermap() {
 			log.Infof("%s %s", key, value)
 		}
+		log.Infof("!!! Manuell: %s", vipermap()["pidpath"])
 		if err := RootCmd.Execute(); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)

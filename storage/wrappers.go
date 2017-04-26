@@ -21,46 +21,48 @@
 package storage
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/siddontang/go/log"
 	"github.com/spf13/viper"
-	storage "github.com/xxorde/pgglaskugel/storage"
 	"github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
 // GetMyBackups does something
-func GetMyBackups(viper map) (backups util.Backups) {
-	log.Debug("Get backups from folder: ", viper.GetString("backupDir"))
-	backups.GetBackupsInDir(backupDir)
-	backups.WalDir = filepath.Join(viper.GetString("archivedir"), subDirWal)
-
-	if viper.GetString("backup_to") == "s3" {
+func GetMyBackups(viper func() map[string]interface{}) (backups util.Backups) {
+	switch backend := viper()["backup_to"]; backend {
+	case "s3":
 		log.Debug("Get backups from S3")
-
 		// Initialize minio client object.
-		backups.MinioClient = storage.GetS3Connection()
-		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
-		backups.WalBucket = viper.GetString("s3_bucket_wal")
+		backups.MinioClient = GetS3Connection()
+		s3bucketname := fmt.Sprintf("%v", viper()["s3_bucket_backup"])
+		backups.GetBackupsInBucket(s3bucketname)
+		s3bucketwal := fmt.Sprintf("%v", viper()["s3_bucket_wal"])
+		backups.WalBucket = s3bucketwal
+	// default == file
+	default:
+		log.Debug("Get backups from folder: ", viper()["backupDir"])
+		backups.GetBackupsInDir(backupDir)
+		backups.WalDir = filepath.Join(viper()["archivedir"], subDirWal)
 	}
 	return backups
 }
 
 // GetMyWals does something
 func GetMyWals() (archive wal.Archive) {
-	// Get WAL files from filesystem
-	log.Debug("Get WAL from folder: ", walDir)
-	archive.Path = walDir
-
-	if viper.GetString("backup_to") == "s3" {
+	switch backend := viper()["backup_to"]; backend {
+	case "s3":
 		log.Debug("Get backups from S3")
-
 		// Initialize minio client object.
 		archive.MinioClient = storage.getS3Connection()
 		archive.Bucket = viper.GetString("s3_bucket_wal")
+	default:
+		// Get WAL files from filesystem
+		log.Debug("Get WAL from folder: ", walDir)
+		archive.Path = walDir
 	}
-
 	archive.GetWals()
 	return archive
 }
