@@ -138,7 +138,7 @@ type storeStream func(*io.Reader, string)
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
 	pidfile := viper.GetString("pidpath")
-	log.Infof("pidfile is %s", pidfile)
+	log.Debugf("pidfile is %s", pidfile)
 	if err := util.WritePidFile(pidfile); err != nil {
 		log.Error(err)
 		os.Exit(1)
