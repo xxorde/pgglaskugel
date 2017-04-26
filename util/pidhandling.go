@@ -30,8 +30,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 func closepidfile(pidfile *os.File) {
@@ -100,7 +98,6 @@ func checkpid(pidfile string) (*os.File, error) {
 	}
 	storedpid, err := strconv.Atoi(string(bytes.TrimSpace(pidcontent)))
 	if err != nil {
-		log.Errorf("error parsing pid from %s: %s", pidfile, err)
 		return nil, fmt.Errorf("error parsing pid from %s: %s", pidfile, err)
 	}
 
