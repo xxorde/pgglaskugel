@@ -111,8 +111,8 @@ func testWalSource(walSource string) (err error) {
 
 // storeWalStream takes a stream and persists it with the configured method
 func storeWalStream(input *io.Reader, name string) {
-	archiveTo := viper.GetString("archive_to")
-	storage.WriteStream(input, name)
+	vipermap := viper.AllSettings
+	storage.WriteStream(vipermap, input, name, "archive")
 }
 
 func init() {

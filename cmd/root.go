@@ -144,11 +144,6 @@ func Execute() {
 		os.Exit(1)
 	} else {
 		defer util.DeletePidFile(pidfile)
-		vipermap := viper.AllSettings
-		for key, value := range vipermap() {
-			log.Infof("%s %s", key, value)
-		}
-		log.Infof("!!! Manuell: %s", vipermap()["pidpath"])
 		if err := RootCmd.Execute(); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
@@ -205,7 +200,7 @@ func init() {
 	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile to given filename")
 	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile to given filename")
 	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
-	RootCmd.PersistentFlags().String("pidpath", "/var/run/pgglaskugel.pid", "path and name for the pidfile")
+	RootCmd.PersistentFlags().String("pidpath", "/var/tmp/pgglaskugel/pgglaskugel.pid", "path and name for the pidfile")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -320,6 +315,18 @@ func initConfig() {
 	log.Debug("archiveDir: ", archiveDir)
 	log.Debug("backupDir: ", backupDir)
 	log.Debug("walDir: ", walDir)
+
+	// TODO we maybe have duplicated entrys in viper. pls fix this
+	// Set some variables in Viper,to use them easier in other packages
+	viper.SetDefault("waldir", walDir)
+	viper.SetDefault("backupdir", backupDir)
+	viper.SetDefault("myname", myName)
+	viper.SetDefault("version", Version)
+	viper.SetDefault("retain", 10)
+	/* vipermap := viper.AllSettings
+	for key, value := range vipermap() {
+		log.Infof("%s %s", key, value)
+	} */
 
 	// Set path for the tools
 	cmdTar = viper.GetString("path_to_tar")

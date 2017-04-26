@@ -21,59 +21,76 @@
 package storage
 
 import (
-	"fmt"
+	"io"
+	"log"
 	"path/filepath"
+	"sync"
 
-	rootvars "../cmd"
-	"github.com/siddontang/go/log"
-	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
 // GetMyBackups does something
-func GetMyBackups(viper func() map[string]interface{}) (backups util.Backups) {
+func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
 	switch backend := viper()["backup_to"]; backend {
 	case "s3":
-		log.Debug("Get backups from S3")
-		// Initialize minio client object.
-		backups.MinioClient = GetS3Connection()
-		//s3bucketname := fmt.Sprintf("%v", viper()["s3_bucket_backup"])
-		backups.GetBackupsInBucket(viper()["s3_bucket_backup"])
-		//s3bucketwal := fmt.Sprintf("%v", viper()["s3_bucket_wal"])
-		backups.WalBucket = viper()["s3_bucket_wal"]
+		return getS3Backups(viper, subDirWal)
 	// default == file
 	default:
-		log.Debug("Get backups from folder: ", viper()["backupDir"])
-		backups.GetBackupsInDir(viper()["backupDir"])
-		backups.WalDir = filepath.Join(viper()["archivedir"], rootvars.subDirWal)
+		return getFileBackups(viper, subDirWal)
 	}
-	return backups
 }
 
 // GetMyWals does something
-func GetMyWals() (archive wal.Archive) {
+func GetMyWals(viper func() map[string]interface{}) (archive wal.Archive) {
 	switch backend := viper()["backup_to"]; backend {
 	case "s3":
-		log.Debug("Get backups from S3")
-		// Initialize minio client object.
-		archive.MinioClient = GetS3Connection()		
-		archive.Bucket = viper()["s3_bucket_wal"]
+		return getS3Wals(viper)
 	default:
-		// Get WAL files from filesystem
-		log.Debug("Get WAL from folder: ", rootvars.walDir)
-		archive.Path = rootvars.walDir
+		return getFileWals(viper)
 	}
-	archive.GetWals()
-	return archive
 }
 
-// storage.WriteStream
-func storage.WriteStream(input *io.Reader, name string) {
+// WriteStream writes the stream to the configured archive_to
+func WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
+	var backuppath string
+	if backuptype == "basebackup" {
+		backuppath = filepath.Join(viper()["backupdir"].(string), name)
+	} else if backuptype == "archive" {
+		backuppath = filepath.Join(viper()["waldir"].(string), name)
+	} else {
+		log.Fatalf(" unknown stream-type: %s\n", backuptype)
+	}
 	switch backend := viper()["archive_to"]; backend {
-		case "s3":
-		writeStreamToS3(input, viper()["s3_bucket_wal"], name)
-		default:
-		WriteStreamToFile(input, filepath.Join(walDir, name))
+	case "s3":
+		writeStreamToS3(viper, input, name)
+	default:
+		writeStreamToFile(input, backuppath)
+	}
+}
+
+// Fetch fetches
+func Fetch(viper func() map[string]interface{}, walTarget string, walName string) error {
+	switch backend := viper()["archive_to"]; backend {
+	case "s3":
+		return fetchFromS3(viper, walTarget, walName)
+	default:
+		return fetchFromFile(viper, walTarget, walName)
+	}
+}
+
+// GetBasebackup gets basebackups
+func GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+	// Add one worker to wait for finish
+	wgDone.Add(1)
+
+	storageType := backup.StorageType()
+	switch storageType {
+	case "file":
+		getFromFile(backup, backupStream, wgStart, wgDone)
+	case "s3":
+		getFromS3(viper, backup, backupStream, wgStart, wgDone)
+	default:
+		log.Fatal(storageType, " no valid value for backup_to")
 	}
 }

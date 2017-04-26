@@ -22,6 +22,8 @@ package cmd
 
 import (
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"github.com/xxorde/pgglaskugel/storage"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -38,7 +40,8 @@ var lsCmd = &cobra.Command{
 }
 
 func showBackups() {
-	backups := getMyBackups()
+	vipermap := viper.AllSettings
+	backups := storage.GetMyBackups(vipermap, subDirWal)
 	log.Info(backups.String())
 }
 

@@ -1,0 +1,25 @@
+{
+    "dependencies": {
+        "github.com/Sirupsen/logrus": {
+            "version": "v0.11.5"
+        },
+        "github.com/dustin/go-humanize": {
+            "branch": "master"
+        },
+        "github.com/kardianos/osext": {
+            "branch": "master"
+        },
+        "github.com/lib/pq": {
+            "branch": "master"
+        },
+        "github.com/minio/minio-go": {
+            "version": "v2.0.4"
+        },
+        "github.com/spf13/cobra": {
+            "branch": "master"
+        },
+        "github.com/spf13/viper": {
+            "branch": "master"
+        }
+    }
+}
