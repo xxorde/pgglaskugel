@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package local
 
 import (
 	"io"
@@ -34,7 +34,7 @@ import (
 )
 
 // GetFileBackups returns backups
-func getFileBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+func GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backups.GetBackupsInDir(viper()["backupdir"].(string))
 	backups.WalDir = filepath.Join(viper()["archivedir"].(string), subDirWal)
@@ -42,7 +42,7 @@ func getFileBackups(viper func() map[string]interface{}, subDirWal string) (back
 }
 
 //GetFileWals returns Wals
-func getFileWals(viper func() map[string]interface{}) (archive wal.Archive) {
+func GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
 	// Get WAL files from filesystem
 	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
 	archive.Path = viper()["waldir"].(string)
@@ -51,7 +51,7 @@ func getFileWals(viper func() map[string]interface{}) (archive wal.Archive) {
 }
 
 // WriteStreamToFile handles a stream and writes it to a local file
-func writeStreamToFile(input *io.Reader, filepath string) {
+func WriteStream(input *io.Reader, filepath string) {
 	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
 	if err != nil {
 		log.Fatal("Can not create output file, ", err)
@@ -71,7 +71,7 @@ func writeStreamToFile(input *io.Reader, filepath string) {
 }
 
 // FetchFromFile uses the shell command zstd to recover WAL files
-func fetchFromFile(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
+func Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
 	walSource := viper()["archivedir"].(string) + "/wal/" + walName + ".zst"
 	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 	encrypt := viper()["encrypt"].(bool)
@@ -138,7 +138,8 @@ func fetchFromFile(viper func() map[string]interface{}, walTarget string, walNam
 	return err
 }
 
-func getFromFile(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+//GetFromFile Gets backups from file
+func Get(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromFile")
 	file, err := os.Open(backup.Path)
 	ec.Check(err)

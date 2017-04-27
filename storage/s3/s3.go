@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package s3
 
 import (
 	"io"
@@ -33,7 +33,7 @@ import (
 )
 
 // GetS3Wals returns WAL-Files from S3
-func getS3Wals(viper func() map[string]interface{}) (archive wal.Archive) {
+func GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	archive.MinioClient = getS3Connection(viper)
@@ -43,7 +43,7 @@ func getS3Wals(viper func() map[string]interface{}) (archive wal.Archive) {
 }
 
 // GetS3Backups returns Backups
-func getS3Backups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+func GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	backups.MinioClient = getS3Connection(viper)
@@ -87,7 +87,7 @@ func getS3Connection(viper func() map[string]interface{}) (minioClient minio.Cli
 }
 
 // WriteStreamToS3 handles a stream and writes it to S3 storage
-func writeStreamToS3(viper func() map[string]interface{}, input *io.Reader, name string) {
+func WriteStream(viper func() map[string]interface{}, input *io.Reader, name string) {
 	location := viper()["s3_location"].(string)
 	encrypt := viper()["encrypt"].(bool)
 	bucket := viper()["s3_bucket_wal"].(string)
@@ -129,7 +129,7 @@ func writeStreamToS3(viper func() map[string]interface{}, input *io.Reader, name
 }
 
 // FetchFromS3 recover from a S3 compatible object store
-func fetchFromS3(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
+func Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
 	log.Debug("fetchFromS3 walTarget: ", walTarget, " walName: ", walName)
 	bucket := viper()["s3_bucket_wal"].(string)
 	walSource := walName + ".zst"
@@ -226,7 +226,7 @@ func fetchFromS3(viper func() map[string]interface{}, walTarget string, walName 
 }
 
 // GetFromS3 gets things from S3
-func getFromS3(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func Get(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromS3")
 	bucket := viper()["s3_bucket_backup"].(string)
 

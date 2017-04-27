@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/xxorde/pgglaskugel/storage/local"
+	"github.com/xxorde/pgglaskugel/storage/s3"
 	"github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
@@ -34,10 +36,10 @@ import (
 func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
 	switch backend := viper()["backup_to"]; backend {
 	case "s3":
-		return getS3Backups(viper, subDirWal)
+		return s3.GetBackups(viper, subDirWal)
 	// default == file
 	default:
-		return getFileBackups(viper, subDirWal)
+		return local.GetBackups(viper, subDirWal)
 	}
 }
 
@@ -45,9 +47,9 @@ func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backup
 func GetMyWals(viper func() map[string]interface{}) (archive wal.Archive) {
 	switch backend := viper()["backup_to"]; backend {
 	case "s3":
-		return getS3Wals(viper)
+		return s3.GetWals(viper)
 	default:
-		return getFileWals(viper)
+		return local.GetWals(viper)
 	}
 }
 
@@ -63,9 +65,9 @@ func WriteStream(viper func() map[string]interface{}, input *io.Reader, name str
 	}
 	switch backend := viper()["archive_to"]; backend {
 	case "s3":
-		writeStreamToS3(viper, input, name)
+		s3.WriteStream(viper, input, name)
 	default:
-		writeStreamToFile(input, backuppath)
+		local.WriteStream(input, backuppath)
 	}
 }
 
@@ -73,9 +75,9 @@ func WriteStream(viper func() map[string]interface{}, input *io.Reader, name str
 func Fetch(viper func() map[string]interface{}, walTarget string, walName string) error {
 	switch backend := viper()["archive_to"]; backend {
 	case "s3":
-		return fetchFromS3(viper, walTarget, walName)
+		return s3.Fetch(viper, walTarget, walName)
 	default:
-		return fetchFromFile(viper, walTarget, walName)
+		return local.Fetch(viper, walTarget, walName)
 	}
 }
 
@@ -86,11 +88,9 @@ func GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, bac
 
 	storageType := backup.StorageType()
 	switch storageType {
-	case "file":
-		getFromFile(backup, backupStream, wgStart, wgDone)
 	case "s3":
-		getFromS3(viper, backup, backupStream, wgStart, wgDone)
+		s3.Get(viper, backup, backupStream, wgStart, wgDone)
 	default:
-		log.Fatal(storageType, " no valid value for backup_to")
+		local.Get(backup, backupStream, wgStart, wgDone)
 	}
 }
