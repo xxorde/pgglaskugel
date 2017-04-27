@@ -33,8 +33,16 @@ import (
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
+type localbackend struct {
+}
+
+func New() localbackend {
+	var backend localbackend
+	return backend
+}
+
 // GetFileBackups returns backups
-func GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+func (b localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backups.GetBackupsInDir(viper()["backupdir"].(string))
 	backups.WalDir = filepath.Join(viper()["archivedir"].(string), subDirWal)
@@ -42,7 +50,7 @@ func GetBackups(viper func() map[string]interface{}, subDirWal string) (backups 
 }
 
 //GetFileWals returns Wals
-func GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
+func (b localbackend) GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
 	// Get WAL files from filesystem
 	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
 	archive.Path = viper()["waldir"].(string)
@@ -51,7 +59,8 @@ func GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
 }
 
 // WriteStreamToFile handles a stream and writes it to a local file
-func WriteStream(input *io.Reader, filepath string) {
+func (b localbackend) WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
+	filepath := name
 	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
 	if err != nil {
 		log.Fatal("Can not create output file, ", err)
@@ -71,7 +80,7 @@ func WriteStream(input *io.Reader, filepath string) {
 }
 
 // FetchFromFile uses the shell command zstd to recover WAL files
-func Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
+func (b localbackend) Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
 	walSource := viper()["archivedir"].(string) + "/wal/" + walName + ".zst"
 	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 	encrypt := viper()["encrypt"].(bool)
@@ -139,7 +148,7 @@ func Fetch(viper func() map[string]interface{}, walTarget string, walName string
 }
 
 //GetFromFile Gets backups from file
-func Get(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func (b localbackend) GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromFile")
 	file, err := os.Open(backup.Path)
 	ec.Check(err)

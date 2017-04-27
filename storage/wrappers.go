@@ -22,8 +22,6 @@ package storage
 
 import (
 	"io"
-	"log"
-	"path/filepath"
 	"sync"
 
 	"github.com/xxorde/pgglaskugel/storage/local"
@@ -32,65 +30,51 @@ import (
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
+func initbackends() map[string]Backend {
+	backends := make(map[string]Backend)
+
+	s3b := s3.New()
+	localb := local.New()
+	backends["s3"] = s3b
+	backends["file"] = localb
+	return backends
+}
+
 // GetMyBackups does something
 func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
-	switch backend := viper()["backup_to"]; backend {
-	case "s3":
-		return s3.GetBackups(viper, subDirWal)
-	// default == file
-	default:
-		return local.GetBackups(viper, subDirWal)
-	}
+	backends := initbackends()
+	bn := viper()["backup_to"].(string)
+	return backends[bn].GetBackups(viper, subDirWal)
 }
 
 // GetMyWals does something
 func GetMyWals(viper func() map[string]interface{}) (archive wal.Archive) {
-	switch backend := viper()["backup_to"]; backend {
-	case "s3":
-		return s3.GetWals(viper)
-	default:
-		return local.GetWals(viper)
-	}
+	backends := initbackends()
+	bn := viper()["backup_to"].(string)
+	return backends[bn].GetWals(viper)
 }
 
 // WriteStream writes the stream to the configured archive_to
 func WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
-	var backuppath string
-	if backuptype == "basebackup" {
-		backuppath = filepath.Join(viper()["backupdir"].(string), name)
-	} else if backuptype == "archive" {
-		backuppath = filepath.Join(viper()["waldir"].(string), name)
-	} else {
-		log.Fatalf(" unknown stream-type: %s\n", backuptype)
-	}
-	switch backend := viper()["archive_to"]; backend {
-	case "s3":
-		s3.WriteStream(viper, input, name)
-	default:
-		local.WriteStream(input, backuppath)
-	}
+	backends := initbackends()
+	bn := viper()["backup_to"].(string)
+	backends[bn].WriteStream(viper, input, name, backuptype)
+
 }
 
 // Fetch fetches
 func Fetch(viper func() map[string]interface{}, walTarget string, walName string) error {
-	switch backend := viper()["archive_to"]; backend {
-	case "s3":
-		return s3.Fetch(viper, walTarget, walName)
-	default:
-		return local.Fetch(viper, walTarget, walName)
-	}
+	backends := initbackends()
+	bn := viper()["backup_to"].(string)
+	return backends[bn].Fetch(viper, walTarget, walName)
 }
 
 // GetBasebackup gets basebackups
 func GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+	backends := initbackends()
 	// Add one worker to wait for finish
 	wgDone.Add(1)
 
 	storageType := backup.StorageType()
-	switch storageType {
-	case "s3":
-		s3.Get(viper, backup, backupStream, wgStart, wgDone)
-	default:
-		local.Get(backup, backupStream, wgStart, wgDone)
-	}
+	backends[storageType].GetBasebackup(viper, backup, backupStream, wgStart, wgDone)
 }
