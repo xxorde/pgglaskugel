@@ -49,6 +49,8 @@ import (
 	"net/http"
 	// Enable server runtime profiling
 	_ "net/http/pprof"
+
+	"github.com/xxorde/pgglaskugel/storage"
 )
 
 const (
@@ -346,6 +348,11 @@ func initConfig() {
 	// Check if needed tools are available
 	err := testTools(baseBackupTools)
 	ec.Check(err)
+
+	// Check if the configured backend is supported
+	if err := storage.CheckBackend(viper.GetString("backup_to")); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Global needed functions

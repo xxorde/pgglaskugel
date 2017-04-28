@@ -24,6 +24,8 @@ import (
 	"io"
 	"sync"
 
+	"fmt"
+
 	"github.com/xxorde/pgglaskugel/storage/local"
 	"github.com/xxorde/pgglaskugel/storage/s3"
 	"github.com/xxorde/pgglaskugel/util"
@@ -38,6 +40,15 @@ func initbackends() map[string]Backend {
 	backends["s3"] = s3b
 	backends["file"] = localb
 	return backends
+}
+
+// CheckBackend checks if the configured backend is supported
+func CheckBackend(backend string) error {
+	backends := initbackends()
+	if _, ok := backends[backend]; ok {
+		return nil
+	}
+	return fmt.Errorf("Backend %s not supported", backend)
 }
 
 // GetMyBackups does something
