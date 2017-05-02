@@ -35,8 +35,8 @@ import (
 func initbackends() map[string]Backend {
 	backends := make(map[string]Backend)
 
-	s3b := s3.New()
-	localb := local.New()
+	var s3b s3.S3backend
+	var localb local.Localbackend
 	backends["s3"] = s3b
 	backends["file"] = localb
 	return backends

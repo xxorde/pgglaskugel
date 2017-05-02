@@ -33,24 +33,20 @@ import (
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
-type localbackend struct {
+// Localbackend defines a struct to use the file-methods
+type Localbackend struct {
 }
 
-func New() localbackend {
-	var backend localbackend
-	return backend
-}
-
-// GetFileBackups returns backups
-func (b localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+// GetBackups returns backups
+func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backups.GetBackupsInDir(viper()["backupdir"].(string))
 	backups.WalDir = filepath.Join(viper()["archivedir"].(string), subDirWal)
 	return backups
 }
 
-//GetFileWals returns Wals
-func (b localbackend) GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
+//GetWals returns Wals
+func (b Localbackend) GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
 	// Get WAL files from filesystem
 	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
 	archive.Path = viper()["waldir"].(string)
@@ -58,10 +54,17 @@ func (b localbackend) GetWals(viper func() map[string]interface{}) (archive wal.
 	return archive
 }
 
-// WriteStreamToFile handles a stream and writes it to a local file
-func (b localbackend) WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
-	filepath := name
-	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
+// WriteStream handles a stream and writes it to a local file
+func (b Localbackend) WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
+	var backuppath string
+	if backuptype == "basebackup" {
+		backuppath = filepath.Join(viper()["backupdir"].(string), name)
+	} else if backuptype == "archive" {
+		backuppath = filepath.Join(viper()["waldir"].(string), name)
+	} else {
+		log.Fatalf(" unknown stream-type: %s\n", backuptype)
+	}
+	file, err := os.OpenFile(backuppath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
 	if err != nil {
 		log.Fatal("Can not create output file, ", err)
 	}
@@ -70,17 +73,17 @@ func (b localbackend) WriteStream(viper func() map[string]interface{}, input *io
 	log.Debug("Start writing to file")
 	written, err := io.Copy(file, *input)
 	if err != nil {
-		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", filepath, written, err)
+		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", backuppath, written, err)
 	}
 
 	log.Infof("%d bytes were written, waiting for file.Sync()", written)
-	log.Debug("Wait for file.Sync()", filepath)
+	log.Debug("Wait for file.Sync()", backuppath)
 	file.Sync()
-	log.Debug("Done waiting for file.Sync()", filepath)
+	log.Debug("Done waiting for file.Sync()", backuppath)
 }
 
-// FetchFromFile uses the shell command zstd to recover WAL files
-func (b localbackend) Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
+// Fetch uses the shell command zstd to recover WAL files
+func (b Localbackend) Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
 	walSource := viper()["archivedir"].(string) + "/wal/" + walName + ".zst"
 	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 	encrypt := viper()["encrypt"].(bool)
@@ -147,8 +150,8 @@ func (b localbackend) Fetch(viper func() map[string]interface{}, walTarget strin
 	return err
 }
 
-//GetFromFile Gets backups from file
-func (b localbackend) GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+//GetBasebackup Gets backups from file
+func (b Localbackend) GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromFile")
 	file, err := os.Open(backup.Path)
 	ec.Check(err)
