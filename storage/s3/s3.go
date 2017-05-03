@@ -23,7 +23,6 @@ package s3
 import (
 	"io"
 	"os/exec"
-	"path/filepath"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
@@ -95,9 +94,9 @@ func (b S3backend) getS3Connection(viper func() map[string]interface{}) (minioCl
 func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
 	var bucket string
 	if backuptype == "basebackup" {
-		bucket = filepath.Join(viper()["s3_bucket_backup"].(string), name)
+		bucket = viper()["s3_bucket_backup"].(string)
 	} else if backuptype == "archive" {
-		bucket = filepath.Join(viper()["s3_bucket_wal"].(string), name)
+		bucket = viper()["s3_bucket_wal"].(string)
 	} else {
 		log.Fatalf(" unknown stream-type: %s\n", backuptype)
 	}
