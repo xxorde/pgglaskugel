@@ -83,12 +83,15 @@ func (b Localbackend) WriteStream(viper func() map[string]interface{}, input *io
 }
 
 // Fetch uses the shell command zstd to recover WAL files
-func (b Localbackend) Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
+func (b Localbackend) Fetch(viper func() map[string]interface{}) (err error) {
+	walTarget := viper()["waltarget"].(string)
+	walName := viper()["walname"].(string)
 	walSource := viper()["archivedir"].(string) + "/wal/" + walName + ".zst"
-	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 	encrypt := viper()["encrypt"].(bool)
 	cmdZstd := viper()["path_to_zstd"].(string)
 	cmdGpg := viper()["path_to_gpg"].(string)
+
+	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 
 	// If encryption is not used the restore is easy
 	if encrypt == false {

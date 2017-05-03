@@ -35,7 +35,7 @@ type Backend interface {
 	WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string)
 
 	// Returns the data from the given backend
-	Fetch(viper func() map[string]interface{}, walTarget string, walName string) error
+	Fetch(viper func() map[string]interface{}) error
 
 	// Returns all found basebackups
 	GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)

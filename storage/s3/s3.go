@@ -133,9 +133,10 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 }
 
 // Fetch recover from a S3 compatible object store
-func (b S3backend) Fetch(viper func() map[string]interface{}, walTarget string, walName string) (err error) {
-	log.Debug("fetchFromS3 walTarget: ", walTarget, " walName: ", walName)
+func (b S3backend) Fetch(viper func() map[string]interface{}) (err error) {
 	bucket := viper()["s3_bucket_wal"].(string)
+	walTarget := viper()["waltarget"].(string)
+	walName := viper()["walname"].(string)
 	walSource := walName + ".zst"
 	encrypt := viper()["encrypt"].(bool)
 	// Initialize minio client object.
@@ -143,6 +144,7 @@ func (b S3backend) Fetch(viper func() map[string]interface{}, walTarget string, 
 	cmdZstd := viper()["path_to_zstd"].(string)
 	cmdGpg := viper()["path_to_gpg"].(string)
 
+	log.Debug("fetchFromS3 walTarget: ", walTarget, " walName: ", walName)
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)
 	if err != nil {

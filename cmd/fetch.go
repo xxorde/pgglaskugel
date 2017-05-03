@@ -62,6 +62,8 @@ func init() {
 
 // fetchWal recovers a WAL file with the configured method
 func fetchWal(walTarget string, walName string) (err error) {
+	viper.SetDefault("waltarget", walTarget)
+	viper.SetDefault("walname", walName)
 	vipermap := viper.AllSettings
-	return storage.Fetch(vipermap, walTarget, walName)
+	return storage.Fetch(vipermap)
 }

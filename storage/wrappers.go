@@ -74,10 +74,10 @@ func WriteStream(viper func() map[string]interface{}, input *io.Reader, name str
 }
 
 // Fetch fetches
-func Fetch(viper func() map[string]interface{}, walTarget string, walName string) error {
+func Fetch(viper func() map[string]interface{}) error {
 	backends := initbackends()
 	bn := viper()["backup_to"].(string)
-	return backends[bn].Fetch(viper, walTarget, walName)
+	return backends[bn].Fetch(viper)
 }
 
 // GetBasebackup gets basebackups
