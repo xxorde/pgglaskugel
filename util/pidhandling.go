@@ -29,6 +29,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"syscall"
 )
 
@@ -78,6 +79,17 @@ func createpidfile(pidfile string) (*os.File, error) {
 	return file, nil
 }
 
+// format the output from /proc/pid/cmdline into a readable string
+func formatcmdline(cmdcontent []byte) string {
+	cfslice := bytes.Split(cmdcontent, []byte{0})
+	var bytostr []string
+	for _, p := range cfslice {
+		bytostr = append(bytostr, string(p))
+	}
+	cmdstring := strings.Join(bytostr, " ")
+	return cmdstring
+}
+
 //checkpid gives an error if the PID does not exist on the system
 // returns true if the actual pid is the same as the stored pid
 func checkpid(pidfile string) (*os.File, error) {
@@ -106,9 +118,16 @@ func checkpid(pidfile string) (*os.File, error) {
 
 	// if the actual pid differs from the stored pid, look if its an old entry or still active via /proc
 	if actualpid != storedpid {
-		procstatfile := fmt.Sprintf("/proc/%d/stat", storedpid)
-		if _, err := os.Stat(procstatfile); err == nil {
-			return nil, fmt.Errorf("Pid in pidfile(%s : %d) differs from actual pid(%d) and is still active", pidfile, storedpid, actualpid)
+		procfile := fmt.Sprintf("/proc/%d/cmdline", storedpid)
+		if _, err := os.Stat(procfile); err == nil {
+			pf, err := os.Open(procfile)
+			if err != nil {
+				return nil, fmt.Errorf("Error opening /proc/%d/cmdline: %s", storedpid, err)
+			}
+			defer pf.Close()
+			cfoutput, _ := ioutil.ReadAll(pf)
+			command := formatcmdline(cfoutput)
+			return nil, fmt.Errorf("Pid in pidfile(%s : %d) differs from actual pid(%d) and is still active. /proc/cmdline: %s", pidfile, storedpid, actualpid, command)
 		}
 		// There is an old pid in the file, but the process is not active anymore. We can delete it and go on
 		DeletePidFile(pidfile)
