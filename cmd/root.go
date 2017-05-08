@@ -39,10 +39,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	minio "github.com/minio/minio-go"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	util "github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/kardianos/osext"
 	"github.com/spf13/cobra"
@@ -51,6 +49,8 @@ import (
 	"net/http"
 	// Enable server runtime profiling
 	_ "net/http/pprof"
+
+	"github.com/xxorde/pgglaskugel/storage"
 )
 
 const (
@@ -139,9 +139,17 @@ type storeStream func(*io.Reader, string)
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if err := RootCmd.Execute(); err != nil {
-		fmt.Println(err)
-		os.Exit(-1)
+	pidfile := viper.GetString("pidpath")
+	log.Debugf("pidfile is %s", pidfile)
+	if err := util.WritePidFile(pidfile); err != nil {
+		log.Error(err)
+		os.Exit(1)
+	} else {
+		defer util.DeletePidFile(pidfile)
+		if err := RootCmd.Execute(); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
 	}
 }
 
@@ -194,6 +202,7 @@ func init() {
 	RootCmd.PersistentFlags().String("cpuprofile", "", "Write cpu profile to given filename")
 	RootCmd.PersistentFlags().String("memprofile", "", "Write memory profile to given filename")
 	RootCmd.PersistentFlags().Bool("http_pprof", false, "Start net/http/pprof profiler")
+	RootCmd.PersistentFlags().String("pidpath", "/var/tmp/pgglaskugel/pgglaskugel.pid", "path and name for the pidfile")
 
 	// Bind flags to viper
 	// Try to find better suiting values over the viper configuration files
@@ -226,6 +235,7 @@ func init() {
 	viper.BindPFlag("cpuprofile", RootCmd.PersistentFlags().Lookup("cpuprofile"))
 	viper.BindPFlag("memprofile", RootCmd.PersistentFlags().Lookup("memprofile"))
 	viper.BindPFlag("http_pprof", RootCmd.PersistentFlags().Lookup("http_pprof"))
+	viper.BindPFlag("pidpath", RootCmd.PersistentFlags().Lookup("pidpath"))
 }
 
 // initConfig reads in config file and ENV variables if set.
@@ -308,6 +318,18 @@ func initConfig() {
 	log.Debug("backupDir: ", backupDir)
 	log.Debug("walDir: ", walDir)
 
+	// TODO we maybe have duplicated entrys in viper. pls fix this
+	// Set some variables in Viper,to use them easier in other packages
+	viper.SetDefault("waldir", walDir)
+	viper.SetDefault("backupdir", backupDir)
+	viper.SetDefault("myname", myName)
+	viper.SetDefault("version", Version)
+	viper.SetDefault("retain", 10)
+	vipermap := viper.AllSettings
+	for key, value := range vipermap() {
+		log.Debugf("%s %s", key, value)
+	}
+
 	// Set path for the tools
 	cmdTar = viper.GetString("path_to_tar")
 	cmdBasebackup = viper.GetString("path_to_basebackup")
@@ -326,6 +348,11 @@ func initConfig() {
 	// Check if needed tools are available
 	err := testTools(baseBackupTools)
 	ec.Check(err)
+
+	// Check if the configured backend is supported
+	if err := storage.CheckBackend(viper.GetString("backup_to")); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Global needed functions
@@ -530,71 +557,6 @@ func checkNeededParameter(parameter ...string) (err error) {
 	return nil
 }
 
-func getS3Connection() (minioClient minio.Client) {
-	endpoint := viper.GetString("s3_endpoint")
-	accessKeyID := viper.GetString("s3_access_key")
-	secretAccessKey := viper.GetString("s3_secret_key")
-	ssl := viper.GetBool("s3_ssl")
-	version := viper.GetInt("s3_protocol_version")
-
-	var client *minio.Client
-	var err error
-
-	// Initialize minio client object.
-	switch version {
-	case 4:
-		log.Debug("Using S3 version 4")
-		client, err = minio.NewV4(endpoint, accessKeyID, secretAccessKey, ssl)
-	case 2:
-		log.Debug("Using S3 version 2")
-		client, err = minio.NewV2(endpoint, accessKeyID, secretAccessKey, ssl)
-	default:
-		log.Debug("Autodetecting S3 version")
-		client, err = minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
-	}
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	client.SetAppInfo(myName, Version)
-	log.Debug("minioClient: ", minioClient)
-
-	return *client
-}
-
-func getMyBackups() (backups util.Backups) {
-	log.Debug("Get backups from folder: ", backupDir)
-	backups.GetBackupsInDir(backupDir)
-	backups.WalDir = filepath.Join(viper.GetString("archivedir"), subDirWal)
-
-	if viper.GetString("backup_to") == "s3" {
-		log.Debug("Get backups from S3")
-
-		// Initialize minio client object.
-		backups.MinioClient = getS3Connection()
-		backups.GetBackupsInBucket(viper.GetString("s3_bucket_backup"))
-		backups.WalBucket = viper.GetString("s3_bucket_wal")
-	}
-	return backups
-}
-
-func getMyWals() (archive wal.Archive) {
-	// Get WAL files from filesystem
-	log.Debug("Get WAL from folder: ", walDir)
-	archive.Path = walDir
-
-	if viper.GetString("backup_to") == "s3" {
-		log.Debug("Get backups from S3")
-
-		// Initialize minio client object.
-		archive.MinioClient = getS3Connection()
-		archive.Bucket = viper.GetString("s3_bucket_wal")
-	}
-
-	archive.GetWals()
-	return archive
-}
-
 // compressEncryptStream takes a stream and:
 // * compresses it
 // * endcrypts it (if configured)
@@ -706,65 +668,4 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 		}
 		log.Debug("Encryption done")
 	}
-}
-
-// writeStreamToFile handles a stream and writes it to a local file
-func writeStreamToFile(input *io.Reader, filepath string) {
-	file, err := os.OpenFile(filepath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0660)
-	if err != nil {
-		log.Fatal("Can not create output file, ", err)
-	}
-	defer file.Close()
-
-	log.Debug("Start writing to file")
-	written, err := io.Copy(file, *input)
-	if err != nil {
-		log.Fatalf("writeStreamToFile: Error while writing to %s, written %d, error: %v", filepath, written, err)
-	}
-
-	log.Infof("%d bytes were written, waiting for file.Sync()", written)
-	log.Debug("Wait for file.Sync()", filepath)
-	file.Sync()
-	log.Debug("Done waiting for file.Sync()", filepath)
-}
-
-// writeStreamToS3 handles a stream and writes it to S3 storage
-func writeStreamToS3(input *io.Reader, bucket, name string) {
-	location := viper.GetString("s3_location")
-	encrypt := viper.GetBool("encrypt")
-	contentType := "zstd"
-
-	// Set contentType for encryption
-	if encrypt {
-		contentType = "pgp"
-	}
-
-	// Initialize minio client object.
-	minioClient := getS3Connection()
-
-	// Test if bucket is there
-	exists, err := minioClient.BucketExists(bucket)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if exists {
-		log.Debugf("Bucket already exists, we are using it: %s", bucket)
-	} else {
-		// Try to create bucket
-		err = minioClient.MakeBucket(bucket, location)
-		if err != nil {
-			log.Debug("minioClient.MakeBucket(bucket, location) failed")
-			log.Fatal(err)
-		}
-		log.Infof("Bucket %s created.", bucket)
-	}
-
-	log.Debug("Put stream into bucket: ", bucket)
-	n, err := minioClient.PutObject(bucket, name, *input, contentType)
-	if err != nil {
-		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
-		log.Fatal(err)
-		return
-	}
-	log.Infof("Written %d bytes to %s in bucket %s.", n, name, bucket)
 }

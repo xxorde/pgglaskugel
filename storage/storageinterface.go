@@ -18,33 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package cmd
+package storage
 
 import (
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
-	"github.com/xxorde/pgglaskugel/storage"
+	"io"
+	"sync"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/xxorde/pgglaskugel/util"
+	"github.com/xxorde/pgglaskugel/wal"
 )
 
-// lsCmd represents the ls command
-var lsCmd = &cobra.Command{
-	Use:   "ls",
-	Short: "Shows existing backups",
-	Long:  `Shows you all backups already made with meta information.`,
-	Run: func(cmd *cobra.Command, args []string) {
-		showBackups()
-		printDone()
-	},
-}
+// Backend is used to store and access data.
+type Backend interface {
 
-func showBackups() {
-	vipermap := viper.AllSettings
-	backups := storage.GetMyBackups(vipermap, subDirWal)
-	log.Info(backups.String())
-}
+	// Writes a datastream to the given backend
+	WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string)
 
-func init() {
-	RootCmd.AddCommand(lsCmd)
+	// Returns the data from the given backend
+	Fetch(viper func() map[string]interface{}) error
+
+	// Returns all found basebackups
+	GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
+
+	// Returns all found backups
+	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups)
+
+	// Returns all found WAL-files
+	GetWals(viper func() map[string]interface{}) (archive wal.Archive)
 }
