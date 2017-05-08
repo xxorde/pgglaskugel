@@ -33,6 +33,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 )
 
@@ -123,7 +124,8 @@ var (
 )
 
 func restoreBasebackup(backupDestination string, backupName string) (err error) {
-	backups := getMyBackups()
+	vipermap := viper.AllSettings
+	backups := storage.GetMyBackups(vipermap, subDirWal)
 	backup, err := backups.Find(backupName)
 	if err != nil {
 		log.Fatal(err)
@@ -191,7 +193,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	wgRestoreStart.Add(1)
 
 	// Start getBasebackup in new go-routine
-	go getBasebackup(backup, dataStream, &wgRestoreStart, &wgRestoreDone)
+	go storage.GetBasebackup(vipermap, backup, dataStream, &wgRestoreStart, &wgRestoreDone)
 
 	// Wait for getBasebackup to start
 	wgRestoreStart.Wait()
@@ -240,85 +242,6 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Tell the backup source that the chain is finished
 	wgRestoreDone.Done()
 	return err
-}
-
-func getBasebackup(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
-	// Add one worker to wait for finish
-	wgDone.Add(1)
-
-	storageType := backup.StorageType()
-	switch storageType {
-	case "file":
-		getFromFile(backup, backupStream, wgStart, wgDone)
-	case "s3":
-		getFromS3(backup, backupStream, wgStart, wgDone)
-	default:
-		log.Fatal(storageType, " no valid value for backup_to")
-	}
-}
-
-func getFromFile(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
-	log.Debug("getFromFile")
-	file, err := os.Open(backup.Path)
-	ec.Check(err)
-	defer file.Close()
-
-	// Set file as backupStream
-	*backupStream = file
-
-	// Tell the chain that backupStream can access data now
-	wgStart.Done()
-
-	// Wait for the rest of the chain to finish
-	log.Debug("getFromFile waits for the rest of the chain to finish")
-	wgDone.Wait()
-	log.Debug("getFromFile done")
-
-}
-
-func getFromS3(backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
-	log.Debug("getFromS3")
-	bucket := viper.GetString("s3_bucket_backup")
-
-	// Initialize minio client object.
-	minioClient := getS3Connection()
-
-	// Test if bucket is there
-	exists, err := minioClient.BucketExists(bucket)
-	if err != nil {
-		log.Fatal(err)
-	}
-	if !exists {
-		log.Fatal("Bucket to restore from does not exists")
-	}
-
-	backupSource := backup.Name + backup.Extension
-	backupObject, err := minioClient.GetObject(bucket, backupSource)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
-	defer backupObject.Close()
-
-	// Test if the object is accessible
-	stat, err := backupObject.Stat()
-	if err != nil {
-		log.Fatal(err)
-	}
-	if stat.Size <= 0 {
-		log.Fatal("Backup object has size <= 0")
-	}
-
-	// Assign backupObject as input to the restore stack
-	*backupStream = backupObject
-
-	// Tell the chain that backupStream can access data now
-	wgStart.Done()
-
-	// Wait for the rest of the chain to finish
-	log.Debug("getFromS3 waits for the rest of the chain to finish")
-	wgDone.Wait()
-	log.Debug("getFromS3 done")
 }
 
 func init() {

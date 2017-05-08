@@ -11,6 +11,8 @@
 ###########
 # general #
 ###########
+# path and name for the pidfile. Be sure, that you have permissions to create the path and file
+#pidpath: /tmp/pgglaskugel.pid
 
 # Name of the cluster, used in backup name, Default is os.Hostname()
 #cluster_name: 

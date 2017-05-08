@@ -19,7 +19,9 @@
 // THE SOFTWARE.
 package main
 
-import "github.com/xxorde/pgglaskugel/cmd"
+import (
+	"github.com/xxorde/pgglaskugel/cmd"
+)
 
 func main() {
 	cmd.Execute()

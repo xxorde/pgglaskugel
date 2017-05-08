@@ -23,11 +23,11 @@ package cmd
 import (
 	"io"
 	"os/exec"
-	"path/filepath"
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	storage "github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 
 	"github.com/spf13/cobra"
@@ -118,15 +118,8 @@ var (
 
 // handleBackupStream takes a stream and persists it with the configured method
 func storeBackupStream(input *io.Reader, name string) {
-	backupTo := viper.GetString("backup_to")
-	switch backupTo {
-	case "file":
-		writeStreamToFile(input, filepath.Join(backupDir, name))
-	case "s3":
-		writeStreamToS3(input, viper.GetString("s3_bucket_backup"), name)
-	default:
-		log.Fatal(backupTo, " no valid value for backupTo")
-	}
+	vipermap := viper.AllSettings
+	storage.WriteStream(vipermap, input, name, "basebackup")
 }
 
 func init() {

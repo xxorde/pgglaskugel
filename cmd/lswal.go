@@ -23,6 +23,8 @@ package cmd
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"github.com/xxorde/pgglaskugel/storage"
 )
 
 // lswalCmd represents the lswal command
@@ -37,7 +39,8 @@ var lswalCmd = &cobra.Command{
 }
 
 func showWals() {
-	archive := getMyWals()
+	vipermap := viper.AllSettings
+	archive := storage.GetMyWals(vipermap)
 	log.Info(archive.String())
 }
 
