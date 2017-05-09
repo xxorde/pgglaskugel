@@ -28,7 +28,7 @@ import (
 	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/xxorde/pgglaskugel/backup/wal"
+	"github.com/xxorde/pgglaskugel/backup"
 	"github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 )
@@ -119,7 +119,7 @@ var cleanupCmd = &cobra.Command{
 		log.Debug("oldestNeededWal: ", oldestNeededWal)
 
 		// Create object to represent oldest needed WAL file
-		var oldWal wal.Wal
+		var oldWal backup.Wal
 		oldWal.Name = oldestNeededWal
 
 		// Get all WAL files

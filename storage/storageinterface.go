@@ -25,7 +25,6 @@ import (
 	"sync"
 
 	"github.com/xxorde/pgglaskugel/backup"
-	"github.com/xxorde/pgglaskugel/backup/wal"
 )
 
 // Backend is used to store and access data.
@@ -44,5 +43,5 @@ type Backend interface {
 	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups)
 
 	// Returns all found WAL-files
-	GetWals(viper func() map[string]interface{}) (archive wal.Archive)
+	GetWals(viper func() map[string]interface{}) (archive backup.Archive)
 }

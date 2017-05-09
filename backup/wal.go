@@ -1,4 +1,4 @@
-// Package wal module wal
+// Package backup - wal module
 // Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,7 +18,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-package wal
+package backup
 
 import (
 	"bytes"
@@ -27,55 +27,12 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"sort"
 	"text/tabwriter"
 
 	log "github.com/Sirupsen/logrus"
 	humanize "github.com/dustin/go-humanize"
-	minio "github.com/minio/minio-go"
 )
-
-const (
-	// MaxWalSize maximum size a WAL can have
-	MaxWalSize = int64(16777216)
-
-	// MinArchiveSize minimal size for files to archive
-	MinArchiveSize = int64(100)
-
-	// StorageTypeFile represents an file backend
-	StorageTypeFile = "file"
-	// StorageTypeS3 represents an S3 backend
-	StorageTypeS3 = "s3"
-
-	// RegFullWal - name of a WAL file
-	RegFullWal = `^[0-9A-Za-z]{24}`
-	// RegWalWithExt - name of a WAL file wit extension
-	RegWalWithExt = `^([0-9A-Za-z]{24})(.*)`
-	// RegTimeline - timeline of a given WAL file name
-	RegTimeline = `^[0-9A-Za-z]{8}`
-	// RegCounter segment counter in the given timeline
-	RegCounter = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
-	// RegBackupLabel backup label with any additional extension
-	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*`
-)
-
-var (
-	nameFinder      = regexp.MustCompile(RegWalWithExt)  // *Regexp to extract the name from a WAL file with extension
-	fulWalValidator = regexp.MustCompile(RegFullWal)     // *Regexp to identify a WAL file
-	timelineFinder  = regexp.MustCompile(RegTimeline)    // *Regexp to identify a timeline
-	counterFinder   = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
-	findBackupLabel = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
-)
-
-// Wal is a struct to represent a WAL file
-type Wal struct {
-	Name        string
-	Extension   string
-	Size        int64
-	StorageType string
-	Archive     *Archive
-}
 
 // ImportName imports a WAL file by name (including extension)
 func (w *Wal) ImportName(nameWithExtension string) (err error) {
@@ -159,14 +116,6 @@ func (w *Wal) Delete() (err error) {
 		log.Warn(err)
 	}
 	return err
-}
-
-// Archive is a struct to represent an WAL archive
-type Archive struct {
-	walFile     []Wal
-	Path        string
-	Bucket      string
-	MinioClient minio.Client
 }
 
 // GetWals adds all WAL files in known backends

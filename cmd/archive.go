@@ -29,7 +29,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	wal "github.com/xxorde/pgglaskugel/backup/wal"
+	"github.com/xxorde/pgglaskugel/backup"
 	storage "github.com/xxorde/pgglaskugel/storage"
 
 	"github.com/spf13/cobra"
@@ -98,11 +98,11 @@ func testWalSource(walSource string) (err error) {
 		return err
 	}
 
-	if fi.Size() < wal.MinArchiveSize {
+	if fi.Size() < backup.MinArchiveSize {
 		return errors.New("Input file is too small")
 	}
 
-	if fi.Size() > wal.MaxWalSize {
+	if fi.Size() > backup.MaxWalSize {
 		return errors.New("Input file is too big")
 	}
 

@@ -27,7 +27,6 @@ import (
 	"fmt"
 
 	"github.com/xxorde/pgglaskugel/backup"
-	"github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/storage/backends/local"
 	"github.com/xxorde/pgglaskugel/storage/backends/s3"
 )
@@ -59,7 +58,7 @@ func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backup
 }
 
 // GetMyWals does something
-func GetMyWals(viper func() map[string]interface{}) (archive wal.Archive) {
+func GetMyWals(viper func() map[string]interface{}) (archive backup.Archive) {
 	backends := initbackends()
 	bn := viper()["backup_to"].(string)
 	return backends[bn].GetWals(viper)

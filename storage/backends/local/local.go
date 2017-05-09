@@ -29,7 +29,6 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/xxorde/pgglaskugel/backup"
-	"github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/util"
 )
 
@@ -46,7 +45,7 @@ func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal 
 }
 
 //GetWals returns Wals
-func (b Localbackend) GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
+func (b Localbackend) GetWals(viper func() map[string]interface{}) (archive backup.Archive) {
 	// Get WAL files from filesystem
 	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
 	archive.Path = viper()["waldir"].(string)

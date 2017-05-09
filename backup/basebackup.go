@@ -39,18 +39,6 @@ import (
 	minio "github.com/minio/minio-go"
 )
 
-var (
-	extractTimeFromBackup = regexp.MustCompile(`.*@`) // Regexp to remove the name from a backup
-)
-
-// Backups represents an array of "Backup"
-type Backups struct {
-	Backup      []Backup
-	WalDir      string
-	WalBucket   string
-	MinioClient minio.Client
-}
-
 // IsSane returns false if at leased one backups seams not sane
 func (b *Backups) IsSane() (sane bool) {
 	for _, backup := range b.Backup {

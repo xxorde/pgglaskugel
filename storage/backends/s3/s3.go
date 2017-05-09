@@ -28,7 +28,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 	"github.com/xxorde/pgglaskugel/backup"
-	"github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/util"
 )
 
@@ -37,7 +36,7 @@ type S3backend struct {
 }
 
 // GetWals returns WAL-Files from S3
-func (b S3backend) GetWals(viper func() map[string]interface{}) (archive wal.Archive) {
+func (b S3backend) GetWals(viper func() map[string]interface{}) (archive backup.Archive) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	archive.MinioClient = b.getS3Connection(viper)

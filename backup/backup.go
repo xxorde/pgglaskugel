@@ -27,40 +27,10 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"regexp"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
-	wal "github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/util"
 )
-
-// Constants, necessary for the backupprocess
-const (
-	BackupTimeFormat  = time.RFC3339
-	saneBackupMinSize = 2 * 1000000 // ~ 4MB
-
-	// Larger files are most likely no backup label
-	maxBackupLabelSize = 2048
-)
-
-var (
-	// Regex to identify a backup label file
-	regBackupLabelFile = regexp.MustCompile(wal.RegBackupLabel)
-)
-
-// Backup stores information about a backup
-type Backup struct {
-	Name             string
-	Extension        string
-	Path             string
-	Bucket           string
-	Size             int64
-	Created          time.Time
-	LabelFile        string
-	BackupLabel      string
-	StartWalLocation string
-	Backups          *Backups
-}
 
 // IsSane returns true if the backup seams sane
 func (b *Backup) IsSane() (sane bool) {
