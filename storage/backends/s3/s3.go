@@ -21,14 +21,23 @@
 package s3
 
 import (
+	"errors"
 	"io"
 	"os/exec"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"sync"
+	"time"
 
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
 	"github.com/xxorde/pgglaskugel/backup"
 	"github.com/xxorde/pgglaskugel/util"
+)
+
+var (
+	extractTimeFromBackup = regexp.MustCompile(`.*@`) // Regexp to remove the name from a backup
 )
 
 // S3backend returns a struct to use the S3-Methods
@@ -50,8 +59,26 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	backups.MinioClient = b.getS3Connection(viper)
-	backups.GetBackupsInBucket(viper()["s3_bucket_backup"].(string))
 	backups.WalBucket = viper()["s3_bucket_wal"].(string)
+	bucket := viper()["s3_bucket_backup"].(string)
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := backups.MinioClient.ListObjects(bucket, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+		log.Debug(object)
+		err := addObjectToBackups(object, bucket, &backups)
+		if err != nil {
+			log.Error(err)
+		}
+	}
+	// Sort backups
+	backups.Sort()
 	return backups
 
 }
@@ -281,4 +308,81 @@ func (b S3backend) GetBasebackup(viper func() map[string]interface{}, backup *ba
 	log.Debug("getFromS3 waits for the rest of the chain to finish")
 	wgDone.Wait()
 	log.Debug("getFromS3 done")
+}
+
+// SeparateBackupsByAge separates the backups by age
+// The newest "countNew" backups are put in newBackups
+// The older backups which are not already in newBackups are put in oldBackups
+func (b S3backend) SeparateBackupsByAge(countNew uint, backups *backup.Backups) (newBackups backup.Backups, oldBackups backup.Backups, err error) {
+	// Sort backups first
+	backups.SortDesc()
+
+	// If there are not enough backups, return all as new
+	if (*backups).Len() < int(countNew) {
+		return *backups, backup.Backups{}, errors.New("Not enough new backups")
+	}
+
+	// Give the additional vars to the new sets
+	newBackups.MinioClient = backups.MinioClient
+	oldBackups.MinioClient = backups.MinioClient
+	newBackups.WalDir = backups.WalDir
+	oldBackups.WalDir = backups.WalDir
+	newBackups.WalBucket = backups.WalBucket
+	oldBackups.WalBucket = backups.WalBucket
+
+	// Put the newest in newBackups
+	newBackups.Backup = (backups.Backup)[:countNew]
+
+	// Put every other backup in oldBackups
+	oldBackups.Backup = (backups.Backup)[countNew:]
+
+	if newBackups.IsSane() != true {
+		return newBackups, oldBackups, errors.New("Not all backups (newBackups) are sane" + newBackups.String())
+	}
+
+	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
+		panic("No new backups, only old. Not sane! ")
+	}
+	return newBackups, oldBackups, nil
+}
+
+// DeleteAll deletes all backups in the struct
+func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
+	// Sort backups
+	backups.SortDesc()
+	// We delete all backups, but start with the oldest just in case
+	for i := len(backups.Backup) - 1; i >= 0; i-- {
+		backup := backups.Backup[i]
+		err = backups.MinioClient.RemoveObject(backup.Bucket, backup.Name+backup.Extension)
+		if err != nil {
+			log.Warn(err)
+		} else {
+			count++
+		}
+
+	}
+	return count, err
+}
+
+// AddObject adds a new backup to Backups
+func addObjectToBackups(object minio.ObjectInfo, bucket string, b *backup.Backups) (err error) {
+	var newBackup backup.Backup
+	newBackup.Bucket = bucket
+	newBackup.Extension = filepath.Ext(object.Key)
+
+	// Get Name without suffix
+	newBackup.Name = strings.TrimSuffix(object.Key, newBackup.Extension)
+	newBackup.Size = object.Size
+
+	// Get the time from backup name
+	backupTimeRaw := extractTimeFromBackup.ReplaceAllString(newBackup.Name, "${1}")
+	newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
+	if err != nil {
+		return err
+	}
+	// Add back reference to the list of backups
+	newBackup.Backups = b
+	b.Backup = append(b.Backup, newBackup)
+	b.Sort()
+	return nil
 }

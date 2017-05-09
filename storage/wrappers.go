@@ -88,3 +88,17 @@ func GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, b
 	storageType := backup.StorageType()
 	backends[storageType].GetBasebackup(viper, backup, backupStream, wgStart, wgDone)
 }
+
+// SeparateBackupsByAge separates the backups by age
+func SeparateBackupsByAge(viper func() map[string]interface{}, backups *backup.Backups, countNew uint) (newBackups backup.Backups, oldBackups backup.Backups, err error) {
+	backends := initbackends()
+	bn := viper()["backup_to"].(string)
+	return backends[bn].SeparateBackupsByAge(countNew, backups)
+}
+
+// DeleteAll deletes all backups in the struct
+func DeleteAll(viper func() map[string]interface{}, backups *backup.Backups) (count int, err error) {
+	backends := initbackends()
+	bn := viper()["backup_to"].(string)
+	return backends[bn].DeleteAll(backups)
+}

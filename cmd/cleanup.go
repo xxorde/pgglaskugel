@@ -48,7 +48,7 @@ var cleanupCmd = &cobra.Command{
 			log.Fatal("retain has to be 1 or higher! retain is: ", retain)
 		}
 
-		keep, discard, err := backups.SeparateBackupsByAge(retain)
+		keep, discard, err := storage.SeparateBackupsByAge(vipermap, &backups, retain)
 		if err != nil {
 			log.Error(err)
 		}
@@ -97,7 +97,7 @@ var cleanupCmd = &cobra.Command{
 		}
 
 		// Delete all backups in the "discard" set
-		count, err := discard.DeleteAll()
+		count, err := storage.DeleteAll(vipermap, &discard)
 		if err != nil {
 			log.Warn("DeleteAll()", err)
 		}

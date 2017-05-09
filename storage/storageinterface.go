@@ -44,4 +44,12 @@ type Backend interface {
 
 	// Returns all found WAL-files
 	GetWals(viper func() map[string]interface{}) (archive backup.Archive)
+
+	// SeparateBackupsByAge separates the backups by age
+	// The newest "countNew" backups are put in newBackups
+	// The older backups which are not already in newBackups are put in oldBackups
+	SeparateBackupsByAge(countNew uint, b *backup.Backups) (newBackups backup.Backups, oldBackups backup.Backups, err error)
+
+	// DeleteAll deletes all backups in the struct
+	DeleteAll(backups *backup.Backups) (count int, err error)
 }

@@ -58,12 +58,12 @@ const (
 )
 
 var (
-	nameFinder            = regexp.MustCompile(RegWalWithExt)  // *Regexp to extract the name from a WAL file with extension
-	fulWalValidator       = regexp.MustCompile(RegFullWal)     // *Regexp to identify a WAL file
-	timelineFinder        = regexp.MustCompile(RegTimeline)    // *Regexp to identify a timeline
-	counterFinder         = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
-	findBackupLabel       = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
-	extractTimeFromBackup = regexp.MustCompile(`.*@`)          // Regexp to remove the name from a backup
+	nameFinder      = regexp.MustCompile(RegWalWithExt)  // *Regexp to extract the name from a WAL file with extension
+	fulWalValidator = regexp.MustCompile(RegFullWal)     // *Regexp to identify a WAL file
+	timelineFinder  = regexp.MustCompile(RegTimeline)    // *Regexp to identify a timeline
+	counterFinder   = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
+	findBackupLabel = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
+
 	// Regex to identify a backup label file
 	regBackupLabelFile = regexp.MustCompile(RegBackupLabel)
 )
