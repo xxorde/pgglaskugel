@@ -26,8 +26,9 @@ import (
 
 	"fmt"
 
+	"github.com/xxorde/pgglaskugel/storage/awsS3"
 	"github.com/xxorde/pgglaskugel/storage/local"
-	"github.com/xxorde/pgglaskugel/storage/s3"
+	"github.com/xxorde/pgglaskugel/storage/minio"
 	"github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
@@ -35,9 +36,11 @@ import (
 func initbackends() map[string]Backend {
 	backends := make(map[string]Backend)
 
-	var s3b s3.S3backend
+	var s3 awsS3.S3backend
+	var minio minio.S3backend
 	var localb local.Localbackend
-	backends["s3"] = s3b
+	backends["s3"] = s3
+	backends["minio"] = minio
 	backends["file"] = localb
 	return backends
 }
@@ -70,7 +73,6 @@ func WriteStream(viper func() map[string]interface{}, input *io.Reader, name str
 	backends := initbackends()
 	bn := viper()["backup_to"].(string)
 	backends[bn].WriteStream(viper, input, name, backuptype)
-
 }
 
 // Fetch fetches
