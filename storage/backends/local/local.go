@@ -28,9 +28,9 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/backup"
+	"github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
 )
 
 // Localbackend defines a struct to use the file-methods
@@ -38,7 +38,7 @@ type Localbackend struct {
 }
 
 // GetBackups returns backups
-func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backups.GetBackupsInDir(viper()["backupdir"].(string))
 	backups.WalDir = filepath.Join(viper()["archivedir"].(string), subDirWal)
@@ -115,7 +115,7 @@ func (b Localbackend) Fetch(viper func() map[string]interface{}) (err error) {
 
 	// Watch output on stderror
 	gpgStderror, err := gpgCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(gpgStderror, log.Info, nil)
 
 	// Start decryption
@@ -131,7 +131,7 @@ func (b Localbackend) Fetch(viper func() map[string]interface{}) (err error) {
 	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 
 	inflateStderror, err := inflateCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Assign inflationInput as Stdin for the inflate command
@@ -148,16 +148,16 @@ func (b Localbackend) Fetch(viper func() map[string]interface{}) (err error) {
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
-	ec.CheckCustom(err, "Inflation failed after startup")
+	util.CheckCustom(err, "Inflation failed after startup")
 
 	return err
 }
 
 //GetBasebackup Gets backups from file
-func (b Localbackend) GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func (b Localbackend) GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromFile")
 	file, err := os.Open(backup.Path)
-	ec.Check(err)
+	util.Check(err)
 	defer file.Close()
 
 	// Set file as backupStream

@@ -28,10 +28,9 @@ import (
 	"github.com/spf13/viper"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
 )
 
 // cleanupCmd represents the cleanup command
@@ -90,7 +89,7 @@ var cleanupCmd = &cobra.Command{
 		if confirmDelete != true {
 			var err error
 			confirmDelete, err = util.AnswerConfirmation("If you want to continue please type \"yes\" (Ctl-C to end):")
-			ec.CheckError(err)
+			util.CheckError(err)
 		}
 		if confirmDelete != true {
 			log.Warn("Deletion was not confirmed, exiting now.")

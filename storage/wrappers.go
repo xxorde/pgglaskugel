@@ -26,10 +26,10 @@ import (
 
 	"fmt"
 
-	"github.com/xxorde/pgglaskugel/storage/local"
-	"github.com/xxorde/pgglaskugel/storage/s3"
-	"github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
+	"github.com/xxorde/pgglaskugel/backup"
+	"github.com/xxorde/pgglaskugel/backup/wal"
+	"github.com/xxorde/pgglaskugel/storage/backends/local"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3"
 )
 
 func initbackends() map[string]Backend {
@@ -52,7 +52,7 @@ func CheckBackend(backend string) error {
 }
 
 // GetMyBackups does something
-func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
 	backends := initbackends()
 	bn := viper()["backup_to"].(string)
 	return backends[bn].GetBackups(viper, subDirWal)
@@ -81,7 +81,7 @@ func Fetch(viper func() map[string]interface{}) error {
 }
 
 // GetBasebackup gets basebackups
-func GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	backends := initbackends()
 	// Add one worker to wait for finish
 	wgDone.Add(1)

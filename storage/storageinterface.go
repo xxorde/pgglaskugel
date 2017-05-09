@@ -24,8 +24,8 @@ import (
 	"io"
 	"sync"
 
-	"github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
+	"github.com/xxorde/pgglaskugel/backup"
+	"github.com/xxorde/pgglaskugel/backup/wal"
 )
 
 // Backend is used to store and access data.
@@ -38,10 +38,10 @@ type Backend interface {
 	Fetch(viper func() map[string]interface{}) error
 
 	// Returns all found basebackups
-	GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
+	GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
 
 	// Returns all found backups
-	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups)
+	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups)
 
 	// Returns all found WAL-files
 	GetWals(viper func() map[string]interface{}) (archive wal.Archive)

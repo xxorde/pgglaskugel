@@ -27,9 +27,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	minio "github.com/minio/minio-go"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/backup"
+	"github.com/xxorde/pgglaskugel/backup/wal"
 	"github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
 )
 
 // S3backend returns a struct to use the S3-Methods
@@ -47,7 +47,7 @@ func (b S3backend) GetWals(viper func() map[string]interface{}) (archive wal.Arc
 }
 
 // GetBackups returns Backups
-func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
+func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	backups.MinioClient = b.getS3Connection(viper)
@@ -195,7 +195,7 @@ func (b S3backend) Fetch(viper func() map[string]interface{}) (err error) {
 		gpgCmd.Stdin = walObject
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
-		ec.Check(err)
+		util.Check(err)
 		go util.WatchOutput(gpgStderror, log.Info, nil)
 
 		// Start decryption
@@ -211,7 +211,7 @@ func (b S3backend) Fetch(viper func() map[string]interface{}) (err error) {
 	// Watch output on stderror
 	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Assign inflationInput as Stdin for the inflate command
@@ -234,12 +234,12 @@ func (b S3backend) Fetch(viper func() map[string]interface{}) (err error) {
 
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
-	ec.CheckCustom(err, "Inflation failed after startup, ")
+	util.CheckCustom(err, "Inflation failed after startup, ")
 	return err
 }
 
 // GetBasebackup gets things from S3
-func (b S3backend) GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func (b S3backend) GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromS3")
 	bucket := viper()["s3_bucket_backup"].(string)
 

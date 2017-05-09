@@ -29,8 +29,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	wal "github.com/xxorde/pgglaskugel/backup/wal"
 	storage "github.com/xxorde/pgglaskugel/storage"
-	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"

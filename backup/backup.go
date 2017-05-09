@@ -1,4 +1,4 @@
-// Package util - backup module
+// Package backup - backup module
 // Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,7 +18,7 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-package util
+package backup
 
 import (
 	"bytes"
@@ -30,7 +30,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	wal "github.com/xxorde/pgglaskugel/wal"
+	wal "github.com/xxorde/pgglaskugel/backup/wal"
+	"github.com/xxorde/pgglaskugel/util"
 )
 
 // Constants, necessary for the backupprocess
@@ -219,7 +220,7 @@ func (b *Backup) GetStartWalLocationFromS3() (startWalLocation string, err error
 			catDone := make(chan struct{}) // Channel to wait for WatchOutput
 			catCmd.Stdin = bytes.NewReader(bufCompressed)
 			catCmdStderror, err := catCmd.StderrPipe()
-			go WatchOutput(catCmdStderror, log.Debug, catDone)
+			go util.WatchOutput(catCmdStderror, log.Debug, catDone)
 
 			err = catCmd.Start()
 			if err != nil {

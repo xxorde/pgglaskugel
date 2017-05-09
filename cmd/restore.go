@@ -32,7 +32,6 @@ import (
 	"os"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	"github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 )
@@ -149,13 +148,13 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Watch stderror of inflation
 	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Watch stderror of untar
 	untarDone := make(chan struct{}) // Channel to wait for WatchOutput
 	untarStderror, err := untarCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(untarStderror, log.Info, untarDone)
 
 	// Pipe the the inflated backup in untar
@@ -177,7 +176,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		dataStream = &gpgCmd.Stdin
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
-		ec.Check(err)
+		util.Check(err)
 		go util.WatchOutput(gpgStderror, log.Info, nil)
 	} else {
 		log.Debug("Backup will not be encrypted")
