@@ -29,6 +29,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	storage "github.com/xxorde/pgglaskugel/storage"
 	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
@@ -110,15 +111,8 @@ func testWalSource(walSource string) (err error) {
 
 // storeWalStream takes a stream and persists it with the configured method
 func storeWalStream(input *io.Reader, name string) {
-	archiveTo := viper.GetString("archive_to")
-	switch archiveTo {
-	case "file":
-		writeStreamToFile(input, filepath.Join(walDir, name))
-	case "s3":
-		writeStreamToS3(input, viper.GetString("s3_bucket_wal"), name)
-	default:
-		log.Fatal(archiveTo, " no valid value for archiveTo")
-	}
+	vipermap := viper.AllSettings
+	storage.WriteStream(vipermap, input, name, "archive")
 }
 
 func init() {

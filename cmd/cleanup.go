@@ -29,6 +29,7 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
@@ -40,7 +41,8 @@ var cleanupCmd = &cobra.Command{
 	Long: `Enforces your retention policy by deleting backups and WAL files.
 	Use with care.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		backups := getMyBackups()
+		vipermap := viper.AllSettings
+		backups := storage.GetMyBackups(vipermap, subDirWal)
 
 		retain := uint(viper.GetInt("retain"))
 		if retain <= 0 {
@@ -101,7 +103,7 @@ var cleanupCmd = &cobra.Command{
 			log.Warn("DeleteAll()", err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
-		backups = getMyBackups()
+		backups = storage.GetMyBackups(vipermap, subDirWal)
 
 		// Show backups that are left
 		log.Info("Backups left: " + backups.String())
@@ -122,7 +124,7 @@ var cleanupCmd = &cobra.Command{
 		oldWal.Name = oldestNeededWal
 
 		// Get all WAL files
-		walArchive := getMyWals()
+		walArchive := storage.GetMyWals(vipermap)
 
 		// Delete all WAL files that are older than oldestNeededWal
 		count = walArchive.DeleteOldWal(oldWal)
