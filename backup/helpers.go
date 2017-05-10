@@ -20,29 +20,38 @@
 // THE SOFTWARE.
 package backup
 
+import (
+	"errors"
+	"regexp"
+
+	"github.com/siddontang/go/log"
+)
+
 // IsSane returns true if the backup seams sane
 func (b *Backup) IsSane() (sane bool) {
-	if b.Size < saneBackupMinSize {
-		return false
-	}
-
-	if b.StorageType() == "" {
+	if b.Size < SaneBackupMinSize {
 		return false
 	}
 
 	return true
 }
 
-// StorageType returns the type of storage the backup is on
-func (b *Backup) StorageType() (storageType string) {
-	if b.Path > "" {
-		return "file"
+// ParseBackupLabel checks the backup name
+func ParseBackupLabel(b *Backup, backupLabel []byte) (backup *Backup, err error) {
+	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9A-Fa-f]{24}\)`)
+	regStartWal := regexp.MustCompile(`[0-9A-Fa-f]{24}`)
+
+	startWalLine := regStartWalLine.Find(backupLabel)
+	if len(startWalLine) < 1 {
+		log.Debug(string(backupLabel))
+		return nil, errors.New("Can not find line with START WAL LOCATION")
 	}
 
-	if b.Bucket > "" {
-		return "s3"
+	startWal := regStartWal.Find(startWalLine)
+	if len(startWal) < 1 {
+		return nil, errors.New("Can not find START WAL")
 	}
 
-	// Not defined
-	return ""
+	b.StartWalLocation = string(startWal)
+	return b, nil
 }

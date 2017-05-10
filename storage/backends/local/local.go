@@ -42,12 +42,12 @@ type Localbackend struct {
 }
 
 // GetBackups returns backups
-func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
+func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups *backup.Backups) {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backupDir := viper()["backupdir"].(string)
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
-		err := addFileToBackups(backupDir+"/"+f.Name(), &backups)
+		err := addFileToBackups(backupDir+"/"+f.Name(), backups)
 		if err != nil {
 			log.Warn(err)
 		}
@@ -59,12 +59,25 @@ func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal 
 }
 
 //GetWals returns Wals
-func (b Localbackend) GetWals(viper func() map[string]interface{}) (archive backup.Archive) {
+func (b Localbackend) GetWals(viper func() map[string]interface{}) (a *backup.Archive, err error) {
 	// Get WAL files from filesystem
 	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
-	archive.Path = viper()["waldir"].(string)
-	archive.GetWals()
-	return archive
+	a.Path = viper()["waldir"].(string)
+	bn := viper()["backup_to"].(string)
+	// WAL files are load sequential from file system.
+	files, err := ioutil.ReadDir(a.Path)
+	if err != nil {
+		return nil, err
+	}
+	for _, f := range files {
+		size := f.Size()
+		err = a.Add(f.Name(), bn, size)
+		if err != nil {
+			return nil, err
+
+		}
+	}
+	return a, nil
 }
 
 // WriteStream handles a stream and writes it to a local file
@@ -186,34 +199,6 @@ func (b Localbackend) GetBasebackup(viper func() map[string]interface{}, backup 
 
 }
 
-// SeparateBackupsByAge separates the backups by age
-// The newest "countNew" backups are put in newBackups
-// The older backups which are not already in newBackups are put in oldBackups
-func (b Localbackend) SeparateBackupsByAge(countNew uint, backups *backup.Backups) (newBackups backup.Backups, oldBackups backup.Backups, err error) {
-	// Sort backups first
-	backups.SortDesc()
-
-	// If there are not enough backups, return all as new
-	if (*backups).Len() < int(countNew) {
-		return *backups, backup.Backups{}, errors.New("Not enough new backups")
-	}
-
-	// Put the newest in newBackups
-	newBackups.Backup = (backups.Backup)[:countNew]
-
-	// Put every other backup in oldBackups
-	oldBackups.Backup = (backups.Backup)[countNew:]
-
-	if newBackups.IsSane() != true {
-		return newBackups, oldBackups, errors.New("Not all backups (newBackups) are sane" + newBackups.String())
-	}
-
-	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
-		panic("No new backups, only old. Not sane! ")
-	}
-	return newBackups, oldBackups, nil
-}
-
 // DeleteAll deletes all backups in the struct
 func (b Localbackend) DeleteAll(backups *backup.Backups) (count int, err error) {
 	// Sort backups
@@ -230,6 +215,74 @@ func (b Localbackend) DeleteAll(backups *backup.Backups) (count int, err error) 
 
 	}
 	return count, err
+}
+
+// GetStartWalLocation returns the oldest needed WAL file
+// Every older WAL file is not required to use this backup
+func (b Localbackend) GetStartWalLocation(bp *backup.Backup) (startWalLocation string, err error) {
+	// Escape the name so we can use it in a regular expression
+	searchName := regexp.QuoteMeta(bp.Name)
+	// Regex to identify the right file
+	regLabel := regexp.MustCompile(`.*LABEL: ` + searchName)
+	log.Debug("regLabel: ", regLabel)
+
+	files, _ := ioutil.ReadDir(bp.Backups.WalPath)
+	// find all backup labels
+	for _, f := range files {
+		if f.Size() > backup.MaxBackupLabelSize {
+			// size is to big for backup label
+			continue
+		}
+		if backup.RegBackupLabelFile.MatchString(f.Name()) {
+			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
+
+			labelFile := bp.Backups.WalPath + "/" + f.Name()
+			catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
+			catCmdStdout, err := catCmd.StdoutPipe()
+			if err != nil {
+				// if we can not open the file we continue with next
+				log.Warn("catCmd.StdoutPipe(), ", err)
+				continue
+			}
+
+			err = catCmd.Start()
+			if err != nil {
+				log.Warn("catCmd.Start(), ", err)
+				continue
+			}
+
+			buf, err := ioutil.ReadAll(catCmdStdout)
+			if err != nil {
+				log.Warn("Reading from command: ", err)
+				continue
+			}
+
+			err = catCmd.Wait()
+			if err != nil {
+				log.Warn("catCmd.Wait(), ", err)
+				continue
+			}
+
+			if len(regLabel.Find(buf)) > 1 {
+				log.Debug("Found matching backup label file: ", f.Name())
+				bp, err = backup.ParseBackupLabel(bp, buf)
+				if err == nil {
+					bp.LabelFile = labelFile
+				}
+				return bp.StartWalLocation, err
+			}
+		}
+	}
+	return "", errors.New("START WAL LOCATION not found")
+}
+
+// DeleteWal deletes the given WAL-file
+func (b Localbackend) DeleteWal(viper func() map[string]interface{}, w *backup.Wal) (err error) {
+	err = os.Remove(filepath.Join(w.Archive.Path, w.Name+w.Extension))
+	if err != nil {
+		log.Warn(err)
+	}
+	return err
 }
 
 // AddFile adds a new backup to Backups

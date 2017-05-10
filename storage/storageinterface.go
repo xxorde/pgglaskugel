@@ -40,16 +40,16 @@ type Backend interface {
 	GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
 
 	// Returns all found backups
-	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups)
+	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups *backup.Backups)
 
 	// Returns all found WAL-files
-	GetWals(viper func() map[string]interface{}) (archive backup.Archive)
-
-	// SeparateBackupsByAge separates the backups by age
-	// The newest "countNew" backups are put in newBackups
-	// The older backups which are not already in newBackups are put in oldBackups
-	SeparateBackupsByAge(countNew uint, b *backup.Backups) (newBackups backup.Backups, oldBackups backup.Backups, err error)
+	GetWals(viper func() map[string]interface{}) (archive *backup.Archive, err error)
 
 	// DeleteAll deletes all backups in the struct
 	DeleteAll(backups *backup.Backups) (count int, err error)
+	// DeleteWal deletes the given WAL-file
+	DeleteWal(viper func() map[string]interface{}, w *backup.Wal) (err error)
+
+	// Returns the first WAL-file name for a backup
+	GetStartWalLocation(backup *backup.Backup) (startWalLocation string, err error)
 }

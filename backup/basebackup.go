@@ -73,7 +73,7 @@ func (b *Backups) String() (backups string) {
 		if !backup.IsSane() {
 			notSane++
 		}
-		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.StorageType(), "\t", backup.IsSane())
+		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.StorageType, "\t", backup.IsSane())
 	}
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Total backups:", b.Len(), " Not sane backups:", notSane)
@@ -139,4 +139,35 @@ func (b *Backups) NewestBackup() (backup *Backup) {
 
 	// Return the first (newest) backup
 	return &(b.Backup)[0]
+}
+
+// SeparateBackupsByAge separates the backups by age
+// The newest "countNew" backups are put in newBackups
+// The older backups which are not already in newBackups are put in oldBackups
+func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBackups Backups, err error) {
+	// Sort backups first
+	b.SortDesc()
+
+	// If there are not enough backups, return all as new
+	if (*b).Len() < int(countNew) {
+		return *b, Backups{}, errors.New("Not enough new backups")
+	}
+
+	oldBackups.WalPath = b.WalPath
+	newBackups.WalPath = b.WalPath
+
+	// Put the newest in newBackups
+	newBackups.Backup = (b.Backup)[:countNew]
+
+	// Put every other backup in oldBackups
+	oldBackups.Backup = (b.Backup)[countNew:]
+
+	if newBackups.IsSane() != true {
+		return newBackups, oldBackups, errors.New("Not all backups (newBackups) are sane" + newBackups.String())
+	}
+
+	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {
+		panic("No new backups, only old. Not sane! ")
+	}
+	return newBackups, oldBackups, nil
 }

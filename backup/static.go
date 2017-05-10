@@ -34,11 +34,6 @@ const (
 	// MinArchiveSize minimal size for files to archive
 	MinArchiveSize = int64(100)
 
-	// StorageTypeFile represents an file backend
-	StorageTypeFile = "file"
-	// StorageTypeS3 represents an S3 backend
-	StorageTypeS3 = "s3"
-
 	// RegFullWal - name of a WAL file
 	RegFullWal = `^[0-9A-Za-z]{24}`
 	// RegWalWithExt - name of a WAL file wit extension
@@ -50,11 +45,12 @@ const (
 	// RegBackupLabel backup label with any additional extension
 	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*`
 	// BackupTimeFormat - time.RFC3339
-	BackupTimeFormat  = time.RFC3339
-	saneBackupMinSize = 2 * 1000000 // ~ 4MB
+	BackupTimeFormat = time.RFC3339
+	// SaneBackupMinSize - min size for backups
+	SaneBackupMinSize = 2 * 1000000 // ~ 4MB
 
-	// Larger files are most likely no backup label
-	maxBackupLabelSize = 2048
+	// MaxBackupLabelSize Larger files are most likely no backup label
+	MaxBackupLabelSize = 2048
 )
 
 var (
@@ -64,29 +60,30 @@ var (
 	counterFinder   = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
 	findBackupLabel = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
 
-	// Regex to identify a backup label file
-	regBackupLabelFile = regexp.MustCompile(RegBackupLabel)
+	// RegBackupLabelFile Regex to identify a backup label file
+	RegBackupLabelFile = regexp.MustCompile(RegBackupLabel)
 )
 
 // Backup stores information about a backup
 type Backup struct {
-	Name             string
-	Extension        string
+	Name      string
+	Extension string
+	// Path is also used for alternative backup paths (e.g. bucket in S3)
 	Path             string
-	Bucket           string
 	Size             int64
 	Created          time.Time
 	LabelFile        string
 	BackupLabel      string
 	StartWalLocation string
+	StorageType      string
 	Backups          *Backups
 }
 
 // Backups represents an array of "Backup"
 type Backups struct {
-	Backup      []Backup
-	WalDir      string
-	WalBucket   string
+	Backup []Backup
+	// WalPath is also used for alternative backup paths (e.g. bucket in S3)
+	WalPath     string
 	MinioClient minio.Client
 }
 
@@ -101,7 +98,7 @@ type Wal struct {
 
 // Archive is a struct to represent an WAL archive
 type Archive struct {
-	walFile     []Wal
+	WalFiles    []Wal
 	Path        string
 	Bucket      string
 	MinioClient minio.Client

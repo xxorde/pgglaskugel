@@ -48,7 +48,7 @@ var cleanupCmd = &cobra.Command{
 			log.Fatal("retain has to be 1 or higher! retain is: ", retain)
 		}
 
-		keep, discard, err := storage.SeparateBackupsByAge(vipermap, &backups, retain)
+		keep, discard, err := backups.SeparateBackupsByAge(retain)
 		if err != nil {
 			log.Error(err)
 		}
@@ -109,7 +109,7 @@ var cleanupCmd = &cobra.Command{
 
 		// Use oldest needed backup to determin oldest needed WAL file
 		oldestBackup := backups.OldestBackup()
-		oldestNeededWal, err := oldestBackup.GetStartWalLocation()
+		oldestNeededWal, err := storage.GetStartWalLocation(vipermap, oldestBackup)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -123,10 +123,13 @@ var cleanupCmd = &cobra.Command{
 		oldWal.Name = oldestNeededWal
 
 		// Get all WAL files
-		walArchive := storage.GetMyWals(vipermap)
+		walArchive, err := storage.GetWals(vipermap)
+		if err != nil {
+			log.Error(err)
+		}
 
 		// Delete all WAL files that are older than oldestNeededWal
-		count = walArchive.DeleteOldWal(oldWal)
+		count = storage.DeleteOldWal(vipermap, walArchive, oldWal)
 		log.Infof("Deleted %d WAL files:", count)
 
 		printDone()
