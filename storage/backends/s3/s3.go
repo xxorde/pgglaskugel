@@ -53,8 +53,6 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 	minioClient := b.getS3Connection(viper)
 	backups.WalPath = viper()["s3_bucket_wal"].(string)
 	bucket := viper()["s3_bucket_backup"].(string)
-	var newBackup backup.Backup
-	var err error
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
@@ -62,6 +60,8 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 	isRecursive := true
 	objectCh := minioClient.ListObjects(bucket, "", isRecursive, doneCh)
 	for object := range objectCh {
+		var newBackup backup.Backup
+		var err error
 		if object.Err != nil {
 			log.Error(object.Err)
 		}

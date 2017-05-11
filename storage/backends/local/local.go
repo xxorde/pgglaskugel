@@ -46,11 +46,9 @@ func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal 
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backupDir := viper()["backupdir"].(string)
 	files, _ := ioutil.ReadDir(backupDir)
-	var (
-		newBackup backup.Backup
-		err       error
-	)
 	for _, f := range files {
+		var newBackup backup.Backup
+		var err error
 		path := backupDir + "/" + f.Name()
 		//bp = addFileToBackups(backupDir+"/"+f.Name(), bp)
 		newBackup.Path, err = filepath.Abs(path)
