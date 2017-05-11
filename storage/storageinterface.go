@@ -36,10 +36,10 @@ type Backend interface {
 	// Returns the data from the given backend
 	Fetch(viper func() map[string]interface{}) error
 
-	// Returns all found basebackups
+	// Returns a specific basebackup
 	GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
 
-	// Returns all found backups
+	// Returns all found basebackups
 	GetBackups(viper func() map[string]interface{}, subDirWal string) (bp backup.Backups)
 
 	// Returns all found WAL-files
