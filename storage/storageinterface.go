@@ -40,10 +40,10 @@ type Backend interface {
 	GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
 
 	// Returns all found backups
-	GetBackups(viper func() map[string]interface{}, subDirWal string) (backups *backup.Backups)
+	GetBackups(viper func() map[string]interface{}, subDirWal string) (bp backup.Backups)
 
 	// Returns all found WAL-files
-	GetWals(viper func() map[string]interface{}) (archive *backup.Archive, err error)
+	GetWals(viper func() map[string]interface{}) (backup.Archive, error)
 
 	// DeleteAll deletes all backups in the struct
 	DeleteAll(backups *backup.Backups) (count int, err error)

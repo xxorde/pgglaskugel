@@ -129,7 +129,7 @@ var cleanupCmd = &cobra.Command{
 		}
 
 		// Delete all WAL files that are older than oldestNeededWal
-		count = storage.DeleteOldWal(vipermap, walArchive, oldWal)
+		count = storage.DeleteOldWal(vipermap, &walArchive, oldWal)
 		log.Infof("Deleted %d WAL files:", count)
 
 		printDone()

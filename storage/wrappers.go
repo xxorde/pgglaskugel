@@ -52,14 +52,14 @@ func CheckBackend(backend string) error {
 }
 
 // GetMyBackups does something
-func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups *backup.Backups) {
+func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
 	backends := initbackends()
 	bn := viper()["backup_to"].(string)
 	return backends[bn].GetBackups(viper, subDirWal)
 }
 
 // GetWals returns all Wal-Files for a Backup
-func GetWals(viper func() map[string]interface{}) (archive *backup.Archive, err error) {
+func GetWals(viper func() map[string]interface{}) (archive backup.Archive, err error) {
 	backends := initbackends()
 	bn := viper()["backup_to"].(string)
 	return backends[bn].GetWals(viper)

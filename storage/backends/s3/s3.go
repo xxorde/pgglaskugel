@@ -47,7 +47,7 @@ type S3backend struct {
 }
 
 // GetBackups returns Backups
-func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups *backup.Backups) {
+func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
@@ -76,7 +76,7 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 }
 
 // GetWals returns WAL-Files from S3
-func (b S3backend) GetWals(viper func() map[string]interface{}) (a *backup.Archive, err error) {
+func (b S3backend) GetWals(viper func() map[string]interface{}) (a backup.Archive, err error) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
 	a.MinioClient = b.getS3Connection(viper)
@@ -90,16 +90,16 @@ func (b S3backend) GetWals(viper func() map[string]interface{}) (a *backup.Archi
 	objectCh := a.MinioClient.ListObjects(a.Bucket, "", isRecursive, doneCh)
 	for object := range objectCh {
 		if object.Err != nil {
-			return nil, err
+			return a, err
 		}
 		log.Debug(object)
 		if object.Err != nil {
-			return nil, err
+			return a, err
 		}
 
 		err = a.Add(object.Key, bn, object.Size)
 		if err != nil {
-			return nil, err
+			return a, err
 		}
 
 	}
@@ -464,7 +464,7 @@ func (b S3backend) DeleteWal(viper func() map[string]interface{}, w *backup.Wal)
 }
 
 // AddObject adds a new backup to Backups
-func addObjectToBackups(object minio.ObjectInfo, bucket string, b *backup.Backups) (err error) {
+func addObjectToBackups(object minio.ObjectInfo, bucket string, b backup.Backups) (err error) {
 	var newBackup backup.Backup
 	newBackup.Path = bucket
 	newBackup.Extension = filepath.Ext(object.Key)
@@ -480,7 +480,7 @@ func addObjectToBackups(object minio.ObjectInfo, bucket string, b *backup.Backup
 		return err
 	}
 	// Add back reference to the list of backups
-	newBackup.Backups = b
+	newBackup.Backups = &b
 	b.Backup = append(b.Backup, newBackup)
 	b.Sort()
 	return nil

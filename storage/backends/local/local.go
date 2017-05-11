@@ -42,24 +42,22 @@ type Localbackend struct {
 }
 
 // GetBackups returns backups
-func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (backups *backup.Backups) {
+func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) backup.Backups {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backupDir := viper()["backupdir"].(string)
 	files, _ := ioutil.ReadDir(backupDir)
+	var bp backup.Backups
+	bp.Name = "Testname"
 	for _, f := range files {
-		err := addFileToBackups(backupDir+"/"+f.Name(), backups)
-		if err != nil {
-			log.Warn(err)
-		}
+		bp = addFileToBackups(backupDir+"/"+f.Name(), bp)
 	}
 	// Sort backups
-	backups.Sort()
-
-	return backups
+	bp.Sort()
+	return bp
 }
 
 //GetWals returns Wals
-func (b Localbackend) GetWals(viper func() map[string]interface{}) (a *backup.Archive, err error) {
+func (b Localbackend) GetWals(viper func() map[string]interface{}) (a backup.Archive, err error) {
 	// Get WAL files from filesystem
 	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
 	a.Path = viper()["waldir"].(string)
@@ -67,13 +65,13 @@ func (b Localbackend) GetWals(viper func() map[string]interface{}) (a *backup.Ar
 	// WAL files are load sequential from file system.
 	files, err := ioutil.ReadDir(a.Path)
 	if err != nil {
-		return nil, err
+		return a, err
 	}
 	for _, f := range files {
 		size := f.Size()
 		err = a.Add(f.Name(), bn, size)
 		if err != nil {
-			return nil, err
+			return a, err
 
 		}
 	}
@@ -286,12 +284,13 @@ func (b Localbackend) DeleteWal(viper func() map[string]interface{}, w *backup.W
 }
 
 // AddFile adds a new backup to Backups
-func addFileToBackups(path string, b *backup.Backups) (err error) {
+func addFileToBackups(path string, bp backup.Backups) backup.Backups {
 	var newBackup backup.Backup
+	var err error
 	// Make a relative path absolute
 	newBackup.Path, err = filepath.Abs(path)
 	if err != nil {
-		return err
+		log.Warn(err)
 	}
 	newBackup.Extension = filepath.Ext(path)
 	// Get the name of the backup file without the extension
@@ -300,13 +299,13 @@ func addFileToBackups(path string, b *backup.Backups) (err error) {
 	// Get size of backup
 	file, err := os.Open(path)
 	if err != nil {
-		return err
+		log.Warn(err)
 	}
 	defer file.Close()
 
 	fi, err := file.Stat()
 	if err != nil {
-		return err
+		log.Warn(err)
 	}
 	newBackup.Size = fi.Size()
 
@@ -315,11 +314,11 @@ func addFileToBackups(path string, b *backup.Backups) (err error) {
 	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
 	newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
 	if err != nil {
-		return err
+		log.Warn(err)
 	}
 	// Add back reference to the list of backups
-	newBackup.Backups = b
-	b.Backup = append(b.Backup, newBackup)
-	b.Sort()
-	return nil
+	newBackup.Backups = &bp
+	bp.Backup = append(bp.Backup, newBackup)
+	bp.Sort()
+	return bp
 }
