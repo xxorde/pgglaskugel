@@ -64,10 +64,11 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 			log.Error(object.Err)
 		}
 		log.Debug(object)
-		err := addObjectToBackups(object, bucket, backups)
-		if err != nil {
-			log.Error(err)
-		}
+		backups = addObjectToBackups(object, bucket, backups)
+
+	}
+	for _, backup := range backups.Backup {
+		log.Debugf("Backup_name: %s\n", backup.Name)
 	}
 	// Sort backups
 	backups.Sort()
@@ -464,8 +465,9 @@ func (b S3backend) DeleteWal(viper func() map[string]interface{}, w *backup.Wal)
 }
 
 // AddObject adds a new backup to Backups
-func addObjectToBackups(object minio.ObjectInfo, bucket string, b backup.Backups) (err error) {
+func addObjectToBackups(object minio.ObjectInfo, bucket string, b backup.Backups) backup.Backups {
 	var newBackup backup.Backup
+	var err error
 	newBackup.Path = bucket
 	newBackup.Extension = filepath.Ext(object.Key)
 
@@ -477,11 +479,11 @@ func addObjectToBackups(object minio.ObjectInfo, bucket string, b backup.Backups
 	backupTimeRaw := extractTimeFromBackup.ReplaceAllString(newBackup.Name, "${1}")
 	newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
 	if err != nil {
-		return err
+		log.Error(err)
 	}
 	// Add back reference to the list of backups
 	newBackup.Backups = &b
 	b.Backup = append(b.Backup, newBackup)
 	b.Sort()
-	return nil
+	return b
 }
