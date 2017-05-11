@@ -86,9 +86,6 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 		backups.Sort()
 
 	}
-	for _, backup := range backups.Backup {
-		log.Debugf("Backup_name: %s\n", backup.Name)
-	}
 	// Sort backups
 	backups.Sort()
 	return backups
