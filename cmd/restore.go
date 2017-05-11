@@ -125,6 +125,9 @@ var (
 func restoreBasebackup(backupDestination string, backupName string) (err error) {
 	vipermap := viper.AllSettings
 	backups := storage.GetMyBackups(vipermap, subDirWal)
+	for _, backup := range backups.Backup {
+		log.Debugf("Backup_name: %s\n", backup.Name)
+	}
 	backup, err := backups.Find(backupName)
 	if err != nil {
 		log.Fatal(err)
