@@ -135,29 +135,35 @@ var (
 // storeStream is an interface for functions that store a stream in an storage backend
 type storeStream func(*io.Reader, string)
 
+func checkContainswhitelist(command string) bool {
+	whiteCommands := []string{"ls", "status", "lswal", "version"}
+	for _, whitecom := range whiteCommands {
+		if whitecom == command {
+			return true
+		}
+	}
+	return false
+}
+
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	whiteCommands := []string{"ls", "status", "lswal", "version"}
-	for _, whitecom := range whiteCommands {
-		if os.Args[0] == whitecom {
+	if checkContainswhitelist(os.Args[0]) {
+		if err := RootCmd.Execute(); err != nil {
+			fmt.Println(err)
+			os.Exit(-1)
+		}
+	} else {
+		pidfile := viper.GetString("pidpath")
+		log.Debugf("pidfile is %s", pidfile)
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+			os.Exit(1)
+		} else {
+			defer util.DeletePidFile(pidfile)
 			if err := RootCmd.Execute(); err != nil {
 				fmt.Println(err)
 				os.Exit(-1)
-			}
-		} else {
-			log.Info("Kein Whitelistcommand")
-			pidfile := viper.GetString("pidpath")
-			log.Debugf("pidfile is %s", pidfile)
-			if err := util.WritePidFile(pidfile); err != nil {
-				log.Error(err)
-				os.Exit(1)
-			} else {
-				defer util.DeletePidFile(pidfile)
-				if err := RootCmd.Execute(); err != nil {
-					fmt.Println(err)
-					os.Exit(-1)
-				}
 			}
 		}
 	}
