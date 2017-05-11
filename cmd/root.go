@@ -144,18 +144,19 @@ func Execute() {
 			if err := RootCmd.Execute(); err != nil {
 				fmt.Println(err)
 				os.Exit(-1)
+			}
+		} else {
+			log.Info("Kein Whitelistcommand")
+			pidfile := viper.GetString("pidpath")
+			log.Debugf("pidfile is %s", pidfile)
+			if err := util.WritePidFile(pidfile); err != nil {
+				log.Error(err)
+				os.Exit(1)
 			} else {
-				pidfile := viper.GetString("pidpath")
-				log.Debugf("pidfile is %s", pidfile)
-				if err := util.WritePidFile(pidfile); err != nil {
-					log.Error(err)
-					os.Exit(1)
-				} else {
-					defer util.DeletePidFile(pidfile)
-					if err := RootCmd.Execute(); err != nil {
-						fmt.Println(err)
-						os.Exit(-1)
-					}
+				defer util.DeletePidFile(pidfile)
+				if err := RootCmd.Execute(); err != nil {
+					fmt.Println(err)
+					os.Exit(-1)
 				}
 			}
 		}
@@ -334,10 +335,10 @@ func initConfig() {
 	viper.SetDefault("myname", myName)
 	viper.SetDefault("version", Version)
 	viper.SetDefault("retain", 10)
-	vipermap := viper.AllSettings
+	/*vipermap := viper.AllSettings
 	for key, value := range vipermap() {
 		log.Debugf("%s %s", key, value)
-	}
+	}*/
 
 	// Set path for the tools
 	cmdTar = viper.GetString("path_to_tar")

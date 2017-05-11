@@ -83,8 +83,6 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 		// Add back reference to the list of backups
 		newBackup.Backups = &backups
 		backups.Backup = append(backups.Backup, newBackup)
-		backups.Sort()
-
 	}
 	// Sort backups
 	backups.Sort()
