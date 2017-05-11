@@ -53,6 +53,8 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 	minioClient := b.getS3Connection(viper)
 	backups.WalPath = viper()["s3_bucket_wal"].(string)
 	bucket := viper()["s3_bucket_backup"].(string)
+	var newBackup backup.Backup
+	var err error
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
@@ -64,7 +66,24 @@ func (b S3backend) GetBackups(viper func() map[string]interface{}, subDirWal str
 			log.Error(object.Err)
 		}
 		log.Debug(object)
-		backups = addObjectToBackups(object, bucket, backups)
+
+		newBackup.Path = bucket
+		newBackup.Extension = filepath.Ext(object.Key)
+
+		// Get Name without suffix
+		newBackup.Name = strings.TrimSuffix(object.Key, newBackup.Extension)
+		newBackup.Size = object.Size
+
+		// Get the time from backup name
+		backupTimeRaw := extractTimeFromBackup.ReplaceAllString(newBackup.Name, "${1}")
+		newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
+		if err != nil {
+			log.Error(err)
+		}
+		// Add back reference to the list of backups
+		newBackup.Backups = &backups
+		backups.Backup = append(backups.Backup, newBackup)
+		backups.Sort()
 
 	}
 	for _, backup := range backups.Backup {
@@ -462,28 +481,4 @@ func (b S3backend) DeleteWal(viper func() map[string]interface{}, w *backup.Wal)
 		log.Warn(err)
 	}
 	return err
-}
-
-// AddObject adds a new backup to Backups
-func addObjectToBackups(object minio.ObjectInfo, bucket string, b backup.Backups) backup.Backups {
-	var newBackup backup.Backup
-	var err error
-	newBackup.Path = bucket
-	newBackup.Extension = filepath.Ext(object.Key)
-
-	// Get Name without suffix
-	newBackup.Name = strings.TrimSuffix(object.Key, newBackup.Extension)
-	newBackup.Size = object.Size
-
-	// Get the time from backup name
-	backupTimeRaw := extractTimeFromBackup.ReplaceAllString(newBackup.Name, "${1}")
-	newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
-	if err != nil {
-		log.Error(err)
-	}
-	// Add back reference to the list of backups
-	newBackup.Backups = &b
-	b.Backup = append(b.Backup, newBackup)
-	b.Sort()
-	return b
 }

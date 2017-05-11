@@ -42,14 +42,48 @@ type Localbackend struct {
 }
 
 // GetBackups returns backups
-func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) backup.Backups {
+func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (bp backup.Backups) {
 	log.Debug("Get backups from folder: ", viper()["backupdir"])
 	backupDir := viper()["backupdir"].(string)
 	files, _ := ioutil.ReadDir(backupDir)
-	var bp backup.Backups
-	bp.Name = "Testname"
+	var (
+		newBackup backup.Backup
+		err       error
+	)
 	for _, f := range files {
-		bp = addFileToBackups(backupDir+"/"+f.Name(), bp)
+		path := backupDir + "/" + f.Name()
+		//bp = addFileToBackups(backupDir+"/"+f.Name(), bp)
+		newBackup.Path, err = filepath.Abs(path)
+		if err != nil {
+			log.Warn(err)
+		}
+		newBackup.Extension = filepath.Ext(path)
+		// Get the name of the backup file without the extension
+		newBackup.Name = strings.TrimSuffix(filepath.Base(path), newBackup.Extension)
+
+		// Get size of backup
+		file, err := os.Open(path)
+		if err != nil {
+			log.Warn(err)
+		}
+		defer file.Close()
+
+		fi, err := file.Stat()
+		if err != nil {
+			log.Warn(err)
+		}
+		newBackup.Size = fi.Size()
+
+		// Remove anything before the '@'
+		reg := regexp.MustCompile(`.*@`)
+		backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
+		newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
+		if err != nil {
+			log.Warn(err)
+		}
+		// Add back reference to the list of backups
+		newBackup.Backups = &bp
+		bp.Backup = append(bp.Backup, newBackup)
 	}
 	// Sort backups
 	bp.Sort()
@@ -281,44 +315,4 @@ func (b Localbackend) DeleteWal(viper func() map[string]interface{}, w *backup.W
 		log.Warn(err)
 	}
 	return err
-}
-
-// AddFile adds a new backup to Backups
-func addFileToBackups(path string, bp backup.Backups) backup.Backups {
-	var newBackup backup.Backup
-	var err error
-	// Make a relative path absolute
-	newBackup.Path, err = filepath.Abs(path)
-	if err != nil {
-		log.Warn(err)
-	}
-	newBackup.Extension = filepath.Ext(path)
-	// Get the name of the backup file without the extension
-	newBackup.Name = strings.TrimSuffix(filepath.Base(path), newBackup.Extension)
-
-	// Get size of backup
-	file, err := os.Open(path)
-	if err != nil {
-		log.Warn(err)
-	}
-	defer file.Close()
-
-	fi, err := file.Stat()
-	if err != nil {
-		log.Warn(err)
-	}
-	newBackup.Size = fi.Size()
-
-	// Remove anything before the '@'
-	reg := regexp.MustCompile(`.*@`)
-	backupTimeRaw := reg.ReplaceAllString(newBackup.Name, "${1}")
-	newBackup.Created, err = time.Parse(backup.BackupTimeFormat, backupTimeRaw)
-	if err != nil {
-		log.Warn(err)
-	}
-	// Add back reference to the list of backups
-	newBackup.Backups = &bp
-	bp.Backup = append(bp.Backup, newBackup)
-	bp.Sort()
-	return bp
 }
