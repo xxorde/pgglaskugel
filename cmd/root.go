@@ -135,6 +135,7 @@ var (
 // storeStream is an interface for functions that store a stream in an storage backend
 type storeStream func(*io.Reader, string)
 
+// This is just to check for commands where we don't need to create/check a pid-file
 func checkContainswhitelist(command string) bool {
 	whiteCommands := []string{"ls", "status", "lswal", "version"}
 	for _, whitecom := range whiteCommands {
@@ -372,6 +373,16 @@ func initConfig() {
 }
 
 // Global needed functions
+
+// Just for debugging and test
+func giveVipermap() map[string]interface{} {
+	vimap := make(map[string]interface{})
+	for k, v := range viper.AllSettings() {
+		vimap[k] = v
+	}
+	return vimap
+}
+
 func printDone() {
 	elapsed := time.Since(startTime)
 	log.Info("Done in ", elapsed)

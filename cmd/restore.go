@@ -191,6 +191,12 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Add one to the waiting counter
 	wgRestoreStart.Add(1)
 
+	// Add one worker to wait for finish
+	wgRestoreDone.Add(1)
+
+	// asign StorageType to backup
+	backup.StorageType = viper.GetString("backup_to")
+
 	// Start getBasebackup in new go-routine
 	go storage.GetBasebackup(vipermap, backup, dataStream, &wgRestoreStart, &wgRestoreDone)
 

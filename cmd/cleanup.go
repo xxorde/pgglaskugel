@@ -109,6 +109,10 @@ var cleanupCmd = &cobra.Command{
 
 		// Use oldest needed backup to determin oldest needed WAL file
 		oldestBackup := backups.OldestBackup()
+
+		// asign StorageType to oldestBackup
+		oldestBackup.StorageType = viper.GetString("backup_to")
+
 		oldestNeededWal, err := storage.GetStartWalLocation(vipermap, oldestBackup)
 		if err != nil {
 			log.Fatal(err)
