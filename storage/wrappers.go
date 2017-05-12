@@ -107,12 +107,12 @@ func init() {
 }
 
 func initbackends() map[string]Backend {
-	backends := make(map[string]Backend)
+	fbackends := make(map[string]Backend)
 	var s3b s3.S3backend
 	var localb local.Localbackend
-	backends["s3"] = s3b
-	backends["file"] = localb
-	return backends
+	fbackends["s3"] = s3b
+	fbackends["file"] = localb
+	return fbackends
 }
 
 // CheckBackend checks if the configured backend is supported

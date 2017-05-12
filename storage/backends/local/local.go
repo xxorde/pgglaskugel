@@ -49,8 +49,7 @@ func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal 
 	for _, f := range files {
 		var newBackup backup.Backup
 		var err error
-		path := backupDir + "/" + f.Name()
-		//bp = addFileToBackups(backupDir+"/"+f.Name(), bp)
+		path := filepath.Join(backupDir + "/" + f.Name())
 		newBackup.Path, err = filepath.Abs(path)
 		if err != nil {
 			log.Warn(err)
@@ -266,7 +265,7 @@ func (b Localbackend) GetStartWalLocation(bp *backup.Backup) (startWalLocation s
 		if backup.RegBackupLabelFile.MatchString(f.Name()) {
 			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
 
-			labelFile := bp.Backups.WalPath + "/" + f.Name()
+			labelFile := filepath.Join(bp.Backups.WalPath + "/" + f.Name())
 			catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
