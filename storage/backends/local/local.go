@@ -33,6 +33,7 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
 	"github.com/xxorde/pgglaskugel/util"
 )
@@ -42,9 +43,9 @@ type Localbackend struct {
 }
 
 // GetBackups returns backups
-func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal string) (bp backup.Backups) {
-	log.Debug("Get backups from folder: ", viper()["backupdir"])
-	backupDir := viper()["backupdir"].(string)
+func (b Localbackend) GetBackups(viper *viper.Viper, subDirWal string) (bp backup.Backups) {
+	log.Debug("Get backups from folder: ", viper.GetString("backupdir"))
+	backupDir := viper.GetString("backupdir")
 	files, _ := ioutil.ReadDir(backupDir)
 	for _, f := range files {
 		var newBackup backup.Backup
@@ -88,11 +89,11 @@ func (b Localbackend) GetBackups(viper func() map[string]interface{}, subDirWal 
 }
 
 //GetWals returns Wals
-func (b Localbackend) GetWals(viper func() map[string]interface{}) (a backup.Archive, err error) {
+func (b Localbackend) GetWals(viper *viper.Viper) (a backup.Archive, err error) {
 	// Get WAL files from filesystem
-	log.Debug("Get WAL from folder: ", viper()["waldir"].(string))
-	a.Path = viper()["waldir"].(string)
-	bn := viper()["backup_to"].(string)
+	log.Debug("Get WAL from folder: ", viper.GetString("waldir"))
+	a.Path = viper.GetString("waldir")
+	bn := viper.GetString("backup_to")
 	// WAL files are load sequential from file system.
 	files, err := ioutil.ReadDir(a.Path)
 	if err != nil {
@@ -110,12 +111,12 @@ func (b Localbackend) GetWals(viper func() map[string]interface{}) (a backup.Arc
 }
 
 // WriteStream handles a stream and writes it to a local file
-func (b Localbackend) WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
+func (b Localbackend) WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string) {
 	var backuppath string
 	if backuptype == "basebackup" {
-		backuppath = filepath.Join(viper()["backupdir"].(string), name)
+		backuppath = filepath.Join(viper.GetString("backupdir"), name)
 	} else if backuptype == "archive" {
-		backuppath = filepath.Join(viper()["waldir"].(string), name)
+		backuppath = filepath.Join(viper.GetString("waldir"), name)
 	} else {
 		log.Fatalf(" unknown stream-type: %s\n", backuptype)
 	}
@@ -138,13 +139,13 @@ func (b Localbackend) WriteStream(viper func() map[string]interface{}, input *io
 }
 
 // Fetch uses the shell command zstd to recover WAL files
-func (b Localbackend) Fetch(viper func() map[string]interface{}) (err error) {
-	walTarget := viper()["waltarget"].(string)
-	walName := viper()["walname"].(string)
-	walSource := viper()["archivedir"].(string) + "/wal/" + walName + ".zst"
-	encrypt := viper()["encrypt"].(bool)
-	cmdZstd := viper()["path_to_zstd"].(string)
-	cmdGpg := viper()["path_to_gpg"].(string)
+func (b Localbackend) Fetch(viper *viper.Viper) (err error) {
+	walTarget := viper.GetString("waltarget")
+	walName := viper.GetString("walname")
+	walSource := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
+	encrypt := viper.GetBool("encrypt")
+	cmdZstd := viper.GetString("path_to_zstd")
+	cmdGpg := viper.GetString("path_to_gpg")
 
 	log.Debug("fetchFromFile, walTarget: ", walTarget, ", walName: ", walName, ", walSource: ", walSource)
 
@@ -209,7 +210,7 @@ func (b Localbackend) Fetch(viper func() map[string]interface{}) (err error) {
 }
 
 //GetBasebackup Gets backups from file
-func (b Localbackend) GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func (b Localbackend) GetBasebackup(viper *viper.Viper, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromFile")
 	file, err := os.Open(backup.Path)
 	util.Check(err)
@@ -306,7 +307,7 @@ func (b Localbackend) GetStartWalLocation(bp *backup.Backup) (startWalLocation s
 }
 
 // DeleteWal deletes the given WAL-file
-func (b Localbackend) DeleteWal(viper func() map[string]interface{}, w *backup.Wal) (err error) {
+func (b Localbackend) DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
 	err = os.Remove(filepath.Join(w.Archive.Path, w.Name+w.Extension))
 	if err != nil {
 		log.Warn(err)

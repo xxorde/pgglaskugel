@@ -118,8 +118,7 @@ var (
 
 // handleBackupStream takes a stream and persists it with the configured method
 func storeBackupStream(input *io.Reader, name string) {
-	vipermap := viper.AllSettings
-	storage.WriteStream(vipermap, input, name, "basebackup")
+	storage.WriteStream(viper.GetViper(), input, name, "basebackup")
 }
 
 func init() {

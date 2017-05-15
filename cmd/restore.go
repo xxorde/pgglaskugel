@@ -123,8 +123,7 @@ var (
 )
 
 func restoreBasebackup(backupDestination string, backupName string) (err error) {
-	vipermap := viper.AllSettings
-	backups := storage.GetMyBackups(vipermap, subDirWal)
+	backups := storage.GetMyBackups(viper.GetViper(), subDirWal)
 	backup, err := backups.Find(backupName)
 	if err != nil {
 		log.Fatal(err)
@@ -198,7 +197,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	backup.StorageType = viper.GetString("backup_to")
 
 	// Start getBasebackup in new go-routine
-	go storage.GetBasebackup(vipermap, backup, dataStream, &wgRestoreStart, &wgRestoreDone)
+	go storage.GetBasebackup(viper.GetViper(), backup, dataStream, &wgRestoreStart, &wgRestoreDone)
 
 	// Wait for getBasebackup to start
 	wgRestoreStart.Wait()

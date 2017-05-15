@@ -24,6 +24,7 @@ import (
 	"io"
 	"sync"
 
+	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
 )
 
@@ -31,24 +32,24 @@ import (
 type Backend interface {
 
 	// Writes a datastream to the given backend
-	WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string)
+	WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string)
 
 	// Returns the data from the given backend
-	Fetch(viper func() map[string]interface{}) error
+	Fetch(viper *viper.Viper) error
 
 	// Returns a specific basebackup
-	GetBasebackup(viper func() map[string]interface{}, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
+	GetBasebackup(viper *viper.Viper, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
 
 	// Returns all found basebackups
-	GetBackups(viper func() map[string]interface{}, subDirWal string) (bp backup.Backups)
+	GetBackups(viper *viper.Viper, subDirWal string) (bp backup.Backups)
 
 	// Returns all found WAL-files
-	GetWals(viper func() map[string]interface{}) (backup.Archive, error)
+	GetWals(viper *viper.Viper) (backup.Archive, error)
 
 	// DeleteAll deletes all backups in the struct
 	DeleteAll(backups *backup.Backups) (count int, err error)
 	// DeleteWal deletes the given WAL-file
-	DeleteWal(viper func() map[string]interface{}, w *backup.Wal) (err error)
+	DeleteWal(viper *viper.Viper, w *backup.Wal) (err error)
 
 	// Returns the first WAL-file name for a backup
 	GetStartWalLocation(backup *backup.Backup) (startWalLocation string, err error)

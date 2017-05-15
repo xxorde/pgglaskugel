@@ -26,6 +26,7 @@ import (
 	"sync"
 
 	"github.com/siddontang/go/log"
+	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
 	"github.com/xxorde/pgglaskugel/storage/backends/local"
 	"github.com/xxorde/pgglaskugel/storage/backends/s3"
@@ -41,61 +42,57 @@ var (
 */
 
 // GetMyBackups does something
-func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups backup.Backups) {
-	bn := viper()["backup_to"].(string)
+func GetMyBackups(viper *viper.Viper, subDirWal string) (backups backup.Backups) {
+	bn := viper.GetString("backup_to")
 	return backends[bn].GetBackups(viper, subDirWal)
 }
 
 // GetWals returns all Wal-Files for a Backup
-func GetWals(viper func() map[string]interface{}) (archive backup.Archive, err error) {
-	bn := viper()["backup_to"].(string)
+func GetWals(viper *viper.Viper) (archive backup.Archive, err error) {
+	bn := viper.GetString("backup_to")
 	return backends[bn].GetWals(viper)
 }
 
 // WriteStream writes the stream to the configured archive_to
-func WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
-	bn := viper()["backup_to"].(string)
+func WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string) {
+	bn := viper.GetString("backup_to")
 	backends[bn].WriteStream(viper, input, name, backuptype)
 }
 
 // Fetch fetches
-func Fetch(viper func() map[string]interface{}) error {
-	bn := viper()["backup_to"].(string)
+func Fetch(viper *viper.Viper) error {
+	bn := viper.GetString("backup_to")
 	return backends[bn].Fetch(viper)
 }
 
 // GetBasebackup gets basebackups
-func GetBasebackup(viper func() map[string]interface{}, bp *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
-	bn := viper()["backup_to"].(string)
+func GetBasebackup(viper *viper.Viper, bp *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+	bn := viper.GetString("backup_to")
 	backends[bn].GetBasebackup(viper, bp, backupStream, wgStart, wgDone)
 }
 
 // DeleteAll deletes all backups in the struct
-func DeleteAll(viper func() map[string]interface{}, backups *backup.Backups) (count int, err error) {
-	bn := viper()["backup_to"].(string)
+func DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error) {
+	bn := viper.GetString("backup_to")
 	return backends[bn].DeleteAll(backups)
 }
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func GetStartWalLocation(viper func() map[string]interface{}, bp *backup.Backup) (startWalLocation string, err error) {
-	bn := viper()["backup_to"].(string)
+func GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
+	bn := viper.GetString("backup_to")
 	return backends[bn].GetStartWalLocation(bp)
 }
 
 // DeleteWal deletes the given WAL-file
-func DeleteWal(viper func() map[string]interface{}, w *backup.Wal) (err error) {
-	bn := viper()["backup_to"].(string)
+func DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
+	bn := viper.GetString("backup_to")
 	return backends[bn].DeleteWal(viper, w)
 }
 
 // Just for debugging and test
-func GiveVipermap(viper func() map[string]interface{}) map[string]interface{} {
-	vimap := make(map[string]interface{})
-	for k, v := range viper() {
-		vimap[k] = v
-	}
-	return vimap
+func GiveVipermap(viper *viper.Viper) string {
+	return viper.GetString("backup_to")
 }
 
 /*
@@ -126,7 +123,7 @@ func CheckBackend(backend string) error {
 // TODO Maybe we can move the function below to backup/wal.go. actually there is an import-circle
 
 // DeleteOldWal deletes all WAL files that are older than lastWalToKeep
-func DeleteOldWal(viper func() map[string]interface{}, a *backup.Archive, lastWalToKeep backup.Wal) (deleted int) {
+func DeleteOldWal(viper *viper.Viper, a *backup.Archive, lastWalToKeep backup.Wal) (deleted int) {
 	// WAL files are deleted sequential
 	// Due to the file system architecture parallel delete
 	// Maybe this can be done in parallel for other storage systems

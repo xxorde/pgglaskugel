@@ -64,6 +64,5 @@ func init() {
 func fetchWal(walTarget string, walName string) (err error) {
 	viper.SetDefault("waltarget", walTarget)
 	viper.SetDefault("walname", walName)
-	vipermap := viper.AllSettings
-	return storage.Fetch(vipermap)
+	return storage.Fetch(viper.GetViper())
 }

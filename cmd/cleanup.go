@@ -40,8 +40,7 @@ var cleanupCmd = &cobra.Command{
 	Long: `Enforces your retention policy by deleting backups and WAL files.
 	Use with care.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		vipermap := viper.AllSettings
-		backups := storage.GetMyBackups(vipermap, subDirWal)
+		backups := storage.GetMyBackups(viper.GetViper(), subDirWal)
 
 		retain := uint(viper.GetInt("retain"))
 		if retain <= 0 {
@@ -97,12 +96,12 @@ var cleanupCmd = &cobra.Command{
 		}
 
 		// Delete all backups in the "discard" set
-		count, err := storage.DeleteAll(vipermap, &discard)
+		count, err := storage.DeleteAll(viper.GetViper(), &discard)
 		if err != nil {
 			log.Warn("DeleteAll()", err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
-		backups = storage.GetMyBackups(vipermap, subDirWal)
+		backups = storage.GetMyBackups(viper.GetViper(), subDirWal)
 
 		// Show backups that are left
 		log.Info("Backups left: " + backups.String())
@@ -113,7 +112,7 @@ var cleanupCmd = &cobra.Command{
 		// asign StorageType to oldestBackup
 		oldestBackup.StorageType = viper.GetString("backup_to")
 
-		oldestNeededWal, err := storage.GetStartWalLocation(vipermap, oldestBackup)
+		oldestNeededWal, err := storage.GetStartWalLocation(viper.GetViper(), oldestBackup)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -127,13 +126,13 @@ var cleanupCmd = &cobra.Command{
 		oldWal.Name = oldestNeededWal
 
 		// Get all WAL files
-		walArchive, err := storage.GetWals(vipermap)
+		walArchive, err := storage.GetWals(viper.GetViper())
 		if err != nil {
 			log.Error(err)
 		}
 
 		// Delete all WAL files that are older than oldestNeededWal
-		count = storage.DeleteOldWal(vipermap, &walArchive, oldWal)
+		count = storage.DeleteOldWal(viper.GetViper(), &walArchive, oldWal)
 		log.Infof("Deleted %d WAL files:", count)
 
 		printDone()
