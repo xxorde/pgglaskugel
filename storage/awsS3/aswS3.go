@@ -42,8 +42,7 @@ import (
 
 var (
 	//timeout  = time.Hour * 48
-	timeout  = time.Duration(0)
-	partSize = 16 * 1024 * 1024 // 256MB
+	timeout = time.Duration(0)
 )
 
 // Uploads a file to S3 given a bucket and object key. Also takes a duration
@@ -137,7 +136,7 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	disableSsl := !viper()["s3_ssl"].(bool)
 	encrypt := viper()["encrypt"].(bool)
 	S3ForcePathStyle := false
-
+	partSize := int64(1024 * 1024 * viper()["s3_part_size_mb"].(int))
 	contentType := "zstd"
 
 	// Set contentType for encryption
@@ -175,7 +174,7 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	}))
 
 	uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
-		u.PartSize = 5 * 1024 * 1024
+		u.PartSize = partSize
 	})
 
 	// Create a context with a timeout that will abort the upload if it takes

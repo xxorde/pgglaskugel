@@ -25,7 +25,6 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"encoding/xml"
-	"fmt"
 	"hash"
 	"io"
 	"math"
@@ -40,18 +39,18 @@ import (
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
+const (
+	maxPartsCount             = 10000
+	maxMultipartPutObjectSize = 1024 * 1024 * 1024 * 640
+)
+
 // optimalPartInfo - calculate the optimal part info for
 // a given object size.
 //
 // NOTE: Assumption here is that for any object to be uploaded to
 // any S3 compatible object storage it will have the following
 // parameters as constants.
-//
-const maxPartsCount = 10000
-const minPartSize = 1024 * 1024 * 64
-const maxMultipartPutObjectSize = 1024 * 1024 * 1024 * 640
-
-func optimalPartInfo(objectSize int64) (totalPartsCount int, partSize int64, lastPartSize int64, err error) {
+func optimalPartInfo(objectSize, minPartSize int64) (totalPartsCount int, partSize int64, lastPartSize int64, err error) {
 	// object size is '-1' set it to 640GiB.
 	if objectSize == -1 {
 		objectSize = maxMultipartPutObjectSize
@@ -60,7 +59,7 @@ func optimalPartInfo(objectSize int64) (totalPartsCount int, partSize int64, las
 	// Use floats for part size for all calculations to avoid
 	// overflows during float64 to int64 conversions.
 	partSizeFlt := math.Ceil(float64(objectSize / maxPartsCount))
-	partSizeFlt = math.Ceil(partSizeFlt/minPartSize) * minPartSize
+	partSizeFlt = math.Ceil(partSizeFlt/float64(minPartSize)) * float64(minPartSize)
 
 	// Total parts count.
 	totalPartsCount = int(math.Ceil(float64(objectSize) / partSizeFlt))
@@ -99,7 +98,7 @@ func hashCopyN(hashAlgorithms map[string]hash.Hash, hashSums map[string][]byte, 
 	if err != nil {
 		// If not EOF return error right here.
 		if err != io.EOF {
-			fmt.Println("io.EOF failed")
+			log.Error("io.EOF failed")
 			return 0, err
 		}
 	}
@@ -178,12 +177,10 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	} else {
 		log.Fatalf(" unknown stream-type: %s\n", backuptype)
 	}
-	endpoint := viper()["s3_endpoint"].(string)
 	location := viper()["s3_location"].(string)
 	encrypt := viper()["encrypt"].(bool)
-	ssl := viper()["s3_ssl"].(bool)
-	version := viper()["s3_protocol_version"].(int)
 	contentType := "zstd"
+	minPartSize := int64(1024 * 1024 * viper()["s3_part_size_mb"].(int))
 
 	// Set contentType for encryption
 	if encrypt {
@@ -191,10 +188,6 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	}
 
 	log.Warn("not jet used contetnType ", contentType)
-
-	if version != 2 {
-		log.Fatal("s3_protocol_version must be 2, minioCs storage only works with S3v2.")
-	}
 
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
@@ -216,22 +209,11 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 		log.Infof("Bucket %s created.", bucket)
 	}
 
+	// Get connection and set in minio.Core to use low level functions
 	var c minio.Core
+	client := b.getS3Connection(viper)
+	c.Client = &client
 	metaData := map[string][]string{}
-
-	// Instantiate new minio core client object.
-	client, err := minio.NewV2(
-		endpoint,
-		viper()["s3_access_key"].(string),
-		viper()["s3_secret_key"].(string),
-		ssl,
-	)
-	if err != nil {
-		log.Fatal("minio.NewCore failed", err)
-	}
-
-	c.Client = client
-	fmt.Println("minio.NewCore OK")
 
 	// Total data read and written to server. should be equal to 'size' at the end of the call.
 	var totalUploadedSize int64
@@ -248,7 +230,7 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	size := int64(-1)
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, _, err := optimalPartInfo(size)
+	totalPartsCount, partSize, _, err := optimalPartInfo(size, minPartSize)
 	if err != nil {
 		log.Fatal("optimalPartInfo failed", err)
 	}
