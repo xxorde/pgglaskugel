@@ -374,15 +374,6 @@ func initConfig() {
 
 // Global needed functions
 
-// Just for debugging and test
-func giveVipermap() map[string]interface{} {
-	vimap := make(map[string]interface{})
-	for k, v := range viper.AllSettings() {
-		vimap[k] = v
-	}
-	return vimap
-}
-
 func printDone() {
 	elapsed := time.Since(startTime)
 	log.Info("Done in ", elapsed)

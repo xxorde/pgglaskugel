@@ -90,11 +90,6 @@ func DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
 	return backends[bn].DeleteWal(viper, w)
 }
 
-// Just for debugging and test
-func GiveVipermap(viper *viper.Viper) string {
-	return viper.GetString("backup_to")
-}
-
 /*
 	Not Interface functions below
 */
