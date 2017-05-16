@@ -29,6 +29,7 @@ import (
 	"github.com/xxorde/pgglaskugel/storage/awsS3"
 	"github.com/xxorde/pgglaskugel/storage/local"
 	"github.com/xxorde/pgglaskugel/storage/minio"
+	"github.com/xxorde/pgglaskugel/storage/minioCs"
 	"github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
@@ -38,9 +39,11 @@ func initbackends() map[string]Backend {
 
 	var s3 awsS3.S3backend
 	var minio minio.S3backend
+	var minioCs minioCs.S3backend
 	var localb local.Localbackend
 	backends["s3"] = s3
 	backends["minio"] = minio
+	backends["minioCs"] = minioCs
 	backends["file"] = localb
 	return backends
 }

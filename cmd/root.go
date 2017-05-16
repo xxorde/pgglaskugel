@@ -291,8 +291,8 @@ func initConfig() {
 
 	// Enable memory profiling
 	memprofile := viper.GetString("memprofile")
-	log.Debug("Start memprofile")
 	if memprofile != "" {
+		log.Debug("Start memprofile")
 		f, err := os.Create(memprofile)
 		if err != nil {
 			log.Fatal("could not create memory profile: ", err)

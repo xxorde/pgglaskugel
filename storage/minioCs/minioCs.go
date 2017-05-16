@@ -18,50 +18,96 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package awsS3
+package minioCs
 
 import (
-	"context"
+	"bytes"
+	"crypto/md5"
+	"crypto/sha256"
+	"encoding/xml"
+	"fmt"
+	"hash"
 	"io"
+	"math"
 	"os/exec"
+	"sort"
 	"sync"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	minio "github.com/minio/minio-go"
 	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	"github.com/xxorde/pgglaskugel/util"
 	"github.com/xxorde/pgglaskugel/wal"
 )
 
-var (
-	//timeout  = time.Hour * 48
-	timeout  = time.Duration(0)
-	partSize = 16 * 1024 * 1024 // 256MB
-)
+// optimalPartInfo - calculate the optimal part info for
+// a given object size.
+//
+// NOTE: Assumption here is that for any object to be uploaded to
+// any S3 compatible object storage it will have the following
+// parameters as constants.
+//
+const maxPartsCount = 10000
+const minPartSize = 1024 * 1024 * 64
+const maxMultipartPutObjectSize = 1024 * 1024 * 1024 * 640
 
-// Uploads a file to S3 given a bucket and object key. Also takes a duration
-// value to terminate the update if it doesn't complete within that time.
-//
-// The AWS Region needs to be provided in the AWS shared config or on the
-// environment variable as `AWS_REGION`. Credentials also must be provided
-// Will default to shared config file, but can load from environment if provided.
-//
-// Usage:
-//   # Upload myfile.txt to myBucket/myKey. Must complete within 10 minutes or will fail
-//   go run withContext.go -b mybucket -k myKey -d 10m < myfile.txt
-type reader struct {
-	r io.Reader
+func optimalPartInfo(objectSize int64) (totalPartsCount int, partSize int64, lastPartSize int64, err error) {
+	// object size is '-1' set it to 640GiB.
+	if objectSize == -1 {
+		objectSize = maxMultipartPutObjectSize
+	}
+
+	// Use floats for part size for all calculations to avoid
+	// overflows during float64 to int64 conversions.
+	partSizeFlt := math.Ceil(float64(objectSize / maxPartsCount))
+	partSizeFlt = math.Ceil(partSizeFlt/minPartSize) * minPartSize
+
+	// Total parts count.
+	totalPartsCount = int(math.Ceil(float64(objectSize) / partSizeFlt))
+
+	// Part size.
+	partSize = int64(partSizeFlt)
+
+	// Last part size.
+	lastPartSize = objectSize - int64(totalPartsCount-1)*partSize
+	return totalPartsCount, partSize, lastPartSize, nil
 }
 
-func (r *reader) Read(p []byte) (int, error) {
-	return r.r.Read(p)
+// completedParts is a collection of parts sortable by their part numbers.
+// used for sorting the uploaded parts before completing the multipart request.
+type completedParts []minio.CompletePart
+
+func (a completedParts) Len() int           { return len(a) }
+func (a completedParts) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a completedParts) Less(i, j int) bool { return a[i].PartNumber < a[j].PartNumber }
+
+// completeMultipartUpload container for completing multipart upload.
+type completeMultipartUpload struct {
+	XMLName xml.Name             `xml:"http://s3.amazonaws.com/doc/2006-03-01/ CompleteMultipartUpload" json:"-"`
+	Parts   []minio.CompletePart `xml:"Part"`
+}
+
+// hashCopyN - Calculates chosen hashes up to partSize amount of bytes.
+func hashCopyN(hashAlgorithms map[string]hash.Hash, hashSums map[string][]byte, writer io.Writer, reader io.Reader, partSize int64) (size int64, err error) {
+	hashWriter := writer
+	for _, v := range hashAlgorithms {
+		hashWriter = io.MultiWriter(hashWriter, v)
+	}
+
+	// Copies to input at writer.
+	size, err = io.CopyN(hashWriter, reader, partSize)
+	if err != nil {
+		// If not EOF return error right here.
+		if err != io.EOF {
+			fmt.Println("io.EOF failed")
+			return 0, err
+		}
+	}
+
+	for k, v := range hashAlgorithms {
+		hashSums[k] = v.Sum(nil)
+	}
+	return size, err
 }
 
 // S3backend returns a struct to use the S3-Methods
@@ -134,15 +180,20 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	}
 	endpoint := viper()["s3_endpoint"].(string)
 	location := viper()["s3_location"].(string)
-	disableSsl := !viper()["s3_ssl"].(bool)
 	encrypt := viper()["encrypt"].(bool)
-	S3ForcePathStyle := false
-
+	ssl := viper()["s3_ssl"].(bool)
+	version := viper()["s3_protocol_version"].(int)
 	contentType := "zstd"
 
 	// Set contentType for encryption
 	if encrypt {
 		contentType = "pgp"
+	}
+
+	log.Warn("not jet used contetnType ", contentType)
+
+	if version != 2 {
+		log.Fatal("s3_protocol_version must be 2, minioCs storage only works with S3v2.")
 	}
 
 	// Initialize minio client object.
@@ -165,48 +216,124 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	// Prepare connection with aws-sdk
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region:           &location,
-		Endpoint:         &endpoint,
-		DisableSSL:       &disableSsl,
-		S3ForcePathStyle: &S3ForcePathStyle,
-		Credentials:      credentials.NewStaticCredentials(viper()["s3_access_key"].(string), viper()["s3_secret_key"].(string), "123"),
-	}))
+	var c minio.Core
+	metaData := map[string][]string{}
 
-	uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
-		u.PartSize = 5 * 1024 * 1024
-	})
-
-	// Create a context with a timeout that will abort the upload if it takes
-	// more than the passed in timeout.
-	ctx := context.Background()
-	cancelFn := func() {
-	}
-	if timeout > 0 {
-		log.Debug("Timeout will be used: ", timeout)
-		ctx, cancelFn = context.WithTimeout(ctx, timeout*time.Second)
-	}
-	// Ensure the context is canceled to prevent leaking.
-	// See context package for more information, https://golang.org/pkg/context/
-	defer cancelFn()
-
-	log.Debug("Put stream into bucket: ", bucket)
-	_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
-		Bucket:      &bucket,
-		Key:         &name,
-		Body:        &reader{*input},
-		ContentType: &contentType,
-	})
+	// Instantiate new minio core client object.
+	client, err := minio.NewV2(
+		endpoint,
+		viper()["s3_access_key"].(string),
+		viper()["s3_secret_key"].(string),
+		ssl,
+	)
 	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
-			// If the SDK can determine the request or retry delay was canceled
-			// by a context the CanceledErrorCode error code will be returned.
-			log.Fatalf("upload canceled due to timeout, %v\n", err)
-		} else {
-			log.Fatalf("failed to upload object, %v\n", err)
+		log.Fatal("minio.NewCore failed", err)
+	}
+
+	c.Client = client
+	fmt.Println("minio.NewCore OK")
+
+	// Total data read and written to server. should be equal to 'size' at the end of the call.
+	var totalUploadedSize int64
+
+	// Complete multipart upload.
+	var complMultipartUpload completeMultipartUpload
+
+	// Get the upload id of a previously partially uploaded object or initiate a new multipart upload
+	uploadID, err := c.NewMultipartUpload(bucket, name, metaData)
+	if err != nil {
+		log.Fatal("NewMultipartUpload failed", err)
+	}
+
+	size := int64(-1)
+
+	// Calculate the optimal parts info for a given size.
+	totalPartsCount, partSize, _, err := optimalPartInfo(size)
+	if err != nil {
+		log.Fatal("optimalPartInfo failed", err)
+	}
+
+	// Initialize parts uploaded map.
+	partsInfo := make(map[int]minio.ObjectPart)
+
+	// Part number always starts with '1'.
+	partNumber := 1
+
+	// Initialize a temporary buffer.
+	tmpBuffer := new(bytes.Buffer)
+
+	for partNumber <= totalPartsCount {
+		// Choose hash algorithms to be calculated by hashCopyN, avoid sha256
+		// with non-v4 signature request or HTTPS connection
+		hashSums := make(map[string][]byte)
+		hashAlgos := make(map[string]hash.Hash)
+		hashAlgos["md5"] = md5.New()
+		hashAlgos["sha256"] = sha256.New()
+
+		// Calculates hash sums while copying partSize bytes into tmpBuffer.
+		prtSize, rErr := hashCopyN(hashAlgos, hashSums, tmpBuffer, *input, partSize)
+		if rErr != nil && rErr != io.EOF {
+			log.Fatal("io.EOF failed", err)
+		}
+
+		// Proceed to upload the part.
+		var objPart minio.ObjectPart
+		objPart, err = c.PutObjectPart(bucket, name, uploadID, partNumber,
+			prtSize, tmpBuffer, hashSums["md5"], hashSums["sha256"])
+		if err != nil {
+			// Reset the temporary buffer upon any error.
+			tmpBuffer.Reset()
+			log.Fatal("PutObjectPart failed, written ", totalUploadedSize, err)
+		}
+
+		// Save successfully uploaded part metadata.
+		partsInfo[partNumber] = objPart
+
+		// Reset the temporary buffer.
+		tmpBuffer.Reset()
+
+		// Save successfully uploaded size.
+		totalUploadedSize += prtSize
+
+		// Increment part number.
+		partNumber++
+
+		// For unknown size, Read EOF we break away.
+		// We do not have to upload till totalPartsCount.
+		if size < 0 && rErr == io.EOF {
+			break
 		}
 	}
+
+	// Verify if we uploaded all the data.
+	if size > 0 {
+		if totalUploadedSize != size {
+			log.Fatal("totalUploadedSize", totalUploadedSize, "io.ErrUnexpectedEOF", io.ErrUnexpectedEOF)
+		}
+	}
+
+	// Loop over total uploaded parts to save them in
+	// Parts array before completing the multipart request.
+	for i := 1; i < partNumber; i++ {
+		part, ok := partsInfo[i]
+		if !ok {
+			log.Fatalf("PartsInfo failed, missing part number %d", i)
+		}
+		complMultipartUpload.Parts = append(complMultipartUpload.Parts,
+			minio.CompletePart{
+				ETag:       part.ETag,
+				PartNumber: part.PartNumber,
+			})
+	}
+
+	// Sort all completed parts.
+	sort.Sort(completedParts(complMultipartUpload.Parts))
+	err = c.CompleteMultipartUpload(bucket, name, uploadID, complMultipartUpload.Parts)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.Infof("Written %d bytes to %s in bucket %s.", totalUploadedSize, name, bucket)
 }
 
 // Fetch recover from a S3 compatible object store

@@ -130,7 +130,7 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	}
 
 	log.Debug("Put stream into bucket: ", bucket)
-	n, err := minioClient.PutObject(bucket, name, *input, contentType)
+	n, err := minioClient.PutObjectStreaming(bucket, name, *input)
 	if err != nil {
 		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
 		log.Fatal(err)
