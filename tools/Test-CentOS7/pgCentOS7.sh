@@ -1,5 +1,4 @@
 #!/bin/bash
-
 # Copyright © 2017 Hendrik Siewert <hendrik.siewert@credativ.de>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -19,6 +18,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
+set -x
 
 # config
 PG_VERSION=9.5
@@ -30,10 +30,11 @@ ARCHIVEDIR=$TESTDIR/backup/pgglaskugel
 MINIO=/var/lib/minio
 DBUSER=postgres
 DBUSER_DO="sudo -u $DBUSER"
+STORAGE=$1
 
 cleanup()
 {
-  echo "Clean everything..."
+  echo "Clean everything for $STORAGE..."
   $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
   pkill minio > /dev/null 2>&1
   if [ -d $TESTDIR ]
@@ -60,7 +61,7 @@ cleanup()
 
 getPostgressetup()
 {
-  cat > /usr/pgsql-$PG_VERSION/bin/postgresql$PGVERSION-setup << EOL 
+  cat > /usr/pgsql-$PG_VERSION/bin/postgresql$PGVERSION-setup << EOL
 #!/bin/bash
 PGVERSION=9.5.6
 PGMAJORVERSION=`echo "\$PGVERSION" | sed 's/^\([0-9]*\.[0-9]*\).*$/\1/'`
@@ -220,7 +221,7 @@ miniostart()
       echo "Wait for Minio to listen..."
       sleep 2
     done
-  chown $DBUSER:$DBUSER $MINIO 
+  chown $DBUSER:$DBUSER $MINIO
   chmod -R 700 $MINIO
 }
 
@@ -257,45 +258,57 @@ miniocheck()
 testingnoenc()
 {
   echo "TESTING IF FILES ARE READABLE..."
-  if [ -z "$(zstdcat $enctest)" ]
+  if ! zstdcat $enctest > /dev/null
     then
       echo "Can't read basebackup..."
       exit 1
-    elif [ -z "$(zstdcat $walenctest)" ]
-      then
-        echo "Can't read wal files..."
-        exit 1
-    else
-      echo "Successfully read archived files!"
   fi
+  if ! zstdcat $walenctest > /dev/null
+    then
+      echo "Can't zstdcat wal files..."
+      exit 1
+  fi
+  echo "Successfully read archived files!"
 }
 
 encrypttest()
 {
-  if [ "$1" == "file" ]
-    then
-      enctest=$ARCHIVEDIR/basebackup/$(ls $ARCHIVEDIR/basebackup)
-      walenctest=$ARCHIVEDIR/wal/$(ls $ARCHIVEDIR/wal | head -1)
-    elif [ "$1" == "s3" ]
-      then
-        enctest=$MINIO/basebackup/$(ls $MINIO/basebackup)
-        walenctest=$MINIO/wal/$(ls $MINIO/wal | head -1)
-    else
-      echo "ERROR: Encryption test parameters failed"
-      exit 1
-  fi
+  # Get backup and WAL, sleep if not available
+  ttl=10
+  while ([ -z "$wal" ] || [ -z "$bb" ]) && [ "$ttl" -gt 0 ]
+    do
+      sleep 1
+      let ttl--
+      if [ "$1" == "file" ]
+        then
+          wal=$(ls $ARCHIVEDIR/wal | head -1)
+          walenctest=$ARCHIVEDIR/wal/$wal
+
+          bb=$(ls $ARCHIVEDIR/basebackup)
+          enctest=$ARCHIVEDIR/basebackup/$bb
+       else
+          wal=$(ls $MINIO/wal | head -1)
+          walenctest=$MINIO/wal/$wal
+
+          bb=$(ls $MINIO/basebackup)
+          enctest=$MINIO/basebackup/$bb
+      fi
+    done
+
   if [ -z "$enctest" ] || [ -z "$walenctest" ]
     then
       echo "Can't find archived files..."
       exit 1
   fi
-  if [ ! -z "$2" ]
+  if [ -n "$2" ]
     then
       if [ "$2" == "noenc" ]
         then
+          echo Test files, not encrypted
           testingnoenc
         elif [ "$2" == "enc" ]
           then
+            echo Test files, encrypted
             testingenc
         else
           echo "WRONG PARAMETERS in function: encrypttest"
@@ -304,7 +317,7 @@ encrypttest()
     else
       echo "SECOND PARAMETER ISN'T GIVEN in function: encrypttest"
       exit 1
-  fi    
+  fi
 }
 
 testingenc()
@@ -364,6 +377,7 @@ pathglaskugel()
       cp $1/pgglaskugel /usr/bin
       retval=$?
     else
+      echo "Path: $1"
       echo "Path is wrong"
       exit 1
   fi
@@ -438,7 +452,7 @@ prepareconfigfolder()
 
 pickconfig()
 {
-  if [ "$1" == "s3" ]
+  if [ "$1" != "file" ]
     then
       if [ "$2" == "enc" ]
         then
@@ -465,7 +479,7 @@ pickconfig()
     else
       echo "Error in function: pickconfig. Wrong parameters..."
       exit 1
-  fi   
+  fi
 }
 
 s3config()
@@ -475,8 +489,8 @@ cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 encrypt: true
 debug: true
 recipient: hen@foo.bar
-archive_to: s3
-backup_to: s3
+archive_to: $STORAGE
+backup_to: $STORAGE
 s3_access_key: $accesskey
 s3_secret_key: $secretkey
 s3_ssl: false
@@ -493,8 +507,8 @@ cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 ---
 encrypt: false
 debug: true
-archive_to: s3
-backup_to: s3
+archive_to: $STORAGE
+backup_to: $STORAGE
 s3_access_key: $accesskey
 s3_secret_key: $secretkey
 s3_ssl: false
@@ -521,7 +535,7 @@ fileconfignoenc()
 {
 cat > $TESTDIR/.pgglaskugel/config.yml << EOL
 ---
-encrypt: false 
+encrypt: false
 debug: true
 pgdata: $PGDATA
 archivedir: $ARCHIVEDIR
@@ -534,7 +548,7 @@ pgglaskugelsetup()
   mkdir -p $TESTDIR/backup/pgglaskugel/basebackup
   chown -R $DBUSER $TESTDIR/backup
   #######################################################################
-  
+
   echo "Starting pgGlaskugel setup..."
   $DBUSER_DO pgglaskugel setup --config $TESTDIR/.pgglaskugel/config.yml
   $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
@@ -567,7 +581,7 @@ pgglaskugelrestore()
   if [ "$1" == "file" ]
     then
       backupfilezst=$(ls $ARCHIVEDIR/basebackup)
-    elif [ "$1" == "s3" ]
+    elif [ "$1" != "file" ]
       then
         backupfilezst=$(ls $MINIO/basebackup)
     else
@@ -594,7 +608,7 @@ testingtables()
   echo "$Test1"
   echo "Tables in the second cluster:"
   echo "$Test2"
-  if [ "$Test1" == "$Test2" ] && [[ $Test1 =~ .*test0.*test1.*test2.* ]] && [[ $Test2 =~ .*test0.*test1.*test2.* ]] 
+  if [ "$Test1" == "$Test2" ] && [[ $Test1 =~ .*test0.*test1.*test2.* ]] && [[ $Test2 =~ .*test0.*test1.*test2.* ]]
     then
       echo "THIS TEST WAS SUCCESSFUL!"
     else
@@ -628,12 +642,12 @@ runtest()
       exit 1
   fi
   preparetest
-  if [ "$1" == "s3" ]
+  if [ "$1" == "file" ]
     then
+      ARCHIVEDIR=$TESTDIR/backup/pgglaskugel
+    else
       ARCHIVEDIR=$MINIO
       miniocheck
-    else
-      ARCHIVEDIR=$TESTDIR/backup/pgglaskugel
   fi
   if [ "$2" == "enc" ]
     then
@@ -650,22 +664,27 @@ runtest()
   testingtables
 }
 
-trap cleanup 0 2 3 15
 #######################################################################
 ###############################START###################################
 #######################################################################
+if [ -z "$STORAGE" ]
+  then
+    echo "Usage: $0 <storage type> [path to pgGlaskugel]"
+    exit 1
+fi
+
 start=$(date +%s)
 # Check arguments
 if [ ! -f /usr/bin/pgglaskugel ]
   then
     if [ ! -f ./pgglaskugel ]
       then
-        if [ $# -ne 1 ]
+        if [ $# -ne 2 ]
           then
-            echo "Usage: $0 <Path to pgGlaskugel>"
+            echo "Usage: $0 <storage type>  <path to pgGlaskugel>"
             exit 1
           else
-            pathglaskugel $1
+            pathglaskugel $2
         fi
       else
         pathglaskugel .
@@ -674,18 +693,30 @@ fi
 
 echo "Check if CentOS7..."
 checkdistroversion
+
+#trap cleanup 0 2 3 15
+
 installpackages
 getPostgressetup
 prepareconfigfolder
-echo "#RUNNING S3 TEST WITH ENCRYPTION#"
-runtest s3 enc
-echo "#RUNNING S3 TEST WITHOUT ENCRYPTION#"
-runtest s3 noenc
-echo "#RUNNING FILE TEST WITH ENCRYPTION#"
-runtest file enc
-echo "#RUNNING FILE TEST WITHOUT ENCRYPTION#"
-runtest file noenc
-echo "#ALL TESTS WERE SUCCESSFUL#"
+
+echo "################################################################################"
+echo "# TESTS FOR $STORAGE"
+echo "################################################################################"
+echo ""
+echo "################################################################################"
+echo "# RUNNING $STORAGE TEST WITHOUT ENCRYPTION#"
+echo "################################################################################"
+runtest $STORAGE noenc
+
+echo "################################################################################"
+echo "# RUNNING $STORAGE TEST WITH ENCRYPTION"
+echo "################################################################################"
+runtest $STORAGE enc
+
+echo "################################################################################"
+echo "# ALL TESTS FOR $STORAGE WERE SUCCESSFUL"
+echo "################################################################################"
 end=$(date +%s)
-echo "Runtime: $((end-start))s"
+echo "Runtime for $STORAGE: $((end-start))s"
 exit 0

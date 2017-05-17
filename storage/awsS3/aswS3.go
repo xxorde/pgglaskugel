@@ -135,7 +135,7 @@ func (b S3backend) WriteStream(viper func() map[string]interface{}, input *io.Re
 	location := viper()["s3_location"].(string)
 	disableSsl := !viper()["s3_ssl"].(bool)
 	encrypt := viper()["encrypt"].(bool)
-	S3ForcePathStyle := false
+	S3ForcePathStyle := viper()["s3_force_path_style"].(bool)
 	partSize := int64(1024 * 1024 * viper()["s3_part_size_mb"].(int))
 	contentType := "zstd"
 

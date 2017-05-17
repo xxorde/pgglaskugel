@@ -14,4 +14,3 @@ ENV container docker
 
 ADD ./pgglaskugel /usr/bin/pgglaskugel
 ADD ./pgCentOS7.sh /usr/bin/pgCentOS7.sh
-CMD ["/usr/bin/pgCentOS7.sh"] 
