@@ -9,8 +9,8 @@ memo = "190c18f5d6721476fee786d90a9509949379d3dfcdba3ddebd471b0c1edc7c74"
 [[projects]]
   name = "github.com/aws/aws-sdk-go"
   packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","private/protocol","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/s3","service/s3/s3iface","service/s3/s3manager","service/sts"]
-  revision = "9f8b24cb7c7701c78150869d906711a2e7184bc0"
-  version = "v1.8.23"
+  revision = "e766cfe96ef7320817087fa4cd92c09abdb87310"
+  version = "v1.8.24"
 
 [[projects]]
   name = "github.com/cpuguy83/go-md2man"
@@ -148,7 +148,7 @@ memo = "190c18f5d6721476fee786d90a9509949379d3dfcdba3ddebd471b0c1edc7c74"
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "1e99a4f9d247b28c670884b9a8d6801f39a47b77"
+  revision = "98b5b1e7e80eb60271c8dc4eba6521ec2c3e811e"
 
 [[projects]]
   branch = "master"
