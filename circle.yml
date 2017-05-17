@@ -14,6 +14,10 @@ test:
   override:
     - make test
     - cd tools/Test-CentOS7; ./run_test_in_docker.sh file
+        parallel: true
     - cd tools/Test-CentOS7; ./run_test_in_docker.sh s3
+        parallel: true
     - cd tools/Test-CentOS7; ./run_test_in_docker.sh minio
+        parallel: true
     - cd tools/Test-CentOS7; ./run_test_in_docker.sh minioCs
+        parallel: true
