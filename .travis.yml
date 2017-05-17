@@ -1,16 +1,14 @@
 ---
 env:
-  - NO_TOOL_CHECK=True
-  - STORAGE=file
-  - STORAGE=s3
-  - STORAGE=minio
-  - STORAGE=minioCs
+  - NO_TOOL_CHECK=True STORAGE=file
+  - NO_TOOL_CHECK=True STORAGE=s3
+  - NO_TOOL_CHECK=True STORAGE=minio
+  - NO_TOOL_CHECK=True STORAGE=minioCs
 language: go
 sudo: required
 services:
   - docker
 go:
-  - 1.6.x
   - 1.7.x
   - 1.8.x
   - master
