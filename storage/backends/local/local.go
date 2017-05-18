@@ -142,7 +142,7 @@ func (b Localbackend) WriteStream(viper *viper.Viper, input *io.Reader, name str
 func (b Localbackend) Fetch(viper *viper.Viper) (err error) {
 	walTarget := viper.GetString("waltarget")
 	walName := viper.GetString("walname")
-	walSource := viper.GetString("archivedir") + "/wal/" + walName + ".zst"
+	walSource := filepath.Join(viper.GetString("archivedir"), "/wal/", walName, ".zst")
 	encrypt := viper.GetBool("encrypt")
 	cmdZstd := viper.GetString("path_to_zstd")
 	cmdGpg := viper.GetString("path_to_gpg")
