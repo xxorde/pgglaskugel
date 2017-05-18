@@ -38,10 +38,10 @@
 # Concurrent threads, default: calculateted based on cores
 #jobs: 4 
 
-# Backup destination (file|s3)
+# Backup destination (file|minios3|awss3|minioCs)
 #backup_to: file 
 
-# WAL destination (file|s3)
+# WAL destination (file|minios3|awss3|minioCs)
 #archive_to: file 
 
 # S3 Endpoint IP and Port
