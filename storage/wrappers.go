@@ -25,14 +25,14 @@ import (
 	"io"
 	"sync"
 
-  "github.com/spf13/viper"
+	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
+	"github.com/xxorde/pgglaskugel/storage/backends/awsS3"
 	"github.com/xxorde/pgglaskugel/storage/backends/local"
-  "github.com/xxorde/pgglaskugel/storage/awsS3"
-	"github.com/xxorde/pgglaskugel/storage/minio"
-	"github.com/xxorde/pgglaskugel/storage/minioCs"
-  
-  log "github.com/Sirupsen/logrus"
+	"github.com/xxorde/pgglaskugel/storage/backends/minioCs"
+	"github.com/xxorde/pgglaskugel/storage/backends/minios3"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 var (
@@ -98,18 +98,18 @@ func DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
 */
 
 func init() {
-	backends ()
+	initbackends()
 }
 
 func initbackends() map[string]Backend {
 	backends := make(map[string]Backend)
 
 	var awsS3 awsS3.S3backend
-	var minio minio.S3backend
+	var minios3 minios3.S3backend
 	var minioCs minioCs.S3backend
 	var localb local.Localbackend
-	backends["s3"] = s3
-	backends["minio"] = minio
+	backends["awss3"] = awsS3
+	backends["minios3"] = minios3
 	backends["minioCs"] = minioCs
 	backends["file"] = localb
 	return backends

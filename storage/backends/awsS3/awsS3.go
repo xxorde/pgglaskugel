@@ -21,8 +21,11 @@
 package awsS3
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"io"
+	"io/ioutil"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -408,4 +411,134 @@ func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup, back
 	log.Debug("getFromS3 waits for the rest of the chain to finish")
 	wgDone.Wait()
 	log.Debug("getFromS3 done")
+}
+
+// DeleteAll deletes all backups in the struct
+func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
+	// Sort backups
+	backups.SortDesc()
+	// We delete all backups, but start with the oldest just in case
+	for i := len(backups.Backup) - 1; i >= 0; i-- {
+		backup := backups.Backup[i]
+		err = backups.MinioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
+		if err != nil {
+			log.Warn(err)
+		} else {
+			count++
+		}
+
+	}
+	return count, err
+}
+
+// GetStartWalLocation returns the oldest needed WAL file
+// Every older WAL file is not required to use this backup
+func (b S3backend) GetStartWalLocation(bp *backup.Backup) (startWalLocation string, err error) {
+	// Escape the name so we can use it in a regular expression
+	searchName := regexp.QuoteMeta(bp.Name)
+	// Regex to identify the right file
+	regLabel := regexp.MustCompile(`.*LABEL: ` + searchName)
+	log.Debug("regLabel: ", regLabel)
+
+	log.Debug("Looking for the backup label that contains: ", searchName)
+
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := bp.Backups.MinioClient.ListObjects(bp.Backups.WalPath, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			log.Error(object.Err)
+		}
+
+		// log.Debug("Looking at potential backup label: ", object.Key)
+
+		if object.Size > backup.MaxBackupLabelSize {
+			// size is to big for backup label
+			// log.Debug("Object is to big to be a backup label, size: ", object.Size)
+			continue
+		}
+
+		if backup.RegBackupLabelFile.MatchString(object.Key) {
+			log.Debug(object.Key, " => seems to be a backup Label, by size and name")
+
+			backupLabelFile, err := bp.Backups.MinioClient.GetObject(bp.Backups.WalPath, object.Key)
+			if err != nil {
+				log.Warn("Can not get backupLabel, ", err)
+				continue
+			}
+
+			bufCompressed := make([]byte, backup.MaxBackupLabelSize)
+			readCount, err := backupLabelFile.Read(bufCompressed)
+			if err != nil && err != io.EOF {
+				log.Warn("Can not read backupLabel, ", err)
+				continue
+			}
+			log.Debug("Read ", readCount, " from backupLabel")
+
+			// Command to decompress the backuplabel
+			catCmd := exec.Command("zstd", "-d", "--stdout")
+			catCmdStdout, err := catCmd.StdoutPipe()
+			if err != nil {
+				// if we can not open the file we continue with next
+				log.Warn("catCmd.StdoutPipe(), ", err)
+				continue
+			}
+
+			// Use backupLabel as input for catCmd
+			catDone := make(chan struct{}) // Channel to wait for WatchOutput
+			catCmd.Stdin = bytes.NewReader(bufCompressed)
+			catCmdStderror, err := catCmd.StderrPipe()
+			go util.WatchOutput(catCmdStderror, log.Debug, catDone)
+
+			err = catCmd.Start()
+			if err != nil {
+				log.Warn("catCmd.Start(), ", err)
+				continue
+			}
+
+			bufPlain, err := ioutil.ReadAll(catCmdStdout)
+			if err != nil {
+				log.Warn("Reading from command: ", err)
+				continue
+			}
+
+			// Wait for output watchers to finish
+			// If the Cmd.Wait() is called while another process is reading
+			// from Stdout / Stderr this is a race condition.
+			// So we are waiting for the watchers first
+			<-catDone
+
+			// Wait for the command to finish
+			err = catCmd.Wait()
+			if err != nil {
+				// We ignore errors here, zstd returns 1 even if everything is fine here
+				log.Debug("catCmd.Wait(), ", err)
+			}
+			log.Debug("Backuplabel:\n", string(bufPlain))
+
+			if len(regLabel.Find(bufPlain)) > 1 {
+				log.Debug("Found matching backup label")
+				bp, err = backup.ParseBackupLabel(bp, bufPlain)
+				if err != nil {
+					log.Error(err)
+				}
+				bp.LabelFile = object.Key
+				return bp.StartWalLocation, err
+			}
+		}
+	}
+	return "", errors.New("START WAL LOCATION not found")
+}
+
+// DeleteWal deletes the given WAL-file
+func (b S3backend) DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
+	minioClient := b.getS3Connection(viper)
+	err = minioClient.RemoveObject(w.Archive.Bucket, w.Name+w.Extension)
+	if err != nil {
+		log.Warn(err)
+	}
+	return err
 }
