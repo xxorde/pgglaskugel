@@ -346,10 +346,10 @@ func initConfig() {
 	viper.SetDefault("myname", myName)
 	viper.SetDefault("version", Version)
 	viper.SetDefault("retain", 10)
-	/*vipermap := viper.AllSettings
+	vipermap := viper.AllSettings
 	for key, value := range vipermap() {
 		log.Debugf("%s %s", key, value)
-	}*/
+	}
 
 	// Set path for the tools
 	cmdTar = viper.GetString("path_to_tar")

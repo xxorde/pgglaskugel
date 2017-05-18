@@ -194,7 +194,7 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	}
 	endpoint := viper.GetString("s3_endpoint")
 	location := viper.GetString("s3_location")
-	disableSsl := viper.GetBool("s3_ssl")
+	disableSsl := !viper.GetBool("s3_ssl")
 	S3ForcePathStyle := viper.GetBool("s3_force_path_style")
 	partSize := int64(1024 * 1024 * viper.GetInt("s3_part_size_mb"))
 	contentType := "zstd"
