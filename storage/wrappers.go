@@ -98,21 +98,21 @@ func DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
 */
 
 func init() {
-	initbackends()
+	backends = initbackends()
 }
 
 func initbackends() map[string]Backend {
-	backends := make(map[string]Backend)
+	fbackends := make(map[string]Backend)
 
 	var awsS3 awsS3.S3backend
 	var minios3 minios3.S3backend
 	var minioCs minioCs.S3backend
 	var localb local.Localbackend
-	backends["awss3"] = awsS3
-	backends["minios3"] = minios3
-	backends["minioCs"] = minioCs
-	backends["file"] = localb
-	return backends
+	fbackends["awss3"] = awsS3
+	fbackends["minios3"] = minios3
+	fbackends["minioCs"] = minioCs
+	fbackends["file"] = localb
+	return fbackends
 }
 
 // CheckBackend checks if the configured backend is supported
