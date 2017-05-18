@@ -8,9 +8,12 @@ dependencies:
   override:
   post:
     - make pgglaskugel
-    - make tarball 
+    - make tarball
     - cp pgglaskugel pgGlaskugel.tar.xz $CIRCLE_ARTIFACTS/
 test:
   override:
     - make test
-    - cd tools/Test-CentOS7; ./run_test_in_docker.sh
+    - cd tools/Test-CentOS7; ./run_test_in_docker.sh file
+    - cd tools/Test-CentOS7; ./run_test_in_docker.sh s3
+    - cd tools/Test-CentOS7; ./run_test_in_docker.sh minio
+    - cd tools/Test-CentOS7; ./run_test_in_docker.sh minioCs

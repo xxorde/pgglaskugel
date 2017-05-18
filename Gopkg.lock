@@ -1,10 +1,16 @@
-memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
+memo = "190c18f5d6721476fee786d90a9509949379d3dfcdba3ddebd471b0c1edc7c74"
 
 [[projects]]
   branch = "master"
   name = "github.com/Sirupsen/logrus"
   packages = ["."]
-  revision = "10f801ebc38b33738c9d17d50860f484a0988ff5"
+  revision = "5e5dc898656f695e2a086b8e12559febbfc01562"
+
+[[projects]]
+  name = "github.com/aws/aws-sdk-go"
+  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","private/protocol","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/s3","service/s3/s3iface","service/s3/s3manager","service/sts"]
+  revision = "e766cfe96ef7320817087fa4cd92c09abdb87310"
+  version = "v1.8.24"
 
 [[projects]]
   name = "github.com/cpuguy83/go-md2man"
@@ -25,10 +31,16 @@ memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
   version = "v1.4.2"
 
 [[projects]]
+  name = "github.com/go-ini/ini"
+  packages = ["."]
+  revision = "e7fea39b01aea8d5671f6858f0532f56e8bff3a5"
+  version = "v1.27.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/hashicorp/hcl"
   packages = [".","hcl/ast","hcl/parser","hcl/scanner","hcl/strconv","hcl/token","json/parser","json/scanner","json/token"]
-  revision = "7fa7fff964d035e8a162cce3a164b3ad02ad651b"
+  revision = "392dba7d905ed5d04a5794ba89f558b27e2ba1ca"
 
 [[projects]]
   branch = "master"
@@ -37,10 +49,16 @@ memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
 
 [[projects]]
+  name = "github.com/jmespath/go-jmespath"
+  packages = ["."]
+  revision = "3433f3ea46d9f8019119e7dd41274e112a2359a9"
+  version = "0.2.2"
+
+[[projects]]
   branch = "master"
   name = "github.com/kardianos/osext"
   packages = ["."]
-  revision = "9d302b58e975387d0b4d9be876622c86cefe64be"
+  revision = "ae77be60afb1dcacde03767a8c37337fad28ac14"
 
 [[projects]]
   branch = "master"
@@ -56,9 +74,9 @@ memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
 
 [[projects]]
   name = "github.com/minio/minio-go"
-  packages = [".","pkg/policy","pkg/s3signer","pkg/s3utils","pkg/set"]
-  revision = "dcaae9ec4d0b0a81d17f22f6d7a186491f6a55ec"
-  version = "v2.0.4"
+  packages = [".","pkg/encrypt","pkg/policy","pkg/s3signer","pkg/s3utils","pkg/set"]
+  revision = "2f03abaa07d8bc57faef16cda7655ea62a7e0bed"
+  version = "v2.1.0"
 
 [[projects]]
   branch = "master"
@@ -88,7 +106,7 @@ memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
   branch = "master"
   name = "github.com/shurcooL/sanitized_anchor_name"
   packages = ["."]
-  revision = "79c90efaf01eddc01945af5bc1797859189b830b"
+  revision = "541ff5ee47f1dddf6a5281af78307d921524bcb5"
 
 [[projects]]
   branch = "master"
@@ -106,19 +124,19 @@ memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
   branch = "master"
   name = "github.com/spf13/cobra"
   packages = [".","doc"]
-  revision = "63121c8814fc0b99184dbc1c8b7ef4fddae437c3"
+  revision = "4cdb38c072b86bf795d2c81de50784d9fdd6eb77"
 
 [[projects]]
   branch = "master"
   name = "github.com/spf13/jwalterweatherman"
   packages = ["."]
-  revision = "fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66"
+  revision = "8f07c835e5cc1450c082fe3a439cf87b0cbb2d99"
 
 [[projects]]
   branch = "master"
   name = "github.com/spf13/pflag"
   packages = ["."]
-  revision = "2300d0f8576fe575f71aaa5b9bbe4e1b0dc2eb51"
+  revision = "e57e3eeb33f795204c1ca35f56c44f83227c6e66"
 
 [[projects]]
   branch = "master"
@@ -130,13 +148,13 @@ memo = "7de3048216ef82b20d303f50bb09f5a9c87be8af48e3b139c5c6cfbe6b0d616d"
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "ea9bcade75cb975a0b9738936568ab388b845617"
+  revision = "98b5b1e7e80eb60271c8dc4eba6521ec2c3e811e"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/text"
   packages = ["internal/gen","internal/triegen","internal/ucd","transform","unicode/cldr","unicode/norm"]
-  revision = "a9a820217f98f7c8a207ec1e45a874e1fe12c478"
+  revision = "19e51611da83d6be54ddafce4a4af510cb3e9ea4"
 
 [[projects]]
   branch = "v2"

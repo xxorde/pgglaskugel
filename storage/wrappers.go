@@ -25,11 +25,14 @@ import (
 	"io"
 	"sync"
 
-	"github.com/siddontang/go/log"
-	"github.com/spf13/viper"
+  "github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
 	"github.com/xxorde/pgglaskugel/storage/backends/local"
-	"github.com/xxorde/pgglaskugel/storage/backends/s3"
+  "github.com/xxorde/pgglaskugel/storage/awsS3"
+	"github.com/xxorde/pgglaskugel/storage/minio"
+	"github.com/xxorde/pgglaskugel/storage/minioCs"
+  
+  log "github.com/Sirupsen/logrus"
 )
 
 var (
@@ -95,16 +98,21 @@ func DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
 */
 
 func init() {
-	backends = initbackends()
+	backends ()
 }
 
 func initbackends() map[string]Backend {
-	fbackends := make(map[string]Backend)
-	var s3b s3.S3backend
+	backends := make(map[string]Backend)
+
+	var awsS3 awsS3.S3backend
+	var minio minio.S3backend
+	var minioCs minioCs.S3backend
 	var localb local.Localbackend
-	fbackends["s3"] = s3b
-	fbackends["file"] = localb
-	return fbackends
+	backends["s3"] = s3
+	backends["minio"] = minio
+	backends["minioCs"] = minioCs
+	backends["file"] = localb
+	return backends
 }
 
 // CheckBackend checks if the configured backend is supported

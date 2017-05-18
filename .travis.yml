@@ -1,12 +1,14 @@
 ---
 env:
-  - NO_TOOL_CHECK=True
+  - NO_TOOL_CHECK=True STORAGE=file
+  - NO_TOOL_CHECK=True STORAGE=s3
+  - NO_TOOL_CHECK=True STORAGE=minio
+  - NO_TOOL_CHECK=True STORAGE=minioCs
 language: go
 sudo: required
 services:
   - docker
 go:
-  - 1.6.x
   - 1.7.x
   - 1.8.x
   - master
@@ -17,4 +19,4 @@ script:
   - make pgglaskugel
   - make tarball
   - make test
-  - cd tools/Test-CentOS7; ./run_test_in_docker.sh
+  - cd tools/Test-CentOS7; ./run_test_in_docker.sh $STORAGE
