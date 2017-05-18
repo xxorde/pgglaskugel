@@ -39,8 +39,10 @@ var lswalCmd = &cobra.Command{
 }
 
 func showWals() {
-	vipermap := viper.AllSettings
-	archive := storage.GetMyWals(vipermap)
+	archive, err := storage.GetWals(viper.GetViper())
+	if err != nil {
+		log.Error(err)
+	}
 	log.Info(archive.String())
 }
 

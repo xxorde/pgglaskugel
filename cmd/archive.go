@@ -29,8 +29,8 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/xxorde/pgglaskugel/backup"
 	storage "github.com/xxorde/pgglaskugel/storage"
-	wal "github.com/xxorde/pgglaskugel/wal"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -98,11 +98,11 @@ func testWalSource(walSource string) (err error) {
 		return err
 	}
 
-	if fi.Size() < wal.MinArchiveSize {
+	if fi.Size() < backup.MinArchiveSize {
 		return errors.New("Input file is too small")
 	}
 
-	if fi.Size() > wal.MaxWalSize {
+	if fi.Size() > backup.MaxWalSize {
 		return errors.New("Input file is too big")
 	}
 
@@ -111,8 +111,7 @@ func testWalSource(walSource string) (err error) {
 
 // storeWalStream takes a stream and persists it with the configured method
 func storeWalStream(input *io.Reader, name string) {
-	vipermap := viper.AllSettings
-	storage.WriteStream(vipermap, input, name, "archive")
+	storage.WriteStream(viper.GetViper(), input, name, "archive")
 }
 
 func init() {

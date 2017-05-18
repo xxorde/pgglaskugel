@@ -40,8 +40,7 @@ var lsCmd = &cobra.Command{
 }
 
 func showBackups() {
-	vipermap := viper.AllSettings
-	backups := storage.GetMyBackups(vipermap, subDirWal)
+	backups := storage.GetMyBackups(viper.GetViper(), subDirWal)
 	log.Info(backups.String())
 }
 

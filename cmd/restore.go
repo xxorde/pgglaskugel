@@ -32,7 +32,6 @@ import (
 	"os"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	"github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 )
@@ -112,6 +111,7 @@ var (
 				recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"
 
 				log.Info("Going to write recovery.conf to: ", backupDestination)
+				log.Debugf("Content recovery.conf: %s ", recoveryConf)
 				err = ioutil.WriteFile(backupDestination+"/recovery.conf", []byte(recoveryConf), 0600)
 				if err != nil {
 					panic(err)
@@ -124,8 +124,7 @@ var (
 )
 
 func restoreBasebackup(backupDestination string, backupName string) (err error) {
-	vipermap := viper.AllSettings
-	backups := storage.GetMyBackups(vipermap, subDirWal)
+	backups := storage.GetMyBackups(viper.GetViper(), subDirWal)
 	backup, err := backups.Find(backupName)
 	if err != nil {
 		log.Fatal(err)
@@ -149,13 +148,13 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Watch stderror of inflation
 	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
 
 	// Watch stderror of untar
 	untarDone := make(chan struct{}) // Channel to wait for WatchOutput
 	untarStderror, err := untarCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(untarStderror, log.Info, untarDone)
 
 	// Pipe the the inflated backup in untar
@@ -177,7 +176,7 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 		dataStream = &gpgCmd.Stdin
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
-		ec.Check(err)
+		util.Check(err)
 		go util.WatchOutput(gpgStderror, log.Info, nil)
 	} else {
 		log.Debug("Backup will not be encrypted")
@@ -192,8 +191,14 @@ func restoreBasebackup(backupDestination string, backupName string) (err error) 
 	// Add one to the waiting counter
 	wgRestoreStart.Add(1)
 
+	// Add one worker to wait for finish
+	wgRestoreDone.Add(1)
+
+	// asign StorageType to backup
+	backup.StorageType = viper.GetString("backup_to")
+
 	// Start getBasebackup in new go-routine
-	go storage.GetBasebackup(vipermap, backup, dataStream, &wgRestoreStart, &wgRestoreDone)
+	go storage.GetBasebackup(viper.GetViper(), backup, dataStream, &wgRestoreStart, &wgRestoreDone)
 
 	// Wait for getBasebackup to start
 	wgRestoreStart.Wait()

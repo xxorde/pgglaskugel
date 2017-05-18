@@ -18,39 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package util
 
-import (
-	"io"
-	"sync"
+import log "github.com/Sirupsen/logrus"
 
-	"github.com/spf13/viper"
-	"github.com/xxorde/pgglaskugel/backup"
-)
+//Check function is a nice coating of indirection for error handling and logging
+func Check(err error) error {
+	return CheckFatal(err)
+}
 
-// Backend is used to store and access data.
-type Backend interface {
+// CheckCustom calls and returns CheckFatalCustom
+func CheckCustom(err error, output string) error {
+	return CheckFatalCustom(err, output)
+}
 
-	// Writes a datastream to the given backend
-	WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string)
+// CheckFatal calls and returns CheckFatalCustom
+func CheckFatal(err error) error {
+	return CheckFatalCustom(err, "")
+}
 
-	// Returns the data from the given backend
-	Fetch(viper *viper.Viper) error
+// CheckError calls and returns CheckErrorCustom
+func CheckError(err error) error {
+	return CheckErrorCustom(err, "")
+}
 
-	// Returns a specific basebackup
-	GetBasebackup(viper *viper.Viper, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
+// CheckFatalCustom logs output/error and returns error, if one is given
+func CheckFatalCustom(err error, output string) error {
+	if err != nil {
+		log.Fatal(output, err)
+		return err
+	}
+	return nil
+}
 
-	// Returns all found basebackups
-	GetBackups(viper *viper.Viper, subDirWal string) (bp backup.Backups)
-
-	// Returns all found WAL-files
-	GetWals(viper *viper.Viper) (backup.Archive, error)
-
-	// DeleteAll deletes all backups in the struct
-	DeleteAll(backups *backup.Backups) (count int, err error)
-	// DeleteWal deletes the given WAL-file
-	DeleteWal(viper *viper.Viper, w *backup.Wal) (err error)
-
-	// Returns the first WAL-file name for a backup
-	GetStartWalLocation(backup *backup.Backup) (startWalLocation string, err error)
+// CheckErrorCustom logs output/error and returns error, if one is given
+func CheckErrorCustom(err error, output string) error {
+	if err != nil {
+		log.Error(output, err)
+		return err
+	}
+	return nil
 }

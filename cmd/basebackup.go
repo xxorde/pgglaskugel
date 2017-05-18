@@ -26,7 +26,7 @@ import (
 	"sync"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
+	"github.com/xxorde/pgglaskugel/backup"
 	storage "github.com/xxorde/pgglaskugel/storage"
 	util "github.com/xxorde/pgglaskugel/util"
 
@@ -47,7 +47,7 @@ var (
 		Run: func(cmd *cobra.Command, args []string) {
 			log.Info("Perform basebackup")
 			// Get time, name and path for basebackup
-			backupTime := startTime.Format(util.BackupTimeFormat)
+			backupTime := startTime.Format(backup.BackupTimeFormat)
 			backupName := clusterName + "@" + backupTime
 			log.Info("Create new basebackup: ", backupName)
 
@@ -75,7 +75,7 @@ var (
 			// Watch output on stderror
 			backupDone := make(chan struct{}) // Channel to wait for WatchOutput
 			backupStderror, err := backupCmd.StderrPipe()
-			ec.Check(err)
+			util.Check(err)
 			go util.WatchOutput(backupStderror, log.Info, backupDone)
 
 			// Add one worker to our waiting group (for waiting later)
@@ -118,8 +118,7 @@ var (
 
 // handleBackupStream takes a stream and persists it with the configured method
 func storeBackupStream(input *io.Reader, name string) {
-	vipermap := viper.AllSettings
-	storage.WriteStream(vipermap, input, name, "basebackup")
+	storage.WriteStream(viper.GetViper(), input, name, "basebackup")
 }
 
 func init() {

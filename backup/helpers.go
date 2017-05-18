@@ -1,3 +1,4 @@
+// Package backup - backup module
 // Copyright © 2017 Alexander Sosna <alexander@xxor.de>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -17,45 +18,40 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+package backup
 
-package errorcheck
+import (
+	"errors"
+	"regexp"
 
-import log "github.com/Sirupsen/logrus"
+	"github.com/siddontang/go/log"
+)
 
-//Check function is a nice coating of indirection for error handling and logging
-func Check(err error) error {
-	return CheckFatal(err)
-}
-
-// CheckCustom calls and returns CheckFatalCustom
-func CheckCustom(err error, output string) error {
-	return CheckFatalCustom(err, output)
-}
-
-// CheckFatal calls and returns CheckFatalCustom
-func CheckFatal(err error) error {
-	return CheckFatalCustom(err, "")
-}
-
-// CheckError calls and returns CheckErrorCustom
-func CheckError(err error) error {
-	return CheckErrorCustom(err, "")
-}
-
-// CheckFatalCustom logs output/error and returns error, if one is given
-func CheckFatalCustom(err error, output string) error {
-	if err != nil {
-		log.Fatal(output, err)
-		return err
+// IsSane returns true if the backup seams sane
+func (b *Backup) IsSane() (sane bool) {
+	if b.Size < SaneBackupMinSize {
+		return false
 	}
-	return nil
+
+	return true
 }
 
-// CheckErrorCustom logs output/error and returns error, if one is given
-func CheckErrorCustom(err error, output string) error {
-	if err != nil {
-		log.Error(output, err)
-		return err
+// ParseBackupLabel checks the backup name
+func ParseBackupLabel(b *Backup, backupLabel []byte) (backup *Backup, err error) {
+	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9A-Fa-f]{24}\)`)
+	regStartWal := regexp.MustCompile(`[0-9A-Fa-f]{24}`)
+
+	startWalLine := regStartWalLine.Find(backupLabel)
+	if len(startWalLine) < 1 {
+		log.Debug(string(backupLabel))
+		return nil, errors.New("Can not find line with START WAL LOCATION")
 	}
-	return nil
+
+	startWal := regStartWal.Find(startWalLine)
+	if len(startWal) < 1 {
+		return nil, errors.New("Can not find START WAL")
+	}
+
+	b.StartWalLocation = string(startWal)
+	return b, nil
 }

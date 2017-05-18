@@ -21,76 +21,138 @@
 package storage
 
 import (
+	"fmt"
 	"io"
 	"sync"
 
-	"fmt"
+	"github.com/spf13/viper"
+	"github.com/xxorde/pgglaskugel/backup"
+	"github.com/xxorde/pgglaskugel/storage/backends/file"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3aws"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3minio"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3minioCs"
 
-	"github.com/xxorde/pgglaskugel/storage/awsS3"
-	"github.com/xxorde/pgglaskugel/storage/local"
-	"github.com/xxorde/pgglaskugel/storage/minio"
-	"github.com/xxorde/pgglaskugel/storage/minioCs"
-	"github.com/xxorde/pgglaskugel/util"
-	"github.com/xxorde/pgglaskugel/wal"
+	log "github.com/Sirupsen/logrus"
 )
 
-func initbackends() map[string]Backend {
-	backends := make(map[string]Backend)
+var (
+	// Definition in function below
+	backends map[string]Backend
+)
 
-	var s3 awsS3.S3backend
-	var minio minio.S3backend
-	var minioCs minioCs.S3backend
-	var localb local.Localbackend
-	backends["s3"] = s3
-	backends["minio"] = minio
-	backends["minioCs"] = minioCs
-	backends["file"] = localb
-	return backends
+/*
+ Storage Interface "Backend"" functions below
+*/
+
+// GetMyBackups does something
+func GetMyBackups(viper *viper.Viper, subDirWal string) (backups backup.Backups) {
+	bn := viper.GetString("backup_to")
+	return backends[bn].GetBackups(viper, subDirWal)
+}
+
+// GetWals returns all Wal-Files for a Backup
+func GetWals(viper *viper.Viper) (archive backup.Archive, err error) {
+	bn := viper.GetString("backup_to")
+	return backends[bn].GetWals(viper)
+}
+
+// WriteStream writes the stream to the configured archive_to
+func WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string) {
+	bn := viper.GetString("backup_to")
+	backends[bn].WriteStream(viper, input, name, backuptype)
+}
+
+// Fetch fetches
+func Fetch(viper *viper.Viper) error {
+	bn := viper.GetString("backup_to")
+	return backends[bn].Fetch(viper)
+}
+
+// GetBasebackup gets basebackups
+func GetBasebackup(viper *viper.Viper, bp *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+	bn := viper.GetString("backup_to")
+	backends[bn].GetBasebackup(viper, bp, backupStream, wgStart, wgDone)
+}
+
+// DeleteAll deletes all backups in the struct
+func DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error) {
+	bn := viper.GetString("backup_to")
+	return backends[bn].DeleteAll(backups)
+}
+
+// GetStartWalLocation returns the oldest needed WAL file
+// Every older WAL file is not required to use this backup
+func GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
+	bn := viper.GetString("backup_to")
+	return backends[bn].GetStartWalLocation(bp)
+}
+
+// DeleteWal deletes the given WAL-file
+func DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
+	bn := viper.GetString("backup_to")
+	return backends[bn].DeleteWal(viper, w)
+}
+
+/*
+	Not Interface functions below
+*/
+
+func init() {
+	backends = initbackends()
+}
+
+func initbackends() map[string]Backend {
+	fbackends := make(map[string]Backend)
+
+	var s3aws s3aws.S3backend
+	var s3minio s3minio.S3backend
+	var s3minioCs s3minioCs.S3backend
+	var file file.Localbackend
+	fbackends["s3aws"] = s3aws
+	fbackends["s3minio"] = s3minio
+	fbackends["s3minioCs"] = s3minioCs
+	fbackends["file"] = file
+	return fbackends
 }
 
 // CheckBackend checks if the configured backend is supported
 func CheckBackend(backend string) error {
-	backends := initbackends()
 	if _, ok := backends[backend]; ok {
 		return nil
 	}
 	return fmt.Errorf("Backend %s not supported", backend)
 }
 
-// GetMyBackups does something
-func GetMyBackups(viper func() map[string]interface{}, subDirWal string) (backups util.Backups) {
-	backends := initbackends()
-	bn := viper()["backup_to"].(string)
-	return backends[bn].GetBackups(viper, subDirWal)
-}
+// TODO Maybe we can move the function below to backup/wal.go. actually there is an import-circle
 
-// GetMyWals does something
-func GetMyWals(viper func() map[string]interface{}) (archive wal.Archive) {
-	backends := initbackends()
-	bn := viper()["backup_to"].(string)
-	return backends[bn].GetWals(viper)
-}
+// DeleteOldWal deletes all WAL files that are older than lastWalToKeep
+func DeleteOldWal(viper *viper.Viper, a *backup.Archive, lastWalToKeep backup.Wal) (deleted int) {
+	// WAL files are deleted sequential
+	// Due to the file system architecture parallel delete
+	// Maybe this can be done in parallel for other storage systems
+	visited := 0
+	for _, wal := range a.WalFiles {
+		// Count up
+		visited++
 
-// WriteStream writes the stream to the configured archive_to
-func WriteStream(viper func() map[string]interface{}, input *io.Reader, name string, backuptype string) {
-	backends := initbackends()
-	bn := viper()["backup_to"].(string)
-	backends[bn].WriteStream(viper, input, name, backuptype)
-}
+		// Check if current visited WAL is older than lastWalToKeep
+		old, err := wal.OlderThan(lastWalToKeep)
+		if err != nil {
+			log.Warn(err)
+			continue
+		}
 
-// Fetch fetches
-func Fetch(viper func() map[string]interface{}) error {
-	backends := initbackends()
-	bn := viper()["backup_to"].(string)
-	return backends[bn].Fetch(viper)
-}
-
-// GetBasebackup gets basebackups
-func GetBasebackup(viper func() map[string]interface{}, backup *util.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
-	backends := initbackends()
-	// Add one worker to wait for finish
-	wgDone.Add(1)
-
-	storageType := backup.StorageType()
-	backends[storageType].GetBasebackup(viper, backup, backupStream, wgStart, wgDone)
+		// If it is older, delete it
+		if old {
+			log.Debugf("Older than %s => going to delete: %s", lastWalToKeep.Name, wal.Name)
+			err := DeleteWal(viper, &wal)
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+			deleted++
+		}
+	}
+	log.Debugf("Checked %d files and deleted %d", visited, deleted)
+	return deleted
 }

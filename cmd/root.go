@@ -39,7 +39,6 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
-	ec "github.com/xxorde/pgglaskugel/errorcheck"
 	util "github.com/xxorde/pgglaskugel/util"
 
 	"github.com/kardianos/osext"
@@ -136,19 +135,37 @@ var (
 // storeStream is an interface for functions that store a stream in an storage backend
 type storeStream func(*io.Reader, string)
 
+// This is just to check for commands where we don't need to create/check a pid-file
+func checkContainswhitelist(command string) bool {
+	whiteCommands := []string{"ls", "status", "lswal", "version"}
+	for _, whitecom := range whiteCommands {
+		if whitecom == command {
+			return true
+		}
+	}
+	return false
+}
+
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	pidfile := viper.GetString("pidpath")
-	log.Debugf("pidfile is %s", pidfile)
-	if err := util.WritePidFile(pidfile); err != nil {
-		log.Error(err)
-		os.Exit(1)
-	} else {
-		defer util.DeletePidFile(pidfile)
+	if checkContainswhitelist(os.Args[1]) {
 		if err := RootCmd.Execute(); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
+		}
+	} else {
+		pidfile := viper.GetString("pidpath")
+		log.Debugf("pidfile is %s", pidfile)
+		if err := util.WritePidFile(pidfile); err != nil {
+			log.Error(err)
+			os.Exit(1)
+		} else {
+			defer util.DeletePidFile(pidfile)
+			if err := RootCmd.Execute(); err != nil {
+				fmt.Println(err)
+				os.Exit(-1)
+			}
 		}
 	}
 }
@@ -351,7 +368,7 @@ func initConfig() {
 
 	// Check if needed tools are available
 	err := testTools(baseBackupTools)
-	ec.Check(err)
+	util.Check(err)
 
 	// Check if the configured backend is supported
 	if err := storage.CheckBackend(viper.GetString("backup_to")); err != nil {
@@ -360,6 +377,7 @@ func initConfig() {
 }
 
 // Global needed functions
+
 func printDone() {
 	elapsed := time.Since(startTime)
 	log.Info("Done in ", elapsed)
@@ -413,7 +431,7 @@ func validatePgData(pgData string) (err error) {
 func reloadConfiguration(db *sql.DB) (err error) {
 	query := "SELECT pg_reload_conf();"
 	_, err = db.Query(query)
-	ec.Check(err)
+	util.Check(err)
 	return err
 }
 
@@ -421,7 +439,7 @@ func reloadConfiguration(db *sql.DB) (err error) {
 func getPgSetting(db *sql.DB, setting string) (value string, err error) {
 	query := "SELECT setting FROM pg_settings WHERE name = $1;"
 	row := db.QueryRow(query, setting)
-	ec.Check(err)
+	util.Check(err)
 	err = row.Scan(&value)
 	if err != nil {
 		log.Fatal("Can not get PostgreSQL setting: ", setting, " err:", err)
@@ -588,7 +606,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 	// Watch output on stderror
 	compressDone := make(chan struct{}) // Channel to wait for WatchOutput
 	compressStderror, err := compressCmd.StderrPipe()
-	ec.Check(err)
+	util.Check(err)
 	go util.WatchOutput(compressStderror, log.Info, compressDone)
 
 	// Pipe the backup in the compression
@@ -628,7 +646,7 @@ func compressEncryptStream(input *io.ReadCloser, name string, storageBackend sto
 		gpgCmd.Stdin = compressStdout
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
-		ec.Check(err)
+		util.Check(err)
 		go util.WatchOutput(gpgStderror, log.Warn, gpgDone)
 
 		// Start encryption
