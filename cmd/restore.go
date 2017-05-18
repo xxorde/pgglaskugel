@@ -111,6 +111,7 @@ var (
 				recoveryConf := "# Created by " + myExecutable + "\nrestore_command = '" + restoreCommand + "'"
 
 				log.Info("Going to write recovery.conf to: ", backupDestination)
+				log.Debugf("Content recovery.conf: %s ", recoveryConf)
 				err = ioutil.WriteFile(backupDestination+"/recovery.conf", []byte(recoveryConf), 0600)
 				if err != nil {
 					panic(err)
