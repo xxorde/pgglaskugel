@@ -50,7 +50,7 @@ func (b Localbackend) GetBackups(viper *viper.Viper, subDirWal string) (bp backu
 	for _, f := range files {
 		var newBackup backup.Backup
 		var err error
-		path := filepath.Join(backupDir + "/" + f.Name())
+		path := filepath.Join(backupDir, f.Name())
 		newBackup.Path, err = filepath.Abs(path)
 		if err != nil {
 			log.Warn(err)
@@ -266,7 +266,7 @@ func (b Localbackend) GetStartWalLocation(bp *backup.Backup) (startWalLocation s
 		if backup.RegBackupLabelFile.MatchString(f.Name()) {
 			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
 
-			labelFile := filepath.Join(bp.Backups.WalPath + "/" + f.Name())
+			labelFile := filepath.Join(bp.Backups.WalPath, f.Name())
 			catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
 			catCmdStdout, err := catCmd.StdoutPipe()
 			if err != nil {
@@ -308,7 +308,7 @@ func (b Localbackend) GetStartWalLocation(bp *backup.Backup) (startWalLocation s
 
 // DeleteWal deletes the given WAL-file
 func (b Localbackend) DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
-	err = os.Remove(filepath.Join(w.Archive.Path, w.Name+w.Extension))
+	err = os.Remove(filepath.Join(w.Archive.Path, w.Name, w.Extension))
 	if err != nil {
 		log.Warn(err)
 	}
