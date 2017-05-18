@@ -27,10 +27,10 @@ import (
 
 	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
-	"github.com/xxorde/pgglaskugel/storage/backends/awsS3"
-	"github.com/xxorde/pgglaskugel/storage/backends/local"
-	"github.com/xxorde/pgglaskugel/storage/backends/minioCs"
-	"github.com/xxorde/pgglaskugel/storage/backends/minios3"
+	"github.com/xxorde/pgglaskugel/storage/backends/file"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3aws"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3minio"
+	"github.com/xxorde/pgglaskugel/storage/backends/s3minioCs"
 
 	log "github.com/Sirupsen/logrus"
 )
@@ -104,14 +104,14 @@ func init() {
 func initbackends() map[string]Backend {
 	fbackends := make(map[string]Backend)
 
-	var awsS3 awsS3.S3backend
-	var minios3 minios3.S3backend
-	var minioCs minioCs.S3backend
-	var localb local.Localbackend
-	fbackends["awss3"] = awsS3
-	fbackends["minios3"] = minios3
-	fbackends["minioCs"] = minioCs
-	fbackends["file"] = localb
+	var s3aws s3aws.S3backend
+	var s3minio s3minio.S3backend
+	var s3minioCs s3minioCs.S3backend
+	var file file.Localbackend
+	fbackends["s3aws"] = s3aws
+	fbackends["s3minio"] = s3minio
+	fbackends["s3minioCs"] = s3minioCs
+	fbackends["file"] = file
 	return fbackends
 }
 

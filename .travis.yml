@@ -1,9 +1,9 @@
 ---
 env:
   - NO_TOOL_CHECK=True STORAGE=file
-  - NO_TOOL_CHECK=True STORAGE=s3
-  - NO_TOOL_CHECK=True STORAGE=minio
-  - NO_TOOL_CHECK=True STORAGE=minioCs
+  - NO_TOOL_CHECK=True STORAGE=s3aws
+  - NO_TOOL_CHECK=True STORAGE=s3minio
+  - NO_TOOL_CHECK=True STORAGE=s3minioCs
 language: go
 sudo: required
 services:

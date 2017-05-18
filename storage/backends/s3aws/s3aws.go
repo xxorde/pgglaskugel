@@ -18,10 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package minios3
+package s3aws
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"io/ioutil"
@@ -33,6 +34,12 @@ import (
 	"time"
 
 	log "github.com/Sirupsen/logrus"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/request"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	minio "github.com/minio/minio-go"
 	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
@@ -40,11 +47,62 @@ import (
 )
 
 var (
+	//timeout  = time.Hour * 48
+	timeout               = time.Duration(0)
 	extractTimeFromBackup = regexp.MustCompile(`.*@`) // Regexp to remove the name from a backup
 )
 
+// Uploads a file to S3 given a bucket and object key. Also takes a duration
+// value to terminate the update if it doesn't complete within that time.
+//
+// The AWS Region needs to be provided in the AWS shared config or on the
+// environment variable as `AWS_REGION`. Credentials also must be provided
+// Will default to shared config file, but can load from environment if provided.
+//
+// Usage:
+//   # Upload myfile.txt to myBucket/myKey. Must complete within 10 minutes or will fail
+//   go run withContext.go -b mybucket -k myKey -d 10m < myfile.txt
+type reader struct {
+	r io.Reader
+}
+
+func (r *reader) Read(p []byte) (int, error) {
+	return r.r.Read(p)
+}
+
 // S3backend returns a struct to use the S3-Methods
 type S3backend struct {
+}
+
+// GetWals returns WAL-Files from S3
+func (b S3backend) GetWals(viper *viper.Viper) (a backup.Archive, err error) {
+	log.Debug("Get backups from S3")
+	// Initialize minio client object.
+	a.MinioClient = b.getS3Connection(viper)
+	a.Bucket = viper.GetString("s3_bucket_wal")
+	bn := viper.GetString("backup_to")
+	// Create a done channel to control 'ListObjects' go routine.
+	doneCh := make(chan struct{})
+	defer close(doneCh)
+
+	isRecursive := true
+	objectCh := a.MinioClient.ListObjects(a.Bucket, "", isRecursive, doneCh)
+	for object := range objectCh {
+		if object.Err != nil {
+			return a, err
+		}
+		log.Debug(object)
+		if object.Err != nil {
+			return a, err
+		}
+
+		err = a.Add(object.Key, bn, object.Size)
+		if err != nil {
+			return a, err
+		}
+
+	}
+	return a, nil
 }
 
 // GetBackups returns Backups
@@ -91,37 +149,6 @@ func (b S3backend) GetBackups(viper *viper.Viper, subDirWal string) (backups bac
 
 }
 
-// GetWals returns WAL-Files from S3
-func (b S3backend) GetWals(viper *viper.Viper) (a backup.Archive, err error) {
-	log.Debug("Get backups from S3")
-	// Initialize minio client object.
-	a.MinioClient = b.getS3Connection(viper)
-	a.Bucket = viper.GetString("s3_bucket_wal")
-	bn := viper.GetString("backup_to")
-	// Create a done channel to control 'ListObjects' go routine.
-	doneCh := make(chan struct{})
-	defer close(doneCh)
-
-	isRecursive := true
-	objectCh := a.MinioClient.ListObjects(a.Bucket, "", isRecursive, doneCh)
-	for object := range objectCh {
-		if object.Err != nil {
-			return a, err
-		}
-		log.Debug(object)
-		if object.Err != nil {
-			return a, err
-		}
-
-		err = a.Add(object.Key, bn, object.Size)
-		if err != nil {
-			return a, err
-		}
-
-	}
-	return a, nil
-}
-
 // GetConnection returns an S3-Connection Handler
 func (b S3backend) getS3Connection(viper *viper.Viper) (minioClient minio.Client) {
 	endpoint := viper.GetString("s3_endpoint")
@@ -165,12 +192,15 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	} else {
 		log.Fatalf(" unknown stream-type: %s\n", backuptype)
 	}
+	endpoint := viper.GetString("s3_endpoint")
 	location := viper.GetString("s3_location")
-	encrypt := viper.GetBool("encrypt")
+	disableSsl := viper.GetBool("s3_ssl")
+	S3ForcePathStyle := viper.GetBool("s3_force_path_style")
+	partSize := int64(1024 * 1024 * viper.GetInt("s3_part_size_mb"))
 	contentType := "zstd"
 
 	// Set contentType for encryption
-	if encrypt {
+	if viper.GetBool("encrypt") {
 		contentType = "pgp"
 	}
 
@@ -194,14 +224,48 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 		log.Infof("Bucket %s created.", bucket)
 	}
 
-	log.Debug("Put stream into bucket: ", bucket)
-	n, err := minioClient.PutObject(bucket, name, *input, contentType)
-	if err != nil {
-		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
-		log.Fatal(err)
-		return
+	// Prepare connection with aws-sdk
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region:           &location,
+		Endpoint:         &endpoint,
+		DisableSSL:       &disableSsl,
+		S3ForcePathStyle: &S3ForcePathStyle,
+		Credentials:      credentials.NewStaticCredentials(viper.GetString("s3_access_key"), viper.GetString("s3_secret_key"), "123"),
+	}))
+
+	uploader := s3manager.NewUploader(sess, func(u *s3manager.Uploader) {
+		u.PartSize = partSize
+	})
+
+	// Create a context with a timeout that will abort the upload if it takes
+	// more than the passed in timeout.
+	ctx := context.Background()
+	cancelFn := func() {
 	}
-	log.Infof("Written %d bytes to %s in bucket %s.", n, name, bucket)
+	if timeout > 0 {
+		log.Debug("Timeout will be used: ", timeout)
+		ctx, cancelFn = context.WithTimeout(ctx, timeout*time.Second)
+	}
+	// Ensure the context is canceled to prevent leaking.
+	// See context package for more information, https://golang.org/pkg/context/
+	defer cancelFn()
+
+	log.Debug("Put stream into bucket: ", bucket)
+	_, err = uploader.UploadWithContext(ctx, &s3manager.UploadInput{
+		Bucket:      &bucket,
+		Key:         &name,
+		Body:        &reader{*input},
+		ContentType: &contentType,
+	})
+	if err != nil {
+		if aerr, ok := err.(awserr.Error); ok && aerr.Code() == request.CanceledErrorCode {
+			// If the SDK can determine the request or retry delay was canceled
+			// by a context the CanceledErrorCode error code will be returned.
+			log.Fatalf("upload canceled due to timeout, %v\n", err)
+		} else {
+			log.Fatalf("failed to upload object, %v\n", err)
+		}
+	}
 }
 
 // Fetch recover from a S3 compatible object store
