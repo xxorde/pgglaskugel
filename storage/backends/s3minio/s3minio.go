@@ -174,6 +174,11 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 		contentType = "pgp"
 	}
 
+	// Create metadata for minio
+	metaData := make(map[string][]string)
+	metaData["Content-Type"] = []string{contentType}
+	log.Debug("metaData", metaData)
+
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
 
@@ -195,11 +200,11 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	}
 
 	log.Debug("Put stream into bucket: ", bucket)
-	n, err := minioClient.PutObject(bucket, name, *input, contentType)
+	n, err := minioClient.PutObjectStreamingWithProgress(bucket, name, *input, metaData, nil)
 	if err != nil {
-		log.Debug("minioClient.PutObject(", bucket, ", ", name, ", *input,", contentType, ") failed")
-		log.Fatal(err)
-		return
+		log.Infof("minioClient.PutObjectStreamingWithProgress(", bucket, ", ", name, ", *input, ", metaData, ", nil) failed")
+		log.Infof("Written %d bytes to %s in bucket %s.", n, name, bucket)
+		log.Fatal("err:", err)
 	}
 	log.Infof("Written %d bytes to %s in bucket %s.", n, name, bucket)
 }
