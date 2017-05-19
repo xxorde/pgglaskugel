@@ -24,7 +24,7 @@ import (
 	"errors"
 	"regexp"
 
-	"github.com/siddontang/go/log"
+	log "github.com/Sirupsen/logrus"
 )
 
 // IsSane returns true if the backup seams sane
