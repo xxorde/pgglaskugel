@@ -530,14 +530,17 @@ func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup, back
 }
 
 // DeleteAll deletes all backups in the struct
-func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
+func (b S3backend) DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error) {
 	// Sort backups
 	backups.SortDesc()
+	// Initialize minio client object.
+	minioClient := b.getS3Connection(viper)
+
 	// We delete all backups, but start with the oldest just in case
 	for i := len(backups.Backup) - 1; i >= 0; i-- {
 		backup := backups.Backup[i]
-		log.Debug("backups.MinioClient.RemoveObject(", backup.Path, ", ", backup.Name+backup.Extension, ")")
-		err = backups.MinioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
+		log.Debug("minioClient.RemoveObject(", backup.Path, ", ", backup.Name+backup.Extension, ")")
+		err = minioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
 		if err != nil {
 			log.Warn(err)
 		} else {
@@ -550,7 +553,9 @@ func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b S3backend) GetStartWalLocation(bp *backup.Backup) (startWalLocation string, err error) {
+func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
+	// Initialize minio client object.
+	minioClient := b.getS3Connection(viper)
 	// Escape the name so we can use it in a regular expression
 	searchName := regexp.QuoteMeta(bp.Name)
 	// Regex to identify the right file
@@ -564,7 +569,7 @@ func (b S3backend) GetStartWalLocation(bp *backup.Backup) (startWalLocation stri
 	defer close(doneCh)
 
 	isRecursive := true
-	objectCh := bp.Backups.MinioClient.ListObjects(bp.Backups.WalPath, "", isRecursive, doneCh)
+	objectCh := minioClient.ListObjects(bp.Backups.WalPath, "", isRecursive, doneCh)
 	for object := range objectCh {
 		if object.Err != nil {
 			log.Error(object.Err)
@@ -581,7 +586,7 @@ func (b S3backend) GetStartWalLocation(bp *backup.Backup) (startWalLocation stri
 		if backup.RegBackupLabelFile.MatchString(object.Key) {
 			log.Debug(object.Key, " => seems to be a backup Label, by size and name")
 
-			backupLabelFile, err := bp.Backups.MinioClient.GetObject(bp.Backups.WalPath, object.Key)
+			backupLabelFile, err := minioClient.GetObject(bp.Backups.WalPath, object.Key)
 			if err != nil {
 				log.Warn("Can not get backupLabel, ", err)
 				continue

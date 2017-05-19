@@ -77,14 +77,14 @@ func GetBasebackup(viper *viper.Viper, bp *backup.Backup, backupStream *io.Reade
 // DeleteAll deletes all backups in the struct
 func DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error) {
 	bn := viper.GetString("backup_to")
-	return backends[bn].DeleteAll(backups)
+	return backends[bn].DeleteAll(viper, backups)
 }
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
 func GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
 	bn := viper.GetString("backup_to")
-	return backends[bn].GetStartWalLocation(bp)
+	return backends[bn].GetStartWalLocation(viper, bp)
 }
 
 // DeleteWal deletes the given WAL-file
