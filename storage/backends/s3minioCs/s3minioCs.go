@@ -536,6 +536,7 @@ func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
 	// We delete all backups, but start with the oldest just in case
 	for i := len(backups.Backup) - 1; i >= 0; i-- {
 		backup := backups.Backup[i]
+		log.Debug("backups.MinioClient.RemoveObject(", backup.Path, ", ", backup.Name+backup.Extension, ")")
 		err = backups.MinioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
 		if err != nil {
 			log.Warn(err)
