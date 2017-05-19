@@ -604,7 +604,9 @@ pgglaskugelrestore()
 
 pgglaskugelcleanup()
 {
-  echo "Testing Cleanup with retentin 1 and force-delete"
+  echo "we wait a few seconds till archive is done"
+  sleep 10
+  echo "Testing Cleanup with retention 1 and force-delete"
   $DBUSER_DO pgglaskugel cleanup --retain 1 --force-delete true --config $TESTDIR/.pgglaskugel/config.yml
 }
 
