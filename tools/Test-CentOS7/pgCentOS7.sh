@@ -284,13 +284,13 @@ encrypttest()
           wal=$(ls $ARCHIVEDIR/wal | head -1)
           walenctest=$ARCHIVEDIR/wal/$wal
 
-          bb=$(ls $ARCHIVEDIR/basebackup)
+          bb=$(ls $ARCHIVEDIR/basebackup | head -1)
           enctest=$ARCHIVEDIR/basebackup/$bb
        else
           wal=$(ls $MINIO/wal | head -1)
           walenctest=$MINIO/wal/$wal
 
-          bb=$(ls $MINIO/basebackup)
+          bb=$(ls $MINIO/basebackup | head -1)
           enctest=$MINIO/basebackup/$bb
       fi
     done
@@ -580,10 +580,10 @@ pgglaskugelrestore()
   echo "restoring backup..."
   if [ "$1" == "file" ]
     then
-      backupfilezst=$(ls $ARCHIVEDIR/basebackup)
+      backupfilezst=$(ls $ARCHIVEDIR/basebackup | head -1)
     elif [ "$1" != "file" ]
       then
-        backupfilezst=$(ls $MINIO/basebackup)
+        backupfilezst=$(ls $MINIO/basebackup | head -1)
     else
       echo "ERROR: No Backupdirectory specified"
       exit 1
@@ -597,6 +597,30 @@ pgglaskugelrestore()
   fi
   backupfilezst=$(basename $backupfilezst .zst)
   $DBUSER_DO pgglaskugel restore $backupfilezst $PGDATA --config $TESTDIR/.pgglaskugel/config.yml
+}
+
+pgglaskugelcleanup()
+{
+  echo "Testing Cleanup with retentin 1 and force-delete"
+  $DBUSER_DO pgglaskugel cleanup --retain 1 --force-delete true --config $TESTDIR/.pgglaskugel/config.yml
+}
+
+pgglaskugells()
+{
+  echo "Testing ls Basebackups"
+  $DBUSER_DO pgglaskugel ls --config $TESTDIR/.pgglaskugel/config.yml
+}
+
+pgglaskugellswal()
+{
+  echo "Testing ls Wal-files"
+  $DBUSER_DO pgglaskugel lswal --config $TESTDIR/.pgglaskugel/config.yml
+}
+
+pgglaskugelversion()
+{
+  echo "Testing version output"
+$DBUSER_DO pgglaskugel version
 }
 
 testingtables()
@@ -655,7 +679,13 @@ runtest()
   fi
   pickconfig $1 $2
   pgglaskugelsetup
+  pgglaskugelversion
+  # we need minimum two backups
   pgglaskugelbasebackup
+  pgglaskugelbasebackup
+  pgglaskugells
+  pgglaskugellswal
+  pgglaskugelcleanup
   encrypttest $1 $2
   dropoldcluster
   pgglaskugelrestore $1
