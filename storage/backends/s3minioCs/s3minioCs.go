@@ -251,7 +251,10 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 		contentType = "pgp"
 	}
 
-	log.Warn("not jet used contetnType ", contentType)
+	// Create metadata for minio
+	metaData := make(map[string][]string)
+	metaData["Content-Type"] = []string{contentType}
+	log.Debug("metaData", metaData)
 
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
@@ -277,7 +280,6 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	var c minio.Core
 	client := b.getS3Connection(viper)
 	c.Client = &client
-	metaData := map[string][]string{}
 
 	// Total data read and written to server. should be equal to 'size' at the end of the call.
 	var totalUploadedSize int64
@@ -534,6 +536,7 @@ func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
 	// We delete all backups, but start with the oldest just in case
 	for i := len(backups.Backup) - 1; i >= 0; i-- {
 		backup := backups.Backup[i]
+		log.Debug("backups.MinioClient.RemoveObject(", backup.Path, ", ", backup.Name+backup.Extension, ")")
 		err = backups.MinioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
 		if err != nil {
 			log.Warn(err)
