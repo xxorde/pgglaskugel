@@ -567,7 +567,7 @@ pgglaskugelbasebackup()
   echo "Creating basebackup"
   $DBUSER_DO pgglaskugel basebackup --config $TESTDIR/.pgglaskugel/config.yml
   sleep 5
-    # we need minimum two backups
+  # we need minimum two backups
   $DBUSER_DO pgglaskugel basebackup --config $TESTDIR/.pgglaskugel/config.yml
   #another one
   $DBUSER_DO psql -c "create table test2 (num int, Primary Key(num));"
