@@ -21,6 +21,7 @@
 package s3minioCs
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/md5"
 	"crypto/sha256"
@@ -28,8 +29,8 @@ import (
 	"errors"
 	"hash"
 	"io"
-	"io/ioutil"
 	"math"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -384,44 +385,40 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	log.Infof("Written %d bytes to %s in bucket %s.", totalUploadedSize, name, bucket)
 }
 
-// Fetch recover from a S3 compatible object store
-func (b S3backend) Fetch(viper *viper.Viper) (err error) {
-	bucket := viper.GetString("s3_bucket_wal")
-	walTarget := viper.GetString("waltarget")
-	walName := viper.GetString("walname")
-	walSource := walName + ".zst"
+func (b S3backend) readStream(viper *viper.Viper, name string, bucket string,
+	output *io.Reader, start, wait chan bool) error {
 	encrypt := viper.GetBool("encrypt")
+
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
 	cmdZstd := viper.GetString("path_to_zstd")
 	cmdGpg := viper.GetString("path_to_gpg")
 
-	log.Debug("fetchFromS3 walTarget: ", walTarget, " walName: ", walName)
+	log.Debug("readStream(viper *viper.Viper, name string, bucket string, output *io.Reader) started")
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)
 	if err != nil {
-		log.Error("Can not test for S3 bucket")
-		log.Fatal(err)
+		log.Fatal("Can not test for S3 bucket", err)
 	}
 	if !exists {
-		log.Fatal("Bucket to fetch from does not exists")
+		log.Fatal("Bucket to fetch from does not exists,", bucket)
 	}
 
-	walObject, err := minioClient.GetObject(bucket, walSource)
+	object, err := minioClient.GetObject(bucket, name)
 	if err != nil {
-		log.Error("Can not get WAL file from S3")
+		log.Error("Can not get object file from S3, ", name)
 		log.Fatal(err)
 	}
-	defer walObject.Close()
+	defer object.Close()
 
 	// Test if the object is accessible
-	stat, err := walObject.Stat()
+	stat, err := object.Stat()
 	if err != nil {
-		log.Error("Can not get stats for WAL file from S3, does WAL file exists?")
+		log.Error("Can not get stats for object from S3, does object exists?")
 		log.Fatal(err)
 	}
 	if stat.Size <= 0 {
-		log.Fatal("WAL object has size <= 0")
+		log.Fatal("Object has size <= 0")
 	}
 
 	var gpgStout io.ReadCloser
@@ -437,11 +434,11 @@ func (b S3backend) Fetch(viper *viper.Viper) (err error) {
 			log.Fatal("Can not attach pipe to gpg process, ", err)
 		}
 		// Attach output of WAL to stdin
-		gpgCmd.Stdin = walObject
+		gpgCmd.Stdin = object
 		// Watch output on stderror
 		gpgStderror, err := gpgCmd.StderrPipe()
 		util.Check(err)
-		go util.WatchOutput(gpgStderror, log.Info, nil)
+		go util.WatchOutput(gpgStderror, log.Warn, nil)
 
 		// Start decryption
 		if err := gpgCmd.Start(); err != nil {
@@ -451,13 +448,16 @@ func (b S3backend) Fetch(viper *viper.Viper) (err error) {
 	}
 
 	// command to inflate the data stream
-	inflateCmd := exec.Command(cmdZstd, "-d", "-o", walTarget)
+	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout")
+
+	// Expose output as output
+	*output, err = inflateCmd.StdoutPipe()
 
 	// Watch output on stderror
 	inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
 	inflateStderror, err := inflateCmd.StderrPipe()
 	util.Check(err)
-	go util.WatchOutput(inflateStderror, log.Info, inflateDone)
+	go util.WatchOutput(inflateStderror, log.Warn, inflateDone)
 
 	// Assign inflationInput as Stdin for the inflate command
 	if gpgStout != nil {
@@ -465,14 +465,24 @@ func (b S3backend) Fetch(viper *viper.Viper) (err error) {
 		inflateCmd.Stdin = gpgStout
 	} else {
 		// If gpgStout is not defined use raw WAL
-		inflateCmd.Stdin = walObject
+		inflateCmd.Stdin = object
 	}
 
-	// Start WAL inflation
+	// Start inflation
 	if err := inflateCmd.Start(); err != nil {
 		log.Fatal("zstd failed on startup, ", err)
 	}
 	log.Debug("Inflation started")
+
+	// Tell external listeners that we started
+	if start != nil {
+		start <- true
+	}
+
+	// Wait for external signal if chanel is set
+	if wait != nil {
+		<-wait
+	}
 
 	// Wait for watch goroutine before Cmd.Wait(), race condition!
 	<-inflateDone
@@ -480,11 +490,54 @@ func (b S3backend) Fetch(viper *viper.Viper) (err error) {
 	// If there is still data in the output pipe it can be lost!
 	err = inflateCmd.Wait()
 	util.CheckCustom(err, "Inflation failed after startup, ")
+
+	log.Debug("readStream(viper *viper.Viper, name string, bucket string, output *io.Reader) done")
+
+	return err
+}
+
+// Fetch recover from a S3 compatible object store
+func (b S3backend) Fetch(viper *viper.Viper) (err error) {
+	walBucket := viper.GetString("s3_bucket_wal")
+	walName := viper.GetString("walname")
+	walSource := walName + ".zst"
+	walTarget := viper.GetString("waltarget")
+
+	// Open output file
+	walFile, err := os.Create(walTarget)
+	util.Check(err)
+	defer walFile.Close()
+
+	// Create writer for the walFile
+	writer := bufio.NewWriter(walFile)
+
+	// Create reader for the data stream
+	var walStream io.Reader
+
+	waitForStart := make(chan bool)
+	tellToStop := make(chan bool)
+
+	// Start to read file
+	go b.readStream(viper, walSource, walBucket, &walStream, waitForStart, tellToStop)
+
+	// Wait for readStream to start up before io.Copy
+	<-waitForStart
+
+	// Write walStream in walFile
+	log.Debug("io.Copy(writer, walStream)")
+	written, err := io.Copy(writer, walStream)
+	writer.Flush()
+	log.Debugf("io.Copy(writer, walStream) written: %d, err: %s", written, err)
+
+	// Tell readStream to fish after io.Copy
+	tellToStop <- true
+
 	return err
 }
 
 // GetBasebackup gets things from S3
-func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
+func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup,
+	backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromS3")
 	bucket := viper.GetString("s3_bucket_backup")
 
@@ -542,13 +595,20 @@ func (b S3backend) DeleteAll(viper *viper.Viper, backups *backup.Backups) (count
 		log.Debug("minioClient.RemoveObject(", backup.Path, ", ", backup.Name+backup.Extension, ")")
 		err = minioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
 		if err != nil {
-			log.Warn(err)
+			log.Warn("Error deleting backup: ", backup.Name+backup.Extension, " from ", backup.Path, " err:", err)
 		} else {
 			count++
 		}
 
 	}
 	return count, err
+
+}
+
+func streamToByte(stream io.Reader) []byte {
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	return buf.Bytes()
 }
 
 // GetStartWalLocation returns the oldest needed WAL file
@@ -584,66 +644,32 @@ func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (s
 		}
 
 		if backup.RegBackupLabelFile.MatchString(object.Key) {
-			log.Debug(object.Key, " => seems to be a backup Label, by size and name")
+			log.Debug(object.Key, " => seems to be a backup label, by size and name")
 
-			backupLabelFile, err := minioClient.GetObject(bp.Backups.WalPath, object.Key)
-			if err != nil {
-				log.Warn("Can not get backupLabel, ", err)
-				continue
-			}
+			// Create reader for the data stream
+			var walStream io.Reader
 
-			bufCompressed := make([]byte, backup.MaxBackupLabelSize)
-			readCount, err := backupLabelFile.Read(bufCompressed)
-			if err != nil && err != io.EOF {
-				log.Warn("Can not read backupLabel, ", err)
-				continue
-			}
-			log.Debug("Read ", readCount, " from backupLabel")
+			waitForStart := make(chan bool)
+			tellToStop := make(chan bool)
 
-			// Command to decompress the backuplabel
-			catCmd := exec.Command("zstd", "-d", "--stdout")
-			catCmdStdout, err := catCmd.StdoutPipe()
-			if err != nil {
-				// if we can not open the file we continue with next
-				log.Warn("catCmd.StdoutPipe(), ", err)
-				continue
-			}
+			// Start to read file
+			go b.readStream(viper, object.Key, bp.Backups.WalPath, &walStream, waitForStart, tellToStop)
 
-			// Use backupLabel as input for catCmd
-			catDone := make(chan struct{}) // Channel to wait for WatchOutput
-			catCmd.Stdin = bytes.NewReader(bufCompressed)
-			catCmdStderror, err := catCmd.StderrPipe()
-			go util.WatchOutput(catCmdStderror, log.Debug, catDone)
+			// Wait for readStream to start up before io.Copy
+			log.Debug("<-waitForStart")
+			<-waitForStart
 
-			err = catCmd.Start()
-			if err != nil {
-				log.Warn("catCmd.Start(), ", err)
-				continue
-			}
+			// Create buffer write backup label to it
+			plain := streamToByte(walStream)
+			log.Debugf("plain: %s,\nsize: %d", plain, len(plain))
 
-			bufPlain, err := ioutil.ReadAll(catCmdStdout)
-			if err != nil {
-				log.Warn("Reading from command: ", err)
-				continue
-			}
+			// Tell readStream to fish after io.Copy
+			log.Debug("tellToStop <- true")
+			tellToStop <- true
 
-			// Wait for output watchers to finish
-			// If the Cmd.Wait() is called while another process is reading
-			// from Stdout / Stderr this is a race condition.
-			// So we are waiting for the watchers first
-			<-catDone
-
-			// Wait for the command to finish
-			err = catCmd.Wait()
-			if err != nil {
-				// We ignore errors here, zstd returns 1 even if everything is fine here
-				log.Debug("catCmd.Wait(), ", err)
-			}
-			log.Debug("Backuplabel:\n", string(bufPlain))
-
-			if len(regLabel.Find(bufPlain)) > 1 {
+			if len(regLabel.Find(plain)) > 1 {
 				log.Debug("Found matching backup label")
-				bp, err = backup.ParseBackupLabel(bp, bufPlain)
+				bp, err = backup.ParseBackupLabel(bp, plain)
 				if err != nil {
 					log.Error(err)
 				}

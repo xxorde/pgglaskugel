@@ -18,7 +18,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-set -x
+set -x -e
 
 # config
 PG_VERSION=9.5
@@ -605,7 +605,7 @@ pgglaskugelrestore()
 pgglaskugelcleanup()
 {
   echo "we wait a few seconds till archive is done"
-  sleep 10
+  sleep 2
   echo "Testing Cleanup with retention 1 and force-delete"
   $DBUSER_DO pgglaskugel cleanup --retain 1 --force-delete true --config $TESTDIR/.pgglaskugel/config.yml
 }
@@ -625,7 +625,7 @@ pgglaskugellswal()
 pgglaskugelversion()
 {
   echo "Testing version output"
-$DBUSER_DO pgglaskugel version
+  $DBUSER_DO pgglaskugel version
 }
 
 testingtables()
@@ -727,7 +727,8 @@ fi
 echo "Check if CentOS7..."
 checkdistroversion
 
-#trap cleanup 0 2 3 15
+# Cleanup afterwards
+trap cleanup 0 2 3 15
 
 installpackages
 getPostgressetup
