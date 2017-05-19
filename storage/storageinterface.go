@@ -47,10 +47,10 @@ type Backend interface {
 	GetWals(viper *viper.Viper) (backup.Archive, error)
 
 	// DeleteAll deletes all backups in the struct
-	DeleteAll(backups *backup.Backups) (count int, err error)
+	DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error)
 	// DeleteWal deletes the given WAL-file
 	DeleteWal(viper *viper.Viper, w *backup.Wal) (err error)
 
 	// Returns the first WAL-file name for a backup
-	GetStartWalLocation(backup *backup.Backup) (startWalLocation string, err error)
+	GetStartWalLocation(viper *viper.Viper, backup *backup.Backup) (startWalLocation string, err error)
 }

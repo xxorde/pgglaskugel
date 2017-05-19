@@ -84,8 +84,7 @@ type Backups struct {
 	Name   string
 	Backup []Backup
 	// WalPath is also used for alternative backup paths (e.g. bucket in S3)
-	WalPath     string
-	MinioClient minio.Client
+	WalPath string
 }
 
 // Wal is a struct to represent a WAL file

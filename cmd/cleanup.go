@@ -98,7 +98,7 @@ var cleanupCmd = &cobra.Command{
 		// Delete all backups in the "discard" set
 		count, err := storage.DeleteAll(viper.GetViper(), &discard)
 		if err != nil {
-			log.Warn("DeleteAll()", err)
+			log.Fatal("DeleteAll()", err)
 		}
 		log.Info(strconv.Itoa(count) + " backups were removed.")
 		backups = storage.GetMyBackups(viper.GetViper(), subDirWal)

@@ -137,7 +137,7 @@ type storeStream func(*io.Reader, string)
 
 // This is just to check for commands where we don't need to create/check a pid-file
 func checkContainswhitelist(command string) bool {
-	whiteCommands := []string{"ls", "status", "lswal", "version"}
+	whiteCommands := []string{"ls", "status", "lswal", "version", "archive"}
 	for _, whitecom := range whiteCommands {
 		if whitecom == command {
 			return true

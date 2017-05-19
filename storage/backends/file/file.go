@@ -230,7 +230,7 @@ func (b Localbackend) GetBasebackup(viper *viper.Viper, backup *backup.Backup, b
 }
 
 // DeleteAll deletes all backups in the struct
-func (b Localbackend) DeleteAll(backups *backup.Backups) (count int, err error) {
+func (b Localbackend) DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error) {
 	// Sort backups
 	backups.SortDesc()
 	// We delete all backups, but start with the oldest just in case
@@ -249,7 +249,7 @@ func (b Localbackend) DeleteAll(backups *backup.Backups) (count int, err error) 
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b Localbackend) GetStartWalLocation(bp *backup.Backup) (startWalLocation string, err error) {
+func (b Localbackend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
 	// Escape the name so we can use it in a regular expression
 	searchName := regexp.QuoteMeta(bp.Name)
 	// Regex to identify the right file
