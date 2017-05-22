@@ -30,6 +30,7 @@ ARCHIVEDIR=$TESTDIR/backup/pgglaskugel
 MINIO=/var/lib/minio
 DBUSER=postgres
 DBUSER_DO="sudo -u $DBUSER"
+PGG="$DBUSER_DO pgglaskugel --config $TESTDIR/.pgglaskugel/config.yml"
 STORAGE=$1
 
 cleanup()
@@ -605,10 +606,22 @@ pgglaskugelrestore()
 
 pgglaskugelcleanup()
 {
+  before=$($PGG ls 2>&1 | grep '| \.zst |' | wc -l)
+  echo "Count backups before: $before"
+
   echo "we wait a few seconds till archive is done"
   sleep 2
   echo "Testing Cleanup with retention 1 and force-delete"
   $DBUSER_DO pgglaskugel cleanup --retain 1 --force-delete true --config $TESTDIR/.pgglaskugel/config.yml
+
+  after=$($PGG ls 2>&1 | grep '| \.zst |' | wc -l)
+  echo "Count backups after: $after"
+
+  if [ "$after" >= "$before"]
+    then
+      echo "No backup was deleted!"
+      exit 1
+  fi
 }
 
 pgglaskugells()
