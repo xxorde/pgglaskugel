@@ -34,6 +34,7 @@ STORAGE=$1
 
 cleanup()
 {
+  set +e
   echo "Clean everything for $STORAGE..."
   $DBUSER_DO $PG_CTL stop -D $PGDATA -s -m fast
   pkill minio > /dev/null 2>&1
