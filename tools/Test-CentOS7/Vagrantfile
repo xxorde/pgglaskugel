@@ -20,14 +20,6 @@ Vagrant.configure("2") do |config|
   end
   config.vm.provision "shell" do |s|
     s.path = "./pgCentOS7.sh"
-    s.args = ["s3", "/vagrant"]
-  end
-  config.vm.provision "shell" do |s|
-    s.path = "./pgCentOS7.sh"
-    s.args = ["minio", "/vagrant"]
-  end
-  config.vm.provision "shell" do |s|
-    s.path = "./pgCentOS7.sh"
     s.args = ["minioCs", "/vagrant"]
   end
   # Disable automatic box update checking. If you disable this, then

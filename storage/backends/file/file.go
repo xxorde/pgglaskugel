@@ -255,6 +255,12 @@ func (b Localbackend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup)
 	// Regex to identify the right file
 	regLabel := regexp.MustCompile(`.*LABEL: ` + searchName)
 	log.Debug("regLabel: ", regLabel)
+	encrypt := viper.GetBool("encrypt")
+	cmdZstdcat := viper.GetString("path_to_zstdcat")
+	cmdZstd := viper.GetString("path_to_zstd")
+	cmdGpg := viper.GetString("path_to_gpg")
+
+	bp.Backups.WalPath = viper.GetString("waldir")
 
 	files, _ := ioutil.ReadDir(bp.Backups.WalPath)
 	// find all backup labels
@@ -265,37 +271,100 @@ func (b Localbackend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup)
 		}
 		if backup.RegBackupLabelFile.MatchString(f.Name()) {
 			log.Debug(f.Name(), " => seems to be a backup Label, by size and name")
-
 			labelFile := filepath.Join(bp.Backups.WalPath, f.Name())
-			catCmd := exec.Command("/usr/bin/zstdcat", labelFile)
-			catCmdStdout, err := catCmd.StdoutPipe()
-			if err != nil {
-				// if we can not open the file we continue with next
-				log.Warn("catCmd.StdoutPipe(), ", err)
-				continue
-			}
+			var backupLabel []byte
 
-			err = catCmd.Start()
-			if err != nil {
-				log.Warn("catCmd.Start(), ", err)
-				continue
-			}
+			// If encryption is not used the restore is easy
+			if encrypt == false {
+				catCmd := exec.Command(cmdZstdcat, labelFile)
 
-			buf, err := ioutil.ReadAll(catCmdStdout)
-			if err != nil {
-				log.Warn("Reading from command: ", err)
-				continue
-			}
+				catCmdStdout, err := catCmd.StdoutPipe()
+				if err != nil {
+					// if we can not open the file we continue with next
+					log.Warn("catCmd.StdoutPipe(), ", err)
+					continue
+				}
 
-			err = catCmd.Wait()
-			if err != nil {
-				log.Warn("catCmd.Wait(), ", err)
-				continue
-			}
+				err = catCmd.Start()
+				if err != nil {
+					log.Warn("catCmd.Start(), ", err)
+					continue
+				}
 
-			if len(regLabel.Find(buf)) > 1 {
+				backupLabel, err = ioutil.ReadAll(catCmdStdout)
+				if err != nil {
+					log.Warn("Reading from command: ", err)
+					continue
+				}
+
+				err = catCmd.Wait()
+				if err != nil {
+					log.Warn("catCmd.Wait(), ", err)
+					continue
+				}
+			} else {
+				// Encryption is used so we have to decrypt
+				log.Debug("Label file will be decrypted")
+
+				// Read and decrypt the compressed data
+				gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-", labelFile)
+				// Set the decryption output as input for inflation
+				var gpgStout io.ReadCloser
+				gpgStout, err = gpgCmd.StdoutPipe()
+				if err != nil {
+					log.Fatal("Can not attach pipe to gpg process, ", err)
+				}
+
+				// Watch output on stderror
+				gpgStderror, err := gpgCmd.StderrPipe()
+				util.Check(err)
+				go util.WatchOutput(gpgStderror, log.Info, nil)
+
+				// Start decryption
+				if err := gpgCmd.Start(); err != nil {
+					log.Fatal("gpg failed on startup, ", err)
+				}
+				log.Debug("gpg started")
+
+				// command to inflate the data stream
+				inflateCmd := exec.Command(cmdZstd, "-d", "--stdout")
+
+				// Watch output on stderror
+				inflateDone := make(chan struct{}) // Channel to wait for WatchOutput
+
+				inflateStderror, err := inflateCmd.StderrPipe()
+				util.Check(err)
+				go util.WatchOutput(inflateStderror, log.Info, inflateDone)
+
+				// Assign inflationInput as Stdin for the inflate command
+				inflateCmd.Stdin = gpgStout
+
+				// Expose inflateCmd output as output
+				inflateStout, err := inflateCmd.StdoutPipe()
+				util.Check(err)
+
+				// Start WAL inflation
+				log.Debug("Going to start inflation...")
+				if err := inflateCmd.Start(); err != nil {
+					log.Fatal("zstd failed on startup, ", err)
+				}
+				log.Debug("Inflation started")
+
+				// Write data to variable backupLabel
+				backupLabel = util.StreamToByte(inflateStout)
+
+				// Wait for watch goroutine before Cmd.Wait(), race condition!
+				<-inflateDone
+
+				// If there is still data in the output pipe it can be lost!
+				err = inflateCmd.Wait()
+				util.CheckCustom(err, "Inflation failed after startup")
+			}
+			log.Debugf("backupLabel: %s,\nsize: %d", backupLabel, len(backupLabel))
+
+			if len(regLabel.Find(backupLabel)) > 1 {
 				log.Debug("Found matching backup label file: ", f.Name())
-				bp, err = backup.ParseBackupLabel(bp, buf)
+				bp, err = backup.ParseBackupLabel(bp, backupLabel)
 				if err == nil {
 					bp.LabelFile = labelFile
 				}
@@ -308,7 +377,7 @@ func (b Localbackend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup)
 
 // DeleteWal deletes the given WAL-file
 func (b Localbackend) DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
-	err = os.Remove(filepath.Join(w.Archive.Path, w.Name, w.Extension))
+	err = os.Remove(filepath.Join(w.Archive.Path, w.Name+w.Extension))
 	if err != nil {
 		log.Warn(err)
 	}

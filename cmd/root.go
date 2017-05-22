@@ -335,9 +335,6 @@ func initConfig() {
 	archiveDir = viper.GetString("archivedir")
 	backupDir = filepath.Join(archiveDir, subDirBasebackup)
 	walDir = filepath.Join(archiveDir, subDirWal)
-	log.Debug("archiveDir: ", archiveDir)
-	log.Debug("backupDir: ", backupDir)
-	log.Debug("walDir: ", walDir)
 
 	// TODO we maybe have duplicated entrys in viper. pls fix this
 	// Set some variables in Viper,to use them easier in other packages
