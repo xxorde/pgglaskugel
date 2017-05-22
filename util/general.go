@@ -22,6 +22,7 @@ package util
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -108,4 +109,11 @@ func IsEmpty(path string) (bool, error) {
 		return true, nil
 	}
 	return false, err
+}
+
+// StreamToByte takes an io.Reader and returns []byte
+func StreamToByte(stream io.Reader) []byte {
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(stream)
+	return buf.Bytes()
 }

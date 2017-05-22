@@ -605,12 +605,6 @@ func (b S3backend) DeleteAll(viper *viper.Viper, backups *backup.Backups) (count
 
 }
 
-func streamToByte(stream io.Reader) []byte {
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(stream)
-	return buf.Bytes()
-}
-
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
 func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
@@ -660,8 +654,8 @@ func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (s
 			<-waitForStart
 
 			// Create buffer write backup label to it
-			plain := streamToByte(walStream)
-			log.Debugf("plain: %s,\nsize: %d", plain, len(plain))
+			plain := util.StreamToByte(walStream)
+			log.Debugf("backupLabel: %s,\nsize: %d", plain, len(plain))
 
 			// Tell readStream to fish after io.Copy
 			log.Debug("tellToStop <- true")

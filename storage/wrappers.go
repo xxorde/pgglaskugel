@@ -28,8 +28,6 @@ import (
 	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
 	"github.com/xxorde/pgglaskugel/storage/backends/file"
-	"github.com/xxorde/pgglaskugel/storage/backends/s3aws"
-	"github.com/xxorde/pgglaskugel/storage/backends/s3minio"
 	"github.com/xxorde/pgglaskugel/storage/backends/s3minioCs"
 
 	log "github.com/Sirupsen/logrus"
@@ -104,12 +102,13 @@ func init() {
 func initbackends() map[string]Backend {
 	fbackends := make(map[string]Backend)
 
-	var s3aws s3aws.S3backend
-	var s3minio s3minio.S3backend
+	// The not included backends are not actively developed or tested!
+	//var s3aws s3aws.S3backend
+	//var s3minio s3minio.S3backend
 	var s3minioCs s3minioCs.S3backend
 	var file file.Localbackend
-	fbackends["s3aws"] = s3aws
-	fbackends["s3minio"] = s3minio
+	//fbackends["s3aws"] = s3aws
+	//fbackends["s3minio"] = s3minio
 	fbackends["s3minioCs"] = s3minioCs
 	fbackends["file"] = file
 	return fbackends

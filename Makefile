@@ -31,8 +31,6 @@ test:
 
 testsuite:
 	cd tools/Test-CentOS7; ./run_test_in_docker.sh file
-	cd tools/Test-CentOS7; ./run_test_in_docker.sh s3aws
-	cd tools/Test-CentOS7; ./run_test_in_docker.sh s3minio
 	cd tools/Test-CentOS7; ./run_test_in_docker.sh s3minioCs
 
 tarball: man
