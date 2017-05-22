@@ -606,22 +606,48 @@ pgglaskugelrestore()
 
 pgglaskugelcleanup()
 {
-  before=$($PGG ls 2>&1 | grep '| \.zst |' | wc -l)
-  echo "Count backups before: $before"
-
-  echo "we wait a few seconds till archive is done"
+  echo "We wait a few seconds till archive is done"
   sleep 2
+
+  backups_before=$($PGG ls 2>&1 | grep '| true' | wc -l)
+  echo "Count backups before: $backups_before"
+
+  if (( "$backups_before" < 2 ))
+    then
+      echo "There should be at least 2 backups."
+      exit 1
+  fi
+
+  wals_before=$($PGG lswal 2>&1 | grep '| true' | wc -l)
+  echo "Count WALs before: $wals_before"
+
+  if (( "$wals_before" < 2 ))
+    then
+      echo "There should be at least 2 WALs."
+      exit 1
+  fi
+
   echo "Testing Cleanup with retention 1 and force-delete"
   $DBUSER_DO pgglaskugel cleanup --retain 1 --force-delete true --config $TESTDIR/.pgglaskugel/config.yml
 
-  after=$($PGG ls 2>&1 | grep '| \.zst |' | wc -l)
-  echo "Count backups after: $after"
+  backups_after=$($PGG ls 2>&1 | grep ' | true' | wc -l)
+  echo "Count backups after: $backups_after"
 
-  if [ "$after" >= "$before"]
+  if (( "$backups_after" >= "$backups_before" ))
     then
       echo "No backup was deleted!"
       exit 1
   fi
+
+  wals_after=$($PGG lswal 2>&1 | grep ' | true' | wc -l)
+  echo "Count WALs after: $wals_after"
+
+  if (( "$wals_after" >= "$wals_before" ))
+    then
+      echo "No WALs were deleted!"
+      exit 1
+  fi
+
 }
 
 pgglaskugells()
