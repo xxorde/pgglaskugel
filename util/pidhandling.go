@@ -90,7 +90,7 @@ func formatcmdline(cmdcontent []byte) string {
 	return cmdstring
 }
 
-//checkpid gives an error if the PID does not exist on the system
+// checkpid gives an error if the PID does not exist on the system
 // returns true if the actual pid is the same as the stored pid
 func checkpid(pidfile string) (*os.File, error) {
 

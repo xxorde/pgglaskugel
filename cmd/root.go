@@ -136,11 +136,15 @@ var (
 type storeStream func(*io.Reader, string)
 
 // This is just to check for commands where we don't need to create/check a pid-file
-func checkContainswhitelist(command string) bool {
-	whiteCommands := []string{"ls", "status", "lswal", "version", "archive"}
-	for _, whitecom := range whiteCommands {
-		if whitecom == command {
-			return true
+func checkContainswhitelist(args []string) bool {
+	whiteList := []string{"archive", "genman", "help", "ls", "lswal",
+		"status", "tutor", "version"}
+
+	for _, arg := range args {
+		for _, white := range whiteList {
+			if white == arg {
+				return true
+			}
 		}
 	}
 	return false
@@ -149,7 +153,7 @@ func checkContainswhitelist(command string) bool {
 // Execute adds all child commands to the root command sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
-	if len(os.Args) > 1 && checkContainswhitelist(os.Args[1]) {
+	if len(os.Args) > 1 && checkContainswhitelist(os.Args) {
 		if err := RootCmd.Execute(); err != nil {
 			fmt.Println(err)
 			os.Exit(-1)
