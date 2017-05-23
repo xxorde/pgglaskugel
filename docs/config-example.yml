@@ -68,6 +68,12 @@
 # Version of the S3 protocol (2,4,-1=auto)
 #s3_protocol_version: -1
 
+# If a part size is needed this will be used, size in MB, min: 5
+# s3_part_size_mb: 64
+
+# Enable sending metadada like file type, needed for compatibility
+# s3_metadata: true
+
 # Enable encryption for S3 and/or file storage
 #encrypt: true
 

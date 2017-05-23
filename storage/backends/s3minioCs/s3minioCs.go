@@ -252,10 +252,15 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 		contentType = "pgp"
 	}
 
-	// Create metadata for minio
-	metaData := make(map[string][]string)
-	metaData["Content-Type"] = []string{contentType}
-	log.Debug("metaData: ", metaData)
+	// Create metadata for minio, can be disabled for not compatible storage
+	var metaData map[string][]string
+	if viper.GetBool("s3_metadata") {
+		metaData = make(map[string][]string)
+		metaData["Content-Type"] = []string{contentType}
+		log.Debug("metaData: ", metaData)
+	} else {
+		log.Debug("Not using metadata")
+	}
 
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
