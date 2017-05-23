@@ -62,6 +62,7 @@ func (b *Backups) Insane() (insane Backups) {
 
 // String returns an overview of the backups as string
 func (b *Backups) String() (backups string) {
+	var totalSize int64
 	buf := new(bytes.Buffer)
 	row := 0
 	notSane := 0
@@ -73,10 +74,12 @@ func (b *Backups) String() (backups string) {
 		if !backup.IsSane() {
 			notSane++
 		}
+		totalSize += backup.Size
 		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.StorageType, "\t", backup.IsSane())
 	}
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Total backups:", b.Len(), " Not sane backups:", notSane)
+	fmt.Fprintln(w, "Total backups:", b.Len(), " Total size:",
+		humanize.Bytes(uint64(totalSize)), " Not sane backups:", notSane)
 	w.Flush()
 	return buf.String()
 }

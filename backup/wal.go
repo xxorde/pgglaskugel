@@ -120,6 +120,7 @@ func (a *Archive) Add(name string, storageType string, size int64) (err error) {
 
 // String returns an overview of the backups as string
 func (a *Archive) String() (archive string) {
+	var totalSize int64
 	buf := new(bytes.Buffer)
 	row := 0
 	notSane := 0
@@ -131,10 +132,12 @@ func (a *Archive) String() (archive string) {
 		if !wal.IsSane() {
 			notSane++
 		}
+		totalSize += wal.Size
 		fmt.Fprintln(w, row, "\t", wal.Name, "\t", wal.Extension, "\t", humanize.Bytes(uint64(wal.Size)), "\t", wal.StorageType, "\t", wal.IsSane())
 	}
 	fmt.Fprintln(w, "")
-	fmt.Fprintln(w, "Total WALs:", a.Len(), " Not sane WALs:", notSane)
+	fmt.Fprintln(w, "Total WALs:", a.Len(), " Total size:",
+		humanize.Bytes(uint64(totalSize)), " Not sane WALs:", notSane)
 	w.Flush()
 	return buf.String()
 }
