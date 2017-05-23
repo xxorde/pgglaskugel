@@ -255,7 +255,7 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	// Create metadata for minio
 	metaData := make(map[string][]string)
 	metaData["Content-Type"] = []string{contentType}
-	log.Debug("metaData", metaData)
+	log.Debug("metaData: ", metaData)
 
 	// Initialize minio client object.
 	minioClient := b.getS3Connection(viper)
@@ -279,8 +279,7 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 
 	// Get connection and set in minio.Core to use low level functions
 	var c minio.Core
-	client := b.getS3Connection(viper)
-	c.Client = &client
+	c.Client = &minioClient
 
 	// Total data read and written to server. should be equal to 'size' at the end of the call.
 	var totalUploadedSize int64
