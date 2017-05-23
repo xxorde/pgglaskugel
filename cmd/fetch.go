@@ -36,7 +36,7 @@ var fetchCmd = &cobra.Command{
 	Short: "Fetches a given WAL file",
 	Long: `This command fetches a given WAL file.
 	Example: archive_command = "` + myName + ` fetch %f %p"
-	
+
 It is intended to use as an restore_command in the recovery.conf.
 	Example: restore_command = '` + myName + ` fetch %f %p'`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -64,5 +64,7 @@ func init() {
 func fetchWal(walTarget string, walName string) (err error) {
 	viper.SetDefault("waltarget", walTarget)
 	viper.SetDefault("walname", walName)
-	return storage.Fetch(viper.GetViper())
+	walStore := storage.New(viper.GetViper(), viper.GetString("archive_to"))
+
+	return walStore.Fetch()
 }

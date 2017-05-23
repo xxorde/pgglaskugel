@@ -41,7 +41,7 @@ var (
 	archiveCmd = &cobra.Command{
 		Use:   "archive WAL_FILE...",
 		Short: "Archives given WAL file(s)",
-		Long: `This command archives given WAL file(s). This command can be used as an archive_command. The command to recover is "recover". 
+		Long: `This command archives given WAL file(s). This command can be used as an archive_command. The command to recover is "recover".
 	Example: archive_command = "` + myName + ` archive %p"`,
 		Run: func(cmd *cobra.Command, args []string) {
 			if len(args) < 1 {
@@ -111,7 +111,8 @@ func testWalSource(walSource string) (err error) {
 
 // storeWalStream takes a stream and persists it with the configured method
 func storeWalStream(input *io.Reader, name string) {
-	storage.WriteStream(viper.GetViper(), input, name, "archive")
+	walStore := storage.New(viper.GetViper(), viper.GetString("archive_to"))
+	walStore.WriteStream(input, name, "archive")
 }
 
 func init() {

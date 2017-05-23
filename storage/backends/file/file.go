@@ -364,9 +364,9 @@ func (b Localbackend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup)
 
 			if len(regLabel.Find(backupLabel)) > 1 {
 				log.Debug("Found matching backup label file: ", f.Name())
-				bp, err = backup.ParseBackupLabel(bp, backupLabel)
-				if err == nil {
-					bp.LabelFile = labelFile
+				err = bp.ParseBackupLabel(backupLabel)
+				if err != nil {
+					log.Error(backupLabel)
 				}
 				return bp.StartWalLocation, err
 			}

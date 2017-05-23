@@ -39,16 +39,26 @@ import (
 	"sync"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
-	minio "github.com/minio/minio-go"
 	"github.com/spf13/viper"
 	"github.com/xxorde/pgglaskugel/backup"
+	s "github.com/xxorde/pgglaskugel/storageInterface"
 	"github.com/xxorde/pgglaskugel/util"
+
+	log "github.com/Sirupsen/logrus"
+	minio "github.com/minio/minio-go"
 )
 
 const (
-	maxPartsCount             = 10000
-	maxMultipartPutObjectSize = 1024 * 1024 * 1024 * 640
+	// maxPartsCount - maximum number of parts for a single multipart session.
+	maxPartsCount = 10000
+
+	// miniPartSize - minimum part size 64MiB per object after which
+	// putObject behaves internally as multipart.
+	//	minPartSize = 1024 * 1024 * 64
+
+	// maxSinglePutObjectSize - maximum size 5TiB of object per PUT
+	// operation.
+	maxMultipartPutObjectSize = 1024 * 1024 * 1024 * 1024 * 5
 )
 
 var (
@@ -122,21 +132,66 @@ func hashCopyN(hashAlgorithms map[string]hash.Hash, hashSums map[string][]byte, 
 
 // S3backend returns a struct to use the S3-Methods
 type S3backend struct {
+	appName      string
+	appVersion   string
+	bucketBackup string
+	bucketWal    string
+	backupTo     string
+
+	cmdZstd string
+	cmdGpg  string
+
+	endpoint        string
+	accessKeyID     string
+	secretAccessKey string
+	location        string
+	ssl             bool
+	version         int
+	encrypt         bool
+	minPartSize     int64
+	metadata        bool
+
+	walName   string
+	walTarget string
+}
+
+// New returns a newly initialized backend
+func (b S3backend) New(viper *viper.Viper) (newBackend s.Backend) {
+	b.bucketBackup = viper.GetString("s3_bucket_backup")
+	b.bucketWal = viper.GetString("s3_bucket_wal")
+	b.backupTo = viper.GetString("backup_to")
+
+	b.cmdZstd = viper.GetString("path_to_zstd")
+	b.cmdGpg = viper.GetString("path_to_gpg")
+
+	b.endpoint = viper.GetString("s3_endpoint")
+	b.accessKeyID = viper.GetString("s3_access_key")
+	b.secretAccessKey = viper.GetString("s3_secret_key")
+	b.location = viper.GetString("s3_location")
+	b.ssl = viper.GetBool("s3_ssl")
+	b.version = viper.GetInt("s3_protocol_version")
+	b.encrypt = viper.GetBool("encrypt")
+	b.minPartSize = int64(1024 * 1024 * viper.GetInt("s3_part_size_mb"))
+	b.metadata = viper.GetBool("s3_metadata")
+
+	b.walName = viper.GetString("walname")
+	b.walTarget = viper.GetString("waltarget")
+	return b
 }
 
 // GetWals returns WAL-Files from S3
-func (b S3backend) GetWals(viper *viper.Viper) (a backup.Archive, err error) {
+func (b S3backend) GetWals() (a backup.Archive, err error) {
 	log.Debug("Get backups from S3")
+
 	// Initialize minio client object.
-	a.MinioClient = b.getS3Connection(viper)
-	a.Bucket = viper.GetString("s3_bucket_wal")
-	bn := viper.GetString("backup_to")
+	minioClient := b.getS3Connection()
+
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 
 	isRecursive := true
-	objectCh := a.MinioClient.ListObjects(a.Bucket, "", isRecursive, doneCh)
+	objectCh := minioClient.ListObjects(b.bucketWal, "", isRecursive, doneCh)
 	for object := range objectCh {
 		if object.Err != nil {
 			return a, err
@@ -146,7 +201,7 @@ func (b S3backend) GetWals(viper *viper.Viper) (a backup.Archive, err error) {
 			return a, err
 		}
 
-		err = a.Add(object.Key, bn, object.Size)
+		err = a.Add(object.Key, b.backupTo, object.Size)
 		if err != nil {
 			return a, err
 		}
@@ -156,18 +211,16 @@ func (b S3backend) GetWals(viper *viper.Viper) (a backup.Archive, err error) {
 }
 
 // GetBackups returns Backups
-func (b S3backend) GetBackups(viper *viper.Viper, subDirWal string) (backups backup.Backups) {
+func (b S3backend) GetBackups() (backups backup.Backups) {
 	log.Debug("Get backups from S3")
 	// Initialize minio client object.
-	minioClient := b.getS3Connection(viper)
-	backups.WalPath = viper.GetString("s3_bucket_wal")
-	bucket := viper.GetString("s3_bucket_backup")
+	minioClient := b.getS3Connection()
 	// Create a done channel to control 'ListObjects' go routine.
 	doneCh := make(chan struct{})
 	defer close(doneCh)
 
 	isRecursive := true
-	objectCh := minioClient.ListObjects(bucket, "", isRecursive, doneCh)
+	objectCh := minioClient.ListObjects(b.bucketBackup, "", isRecursive, doneCh)
 	for object := range objectCh {
 		var newBackup backup.Backup
 		var err error
@@ -176,7 +229,6 @@ func (b S3backend) GetBackups(viper *viper.Viper, subDirWal string) (backups bac
 		}
 		log.Debug(object)
 
-		newBackup.Path = bucket
 		newBackup.Extension = filepath.Ext(object.Key)
 
 		// Get Name without suffix
@@ -196,65 +248,55 @@ func (b S3backend) GetBackups(viper *viper.Viper, subDirWal string) (backups bac
 	// Sort backups
 	backups.Sort()
 	return backups
-
 }
 
 // GetConnection returns an S3-Connection Handler
-func (b S3backend) getS3Connection(viper *viper.Viper) (minioClient minio.Client) {
-	endpoint := viper.GetString("s3_endpoint")
-	accessKeyID := viper.GetString("s3_access_key")
-	secretAccessKey := viper.GetString("s3_secret_key")
-	ssl := viper.GetBool("s3_ssl")
-	version := viper.GetInt("s3_protocol_version")
-
+func (b S3backend) getS3Connection() (minioClient minio.Client) {
 	var client *minio.Client
 	var err error
 
 	// Initialize minio client object.
-	switch version {
+	switch b.version {
 	case 4:
 		log.Debug("Using S3 version 4")
-		client, err = minio.NewV4(endpoint, accessKeyID, secretAccessKey, ssl)
+		client, err = minio.NewV4(b.endpoint, b.accessKeyID, b.secretAccessKey, b.ssl)
 	case 2:
 		log.Debug("Using S3 version 2")
-		client, err = minio.NewV2(endpoint, accessKeyID, secretAccessKey, ssl)
+		client, err = minio.NewV2(b.endpoint, b.accessKeyID, b.secretAccessKey, b.ssl)
 	default:
 		log.Debug("Autodetecting S3 version")
-		client, err = minio.New(endpoint, accessKeyID, secretAccessKey, ssl)
+		client, err = minio.New(b.endpoint, b.accessKeyID, b.secretAccessKey, b.ssl)
 	}
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	client.SetAppInfo(viper.GetString("myname"), viper.GetString("version"))
+	client.SetAppInfo(b.appName, b.appVersion)
 	log.Debug("minioClient: ", minioClient)
 
 	return *client
 }
 
 // WriteStream handles a stream and writes it to S3 storage
-func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string) {
+func (b S3backend) WriteStream(input *io.Reader, name string, backuptype string) {
 	var bucket string
 	if backuptype == "basebackup" {
-		bucket = viper.GetString("s3_bucket_backup")
+		bucket = b.bucketBackup
 	} else if backuptype == "archive" {
-		bucket = viper.GetString("s3_bucket_wal")
+		bucket = b.bucketWal
 	} else {
 		log.Fatalf(" unknown stream-type: %s\n", backuptype)
 	}
-	location := viper.GetString("s3_location")
-	encrypt := viper.GetBool("encrypt")
 	contentType := "zstd"
-	minPartSize := int64(1024 * 1024 * viper.GetInt("s3_part_size_mb"))
 
 	// Set contentType for encryption
-	if encrypt {
+	if b.encrypt {
 		contentType = "pgp"
 	}
 
 	// Create metadata for minio, can be disabled for not compatible storage
 	var metaData map[string][]string
-	if viper.GetBool("s3_metadata") {
+	if b.metadata {
 		metaData = make(map[string][]string)
 		metaData["Content-Type"] = []string{contentType}
 		log.Debug("metaData: ", metaData)
@@ -263,7 +305,7 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	}
 
 	// Initialize minio client object.
-	minioClient := b.getS3Connection(viper)
+	minioClient := b.getS3Connection()
 
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)
@@ -274,7 +316,7 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 		log.Debugf("Bucket already exists, we are using it: %s", bucket)
 	} else {
 		// Try to create bucket
-		err = minioClient.MakeBucket(bucket, location)
+		err = minioClient.MakeBucket(bucket, b.location)
 		if err != nil {
 			log.Debug("minioClient.MakeBucket(bucket, location) failed")
 			log.Fatal(err)
@@ -301,7 +343,7 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	size := int64(-1)
 
 	// Calculate the optimal parts info for a given size.
-	totalPartsCount, partSize, _, err := optimalPartInfo(size, minPartSize)
+	totalPartsCount, partSize, _, err := optimalPartInfo(size, b.minPartSize)
 	if err != nil {
 		log.Fatal("optimalPartInfo failed", err)
 	}
@@ -389,16 +431,12 @@ func (b S3backend) WriteStream(viper *viper.Viper, input *io.Reader, name string
 	log.Infof("Written %d bytes to %s in bucket %s.", totalUploadedSize, name, bucket)
 }
 
-func (b S3backend) readStream(viper *viper.Viper, name string, bucket string,
+func (b S3backend) readStream(name string, bucket string,
 	output *io.Reader, start, wait chan bool) error {
-	encrypt := viper.GetBool("encrypt")
 
 	// Initialize minio client object.
-	minioClient := b.getS3Connection(viper)
-	cmdZstd := viper.GetString("path_to_zstd")
-	cmdGpg := viper.GetString("path_to_gpg")
+	minioClient := b.getS3Connection()
 
-	log.Debug("readStream(viper *viper.Viper, name string, bucket string, output *io.Reader) started")
 	// Test if bucket is there
 	exists, err := minioClient.BucketExists(bucket)
 	if err != nil {
@@ -426,12 +464,12 @@ func (b S3backend) readStream(viper *viper.Viper, name string, bucket string,
 	}
 
 	var gpgStout io.ReadCloser
-	if encrypt || stat.ContentType == "pgp" {
+	if b.encrypt || stat.ContentType == "pgp" {
 		log.Debug("content type: ", stat.ContentType)
 		// We need to decrypt the wal file
 
 		// Decrypt the compressed data
-		gpgCmd := exec.Command(cmdGpg, "--decrypt", "-o", "-")
+		gpgCmd := exec.Command(b.cmdGpg, "--decrypt", "-o", "-")
 		// Set the decryption output as input for inflation
 		gpgStout, err = gpgCmd.StdoutPipe()
 		if err != nil {
@@ -452,7 +490,7 @@ func (b S3backend) readStream(viper *viper.Viper, name string, bucket string,
 	}
 
 	// command to inflate the data stream
-	inflateCmd := exec.Command(cmdZstd, "-d", "--stdout")
+	inflateCmd := exec.Command(b.cmdZstd, "-d", "--stdout")
 
 	// Expose output as output
 	*output, err = inflateCmd.StdoutPipe()
@@ -495,20 +533,15 @@ func (b S3backend) readStream(viper *viper.Viper, name string, bucket string,
 	err = inflateCmd.Wait()
 	util.CheckCustom(err, "Inflation failed after startup, ")
 
-	log.Debug("readStream(viper *viper.Viper, name string, bucket string, output *io.Reader) done")
-
 	return err
 }
 
 // Fetch recover from a S3 compatible object store
-func (b S3backend) Fetch(viper *viper.Viper) (err error) {
-	walBucket := viper.GetString("s3_bucket_wal")
-	walName := viper.GetString("walname")
-	walSource := walName + ".zst"
-	walTarget := viper.GetString("waltarget")
+func (b S3backend) Fetch() (err error) {
+	walSource := b.walName + ".zst"
 
 	// Open output file
-	walFile, err := os.Create(walTarget)
+	walFile, err := os.Create(b.walTarget)
 	util.Check(err)
 	defer walFile.Close()
 
@@ -522,7 +555,7 @@ func (b S3backend) Fetch(viper *viper.Viper) (err error) {
 	tellToStop := make(chan bool)
 
 	// Start to read file
-	go b.readStream(viper, walSource, walBucket, &walStream, waitForStart, tellToStop)
+	go b.readStream(walSource, b.bucketWal, &walStream, waitForStart, tellToStop)
 
 	// Wait for readStream to start up before io.Copy
 	<-waitForStart
@@ -540,16 +573,15 @@ func (b S3backend) Fetch(viper *viper.Viper) (err error) {
 }
 
 // GetBasebackup gets things from S3
-func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup,
+func (b S3backend) GetBasebackup(backup *backup.Backup,
 	backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup) {
 	log.Debug("getFromS3")
-	bucket := viper.GetString("s3_bucket_backup")
 
 	// Initialize minio client object.
-	minioClient := b.getS3Connection(viper)
+	minioClient := b.getS3Connection()
 
 	// Test if bucket is there
-	exists, err := minioClient.BucketExists(bucket)
+	exists, err := minioClient.BucketExists(b.bucketBackup)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -558,7 +590,7 @@ func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup,
 	}
 
 	backupSource := backup.Name + backup.Extension
-	backupObject, err := minioClient.GetObject(bucket, backupSource)
+	backupObject, err := minioClient.GetObject(b.bucketBackup, backupSource)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -587,19 +619,19 @@ func (b S3backend) GetBasebackup(viper *viper.Viper, backup *backup.Backup,
 }
 
 // DeleteAll deletes all backups in the struct
-func (b S3backend) DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error) {
+func (b S3backend) DeleteAll(backups *backup.Backups) (count int, err error) {
 	// Sort backups
 	backups.SortDesc()
 	// Initialize minio client object.
-	minioClient := b.getS3Connection(viper)
+	minioClient := b.getS3Connection()
 
 	// We delete all backups, but start with the oldest just in case
 	for i := len(backups.Backup) - 1; i >= 0; i-- {
 		backup := backups.Backup[i]
-		log.Debug("minioClient.RemoveObject(", backup.Path, ", ", backup.Name+backup.Extension, ")")
-		err = minioClient.RemoveObject(backup.Path, backup.Name+backup.Extension)
+		log.Debug("minioClient.RemoveObject(", b.bucketBackup, ", ", backup.Name+backup.Extension, ")")
+		err = minioClient.RemoveObject(b.bucketBackup, backup.Name+backup.Extension)
 		if err != nil {
-			log.Warn("Error deleting backup: ", backup.Name+backup.Extension, " from ", backup.Path, " err:", err)
+			log.Warn("Error deleting backup: ", backup.Name+backup.Extension, " from ", b.bucketBackup, " err:", err)
 		} else {
 			count++
 		}
@@ -611,9 +643,9 @@ func (b S3backend) DeleteAll(viper *viper.Viper, backups *backup.Backups) (count
 
 // GetStartWalLocation returns the oldest needed WAL file
 // Every older WAL file is not required to use this backup
-func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (startWalLocation string, err error) {
+func (b S3backend) GetStartWalLocation(bp *backup.Backup) (startWalLocation string, err error) {
 	// Initialize minio client object.
-	minioClient := b.getS3Connection(viper)
+	minioClient := b.getS3Connection()
 	// Escape the name so we can use it in a regular expression
 	searchName := regexp.QuoteMeta(bp.Name)
 	// Regex to identify the right file
@@ -627,7 +659,7 @@ func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (s
 	defer close(doneCh)
 
 	isRecursive := true
-	objectCh := minioClient.ListObjects(bp.Backups.WalPath, "", isRecursive, doneCh)
+	objectCh := minioClient.ListObjects(b.bucketWal, "", isRecursive, doneCh)
 	for object := range objectCh {
 		if object.Err != nil {
 			log.Error(object.Err)
@@ -651,27 +683,28 @@ func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (s
 			tellToStop := make(chan bool)
 
 			// Start to read file
-			go b.readStream(viper, object.Key, bp.Backups.WalPath, &walStream, waitForStart, tellToStop)
+			go b.readStream(object.Key, b.bucketWal, &walStream, waitForStart, tellToStop)
 
 			// Wait for readStream to start up before io.Copy
 			log.Debug("<-waitForStart")
 			<-waitForStart
 
 			// Create buffer write backup label to it
-			plain := util.StreamToByte(walStream)
-			log.Debugf("backupLabel: %s,\nsize: %d", plain, len(plain))
+			backupLabel := util.StreamToByte(walStream)
+			log.Debugf("backupLabel: %s,\nsize: %d", backupLabel, len(backupLabel))
 
 			// Tell readStream to fish after io.Copy
 			log.Debug("tellToStop <- true")
 			tellToStop <- true
 
-			if len(regLabel.Find(plain)) > 1 {
+			// Find the correct backup label
+			if len(regLabel.Find(backupLabel)) > 1 {
 				log.Debug("Found matching backup label")
-				bp, err = backup.ParseBackupLabel(bp, plain)
+				err = bp.AddBackupLabel(backupLabel)
 				if err != nil {
-					log.Error(err)
+					log.Error("Failed to add backup label: ", err)
+					log.Errorf("Backup label: %s", (backupLabel))
 				}
-				bp.LabelFile = object.Key
 				return bp.StartWalLocation, err
 			}
 		}
@@ -680,11 +713,37 @@ func (b S3backend) GetStartWalLocation(viper *viper.Viper, bp *backup.Backup) (s
 }
 
 // DeleteWal deletes the given WAL-file
-func (b S3backend) DeleteWal(viper *viper.Viper, w *backup.Wal) (err error) {
-	minioClient := b.getS3Connection(viper)
-	err = minioClient.RemoveObject(w.Archive.Bucket, w.Name+w.Extension)
+func (b S3backend) DeleteWal(w *backup.Wal) (err error) {
+	minioClient := b.getS3Connection()
+	err = minioClient.RemoveObject(b.bucketWal, w.Name+w.Extension)
 	if err != nil {
 		log.Warn(err)
 	}
 	return err
+}
+
+// DeleteOldWal deletes all WAL files that are older than lastWalToKeep
+func (b S3backend) DeleteOldWal(a *backup.Archive, lastWalToKeep backup.Wal) (deleted int) {
+	// WAL files are deleted sequential
+	// Due to the file system architecture parallel delete
+	// Maybe this can be done in parallel for other storage systems
+	visited := 0
+	for _, wal := range a.WalFiles {
+		// Count up
+		visited++
+
+		// Check if current visited WAL is older than lastWalToKeep
+		// If it is older, delete it
+		if wal.OlderThan(lastWalToKeep) {
+			log.Debugf("Older than \"%s\" => going to delete: \"%s\"", lastWalToKeep.Name, wal.Name)
+			err := b.DeleteWal(&wal)
+			if err != nil {
+				log.Warn(err)
+				continue
+			}
+			deleted++
+		}
+	}
+	log.Debugf("Checked %d files and deleted %d", visited, deleted)
+	return deleted
 }

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package storage
+package storageInterface
 
 import (
 	"io"
@@ -30,27 +30,33 @@ import (
 
 // Backend is used to store and access data.
 type Backend interface {
+	// New returns a newly initialized backend
+	New(viper *viper.Viper) (newBackend Backend)
 
 	// Writes a datastream to the given backend
-	WriteStream(viper *viper.Viper, input *io.Reader, name string, backuptype string)
+	WriteStream(input *io.Reader, name string, backuptype string)
 
 	// Returns the data from the given backend
-	Fetch(viper *viper.Viper) error
+	Fetch() error
 
 	// Returns a specific basebackup
-	GetBasebackup(viper *viper.Viper, backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
+	GetBasebackup(backup *backup.Backup, backupStream *io.Reader, wgStart *sync.WaitGroup, wgDone *sync.WaitGroup)
 
-	// Returns all found basebackups
-	GetBackups(viper *viper.Viper, subDirWal string) (bp backup.Backups)
+	// Returns all basebackups
+	GetBackups() (bp backup.Backups)
 
-	// Returns all found WAL-files
-	GetWals(viper *viper.Viper) (backup.Archive, error)
+	// Returns all WAL-files
+	GetWals() (backup.Archive, error)
 
 	// DeleteAll deletes all backups in the struct
-	DeleteAll(viper *viper.Viper, backups *backup.Backups) (count int, err error)
+	DeleteAll(backups *backup.Backups) (count int, err error)
+
 	// DeleteWal deletes the given WAL-file
-	DeleteWal(viper *viper.Viper, w *backup.Wal) (err error)
+	DeleteWal(w *backup.Wal) (err error)
+
+	// DeleteWal deletes the given WAL-file
+	DeleteOldWal(a *backup.Archive, lastWalToKeep backup.Wal) (deleted int)
 
 	// Returns the first WAL-file name for a backup
-	GetStartWalLocation(viper *viper.Viper, backup *backup.Backup) (startWalLocation string, err error)
+	GetStartWalLocation(backup *backup.Backup) (startWalLocation string, err error)
 }

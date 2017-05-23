@@ -24,11 +24,39 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"path/filepath"
 	"sort"
+	"strings"
 	"text/tabwriter"
+	"time"
 
 	"github.com/dustin/go-humanize"
+	"github.com/siddontang/go/log"
 )
+
+// IsSane returns true if the backup seams sane
+func (b *Backup) IsSane() (sane bool) {
+	if b.Size < SaneBackupMinSize {
+		return false
+	}
+	return true
+}
+
+// AddBackupLabel checks the backup name
+func (b *Backup) AddBackupLabel(backupLabel []byte) (err error) {
+
+	// Parses the input name as backup label and returns an array
+	// 0 contains full string
+	// 1 contains WAL name
+	startWal := findStartWalLine.FindStringSubmatch(string(backupLabel))
+	if len(startWal) < 2 {
+		log.Debug("startWal ", startWal)
+		return errors.New("Can not find START WAL")
+	}
+
+	b.StartWalLocation = string(startWal[1])
+	return nil
+}
 
 // IsSane returns false if at leased one backups seams not sane
 func (b *Backups) IsSane() (sane bool) {
@@ -60,6 +88,32 @@ func (b *Backups) Insane() (insane Backups) {
 	return insane
 }
 
+// Add adds an WAL to an archive
+func (b *Backups) Add(name string, storageType string, size int64) (err error) {
+	backup := Backup{Backups: b}
+
+	// Get Name without suffix
+	backup.Name = strings.TrimSuffix(name, backup.Extension)
+
+	// Get extension
+	backup.Extension = filepath.Ext(name)
+
+	// Set size
+	backup.Size = size
+
+	// Set storage Type
+	backup.StorageType = storageType
+
+	// Get the time from backup name
+	backupTimeRaw := ExtractTimeFromBackup.ReplaceAllString(backup.Name, "${1}")
+	backup.Created, err = time.Parse(BackupTimeFormat, backupTimeRaw)
+	if err == nil {
+		// Add backup to the list of backups
+		b.Backup = append(b.Backup, backup)
+	}
+	return err
+}
+
 // String returns an overview of the backups as string
 func (b *Backups) String() (backups string) {
 	var totalSize int64
@@ -68,14 +122,20 @@ func (b *Backups) String() (backups string) {
 	notSane := 0
 	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "Backups")
-	fmt.Fprintln(w, "# \tName \tExt \tSize \tStorage \t Sane")
+	fmt.Fprintln(w, "# \tName \tExt \tSize \tStorage \t MinWAL \t Sane")
 	for _, backup := range b.Backup {
 		row++
 		if !backup.IsSane() {
 			notSane++
 		}
 		totalSize += backup.Size
-		fmt.Fprintln(w, row, "\t", backup.Name, "\t", backup.Extension, "\t", humanize.Bytes(uint64(backup.Size)), "\t", backup.StorageType, "\t", backup.IsSane())
+		fmt.Fprintln(w, row,
+			"\t", backup.Name,
+			"\t", backup.Extension,
+			"\t", humanize.Bytes(uint64(backup.Size)),
+			"\t", backup.StorageType,
+			"\t", backup.StartWalLocation,
+			"\t", backup.IsSane())
 	}
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Total backups:", b.Len(), " Total size:",
@@ -156,8 +216,8 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 		return *b, Backups{}, errors.New("Not enough new backups")
 	}
 
-	oldBackups.WalPath = b.WalPath
-	newBackups.WalPath = b.WalPath
+	oldBackups.Path = b.Path
+	newBackups.Path = b.Path
 
 	// Put the newest in newBackups
 	newBackups.Backup = (b.Backup)[:countNew]
@@ -166,7 +226,8 @@ func (b *Backups) SeparateBackupsByAge(countNew uint) (newBackups Backups, oldBa
 	oldBackups.Backup = (b.Backup)[countNew:]
 
 	if newBackups.IsSane() != true {
-		return newBackups, oldBackups, errors.New("Not all backups (newBackups) are sane" + newBackups.String())
+		return newBackups, oldBackups,
+			errors.New("Not all backups (newBackups) are sane" + newBackups.String())
 	}
 
 	if newBackups.Len() <= 0 && oldBackups.Len() > 0 {

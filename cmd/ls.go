@@ -34,14 +34,12 @@ var lsCmd = &cobra.Command{
 	Short: "Shows existing backups",
 	Long:  `Shows you all backups already made with meta information.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		showBackups()
+		// Get the backend that stores the backups
+		backupStore := storage.New(viper.GetViper(), viper.GetString("backup_to"))
+		backups := backupStore.GetBackups()
+		log.Info(backups.String())
 		printDone()
 	},
-}
-
-func showBackups() {
-	backups := storage.GetMyBackups(viper.GetViper(), subDirWal)
-	log.Info(backups.String())
 }
 
 func init() {

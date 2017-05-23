@@ -33,17 +33,15 @@ var lswalCmd = &cobra.Command{
 	Short: "Show all WAL files in archive",
 	Long:  "Show a detailed list of the archived WAL files already backuped",
 	Run: func(cmd *cobra.Command, args []string) {
-		showWals()
+		// Get the backend that stores the WAL
+		walStore := storage.New(viper.GetViper(), viper.GetString("archive_to"))
+		archive, err := walStore.GetWals()
+		if err != nil {
+			log.Error(err)
+		}
+		log.Info(archive.String())
 		printDone()
 	},
-}
-
-func showWals() {
-	archive, err := storage.GetWals(viper.GetViper())
-	if err != nil {
-		log.Error(err)
-	}
-	log.Info(archive.String())
 }
 
 func init() {

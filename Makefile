@@ -30,7 +30,7 @@ test:
 	go test -v -race
 
 testsuite:
-	cd tools/Test-CentOS7; ./run_test_in_docker.sh file
+#	cd tools/Test-CentOS7; ./run_test_in_docker.sh file
 	cd tools/Test-CentOS7; ./run_test_in_docker.sh s3
 
 tarball: man

@@ -9,12 +9,6 @@
 
 [[projects]]
   branch = "master"
-  name = "github.com/aws/aws-sdk-go"
-  packages = ["aws","aws/awserr","aws/awsutil","aws/client","aws/client/metadata","aws/corehandlers","aws/credentials","aws/credentials/ec2rolecreds","aws/credentials/endpointcreds","aws/credentials/stscreds","aws/defaults","aws/ec2metadata","aws/endpoints","aws/request","aws/session","aws/signer/v4","private/protocol","private/protocol/query","private/protocol/query/queryutil","private/protocol/rest","private/protocol/restxml","private/protocol/xml/xmlutil","service/s3","service/s3/s3iface","service/s3/s3manager","service/sts"]
-  revision = "98b5026c3dac3567123bd27aa193ec541ea5960b"
-
-[[projects]]
-  branch = "master"
   name = "github.com/cpuguy83/go-md2man"
   packages = ["md2man"]
   revision = "bcc0a711c5e6bbe72c7cb13d81c7109b45267fd2"
@@ -48,12 +42,6 @@
   name = "github.com/inconshreveable/mousetrap"
   packages = ["."]
   revision = "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
-
-[[projects]]
-  branch = "master"
-  name = "github.com/jmespath/go-jmespath"
-  packages = ["."]
-  revision = "0b12d6b521d83fc7f755e7cfc1b1fbdd35a01a74"
 
 [[projects]]
   branch = "master"
@@ -177,6 +165,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "750fa2cd81f7b565baab7d564726ddd684dde5302f71a631cbded34752fb5cd7"
+  inputs-digest = "c26e2380a1efde7fd50011c7d8f27762d6bdd640f43155f39986098aad822af3"
   solver-name = "gps-cdcl"
   solver-version = 1

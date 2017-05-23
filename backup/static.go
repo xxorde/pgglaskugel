@@ -23,17 +23,25 @@ package backup
 import (
 	"regexp"
 	"time"
-
-	minio "github.com/minio/minio-go"
 )
 
 const (
+	// BackupTimeFormat - time.RFC3339
+	BackupTimeFormat = time.RFC3339
+	// SaneBackupMinSize - min size for backups
+	SaneBackupMinSize = 1024 * 1024 * 1 // 1MB
+	// MaxBackupLabelSize Larger files are most likely no backup label
+	MaxBackupLabelSize = 4096
+
 	// WalWal identifies a standart WAL
 	WalWal = WalType(0)
 	// WalBackuplabel identifies a WAL as backuplabel
 	WalBackuplabel = WalType(1)
 	// WalHistory identifies a WAL as history files
 	WalHistory = WalType(2)
+
+	// WalNameLength represent the length of a WAL name
+	WalNameLength = 24
 
 	// MaxWalSize maximum size a WAL can have
 	MaxWalSize = int64(16777216)
@@ -51,27 +59,27 @@ const (
 	RegCounter = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
 	// RegBackupLabel backup label with any additional extension
 	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*`
-	// RegHistory history file with any additional extension
+	// RegHistory find history file with any additional extension
 	RegHistory = `^[0-9A-Za-z]{8}\.history.*`
-	// BackupTimeFormat - time.RFC3339
-	BackupTimeFormat = time.RFC3339
-	// SaneBackupMinSize - min size for backups
-	SaneBackupMinSize = 1024 * 1024 * 2 // 2MB
-	// MaxBackupLabelSize Larger files are most likely no backup label
-	MaxBackupLabelSize = 4096
+	// RegStartWalLine finds the start wal location
+	RegStartWalLine = `^START WAL LOCATION: .*\/.* \(file ([0-9A-Fa-f]{24})\)`
 )
 
 var (
-	nameFinder      = regexp.MustCompile(RegWalWithExt)     // *Regexp to extract the name from a WAL file with extension
-	historyFinder   = regexp.MustCompile(RegHistoryWithExt) // *Regexp to extract the name from a history file with extension
-	fulWalValidator = regexp.MustCompile(RegFullWal)        // *Regexp to identify a WAL file
-	timelineFinder  = regexp.MustCompile(RegTimeline)       // *Regexp to identify a timeline
-	counterFinder   = regexp.MustCompile(RegCounter)        // *Regexp to get the segment counter
-	findBackupLabel = regexp.MustCompile(RegBackupLabel)    // *Regexp to identify an backup label
-	findHistory     = regexp.MustCompile(RegHistory)        // *Regexp to identify an history file
+	nameFinder       = regexp.MustCompile(RegWalWithExt)     // *Regexp to extract the name from a WAL file with extension
+	historyFinder    = regexp.MustCompile(RegHistoryWithExt) // *Regexp to extract the name from a history file with extension
+	fulWalValidator  = regexp.MustCompile(RegFullWal)        // *Regexp to identify a WAL file
+	timelineFinder   = regexp.MustCompile(RegTimeline)       // *Regexp to identify a timeline
+	counterFinder    = regexp.MustCompile(RegCounter)        // *Regexp to get the segment counter
+	findBackupLabel  = regexp.MustCompile(RegBackupLabel)    // *Regexp to identify an backup label
+	findHistory      = regexp.MustCompile(RegHistory)        // *Regexp to identify an history file
+	findStartWalLine = regexp.MustCompile(RegStartWalLine)
 
 	// RegBackupLabelFile Regex to identify a backup label file
 	RegBackupLabelFile = regexp.MustCompile(RegBackupLabel)
+
+	// ExtractTimeFromBackup Regex to remove the name from a backup an extract the time
+	ExtractTimeFromBackup = regexp.MustCompile(`.*@`)
 )
 
 // Backup stores information about a backup
@@ -79,10 +87,8 @@ type Backup struct {
 	Name      string
 	Extension string
 	// Path is also used for alternative backup paths (e.g. bucket in S3)
-	Path             string
 	Size             int64
 	Created          time.Time
-	LabelFile        string
 	BackupLabel      string
 	StartWalLocation string
 	StorageType      string
@@ -93,8 +99,7 @@ type Backup struct {
 type Backups struct {
 	Name   string
 	Backup []Backup
-	// WalPath is also used for alternative backup paths (e.g. bucket in S3)
-	WalPath string
+	Path   string
 }
 
 // Wal is a struct to represent a WAL file
@@ -112,8 +117,6 @@ type WalType uint8
 
 // Archive is a struct to represent an WAL archive
 type Archive struct {
-	WalFiles    []Wal
-	Path        string
-	Bucket      string
-	MinioClient minio.Client
+	WalFiles []Wal
+	Path     string
 }

@@ -27,15 +27,6 @@ import (
 	log "github.com/Sirupsen/logrus"
 )
 
-// IsSane returns true if the backup seams sane
-func (b *Backup) IsSane() (sane bool) {
-	if b.Size < SaneBackupMinSize {
-		return false
-	}
-
-	return true
-}
-
 // ParseBackupLabel checks the backup name
 func ParseBackupLabel(b *Backup, backupLabel []byte) (backup *Backup, err error) {
 	regStartWalLine := regexp.MustCompile(`^START WAL LOCATION: .*\/.* \(file [0-9A-Fa-f]{24}\)`)
