@@ -109,7 +109,7 @@ func initbackends() map[string]Backend {
 	var file file.Localbackend
 	//fbackends["s3aws"] = s3aws
 	//fbackends["s3minio"] = s3minio
-	fbackends["s3minioCs"] = s3minioCs
+	fbackends["s3"] = s3minioCs
 	fbackends["file"] = file
 	return fbackends
 }

@@ -69,7 +69,7 @@ For every server to backup there is a different config file.
 pgglaskugel --config server_to_backup.yml basebackup
 ```
 
-Orchestration will maybe integrated later. 
+Orchestration will maybe integrated later.
 
 ### WAL Archiving
 If WAL Archiving should be used, PostgreSQL's `archive_command` is set to `pgGlaskugel archive %p` so that PostgreSQL calls it for every ready WAL file.
@@ -110,15 +110,20 @@ Available Commands:
 
 Flags:
       --archive_to string           WAL destination (file|s3) (default "file")
-      --archivedir string           Dir where the backups (default "/var/lib/postgresql/backup/pgglaskugel")
+      --archivedir string           Dir where the backups should be stored (default "/var/lib/postgresql/backup/pgglaskugel")
       --backup_to string            Backup destination (file|s3) (default "file")
-      --cluster_name string         Name of the cluster, used in backup name (default "kerrigan")
+      --cluster_name string         Name of the cluster, used in backup name (default "ohm")
       --config string               Config file
       --connection string           Connection string to connect to the database (default "host=/var/run/postgresql user=postgres dbname=postgres")
+      --cpuprofile string           Write cpu profile to given filename
       --debug                       Enable debug mode to increase verbosity
-      --encrypt                     Enable encryption for S3 storage
-  -j, --jobs int                    The number of jobs to run parallel. default depends on cores  (default 4)
+      --encrypt                     Enable encryption for S3 and/or file storage
+  -h, --help                        help for pgglaskugel
+      --http_pprof                  Start net/http/pprof profiler
+  -j, --jobs int                    The number of jobs to run parallel, default depends on cores  (default 12)
       --json                        Generate output as JSON
+      --memprofile string           Write memory profile to given filename
+      --no_tool_check               Do not check the used tools
       --path_to_basebackup string   Path to the basebackup command (default "/usr/bin/pg_basebackup")
       --path_to_gpg string          Path to the gpg command (default "/usr/bin/gpg")
       --path_to_tar string          Path to the tar command (default "/bin/tar")
@@ -126,12 +131,15 @@ Flags:
       --path_to_zstdcat string      Path to the zstdcat command (default "/usr/bin/zstdcat")
   -D, --pgdata string               Base directory of your PostgreSQL instance aka. pg_data (default "$PGDATA")
       --pgdata-auto                 Try to find pgdata if not set correctly (via SQL) (default true)
-      --recipient string            The recipient for PGP encryption (key identifier) (default "pgglaskugel")
+      --pidpath string              path and name for the pidfile (default "/var/tmp/pgglaskugel/pgglaskugel.pid")
+      --recipient stringArray       The recipient for PGP encryption (key identifier) (default [pgglaskugel])
       --s3_access_key string        access_key (default "TUMO1VCSJF7R2LC39A24")
       --s3_bucket_backup string     Bucket name for base backups (default "pgglaskugel-basebackup")
       --s3_bucket_wal string        Bucket name for WAL files (default "pgglaskugel-wal")
       --s3_endpoint string          S3 endpoint (default "127.0.0.1:9000")
       --s3_location string          S3 datacenter location (default "us-east-1")
+      --s3_metadata                 Enable sending metadada like file type, needed for compatibility (default true)
+      --s3_part_size_mb int         If a part size is needed this will be used, size in MB, min: 5 MB (default 64)
       --s3_protocol_version int     Version of the S3 protocol version (2,4,-1=auto) (default -1)
       --s3_secret_key string        secret_key (default "yOzp7WVWOs9mFeqATXmcQQ5crv4IQtQUv1ArzdYC")
       --s3_ssl                      If SSL (TLS) should be used for S3 (default true)

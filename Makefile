@@ -21,7 +21,7 @@ vendor:
 
 $(NAME):
 	echo $(LDFLAGS)
-	go build -race $(LDFLAGS) -o $(NAME)
+	go build $(LDFLAGS) -o $(NAME)
 
 man:
 	./$(NAME) genman
@@ -31,7 +31,7 @@ test:
 
 testsuite:
 	cd tools/Test-CentOS7; ./run_test_in_docker.sh file
-	cd tools/Test-CentOS7; ./run_test_in_docker.sh s3minioCs
+	cd tools/Test-CentOS7; ./run_test_in_docker.sh s3
 
 tarball: man
 	mkdir -p $(BUILD)/docs

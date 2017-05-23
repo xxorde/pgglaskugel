@@ -38,10 +38,10 @@
 # Concurrent threads, default: calculateted based on cores
 #jobs: 4
 
-# Backup destination (file|s3minioCs)
+# Backup destination (file|s3)
 #backup_to: file
 
-# WAL destination (file|s3minioCs)
+# WAL destination (file|s3)
 #archive_to: file
 
 # S3 Endpoint IP and Port
@@ -75,7 +75,7 @@
 # s3_metadata: true
 
 # Enable encryption for S3 and/or file storage
-#encrypt: true
+#encrypt: false
 
 # The recipient for PGP encryption (key identifier).
 # This can be a single value or a list
