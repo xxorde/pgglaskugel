@@ -41,8 +41,10 @@ const (
 	MinArchiveSize = int64(100)
 	// RegFullWal - name of a WAL file
 	RegFullWal = `^[0-9A-Za-z]{24}`
-	// RegWalWithExt - name of a WAL file wit extension
+	// RegWalWithExt - name of a WAL file with extension
 	RegWalWithExt = `^([0-9A-Za-z]{24})(.*)`
+	// RegHistoryWithExt - history file with extension
+	RegHistoryWithExt = `^([0-9A-Za-z]{8}\.history)(.*)`
 	// RegTimeline - timeline of a given WAL file name
 	RegTimeline = `^[0-9A-Za-z]{8}`
 	// RegCounter segment counter in the given timeline
@@ -60,12 +62,13 @@ const (
 )
 
 var (
-	nameFinder      = regexp.MustCompile(RegWalWithExt)  // *Regexp to extract the name from a WAL file with extension
-	fulWalValidator = regexp.MustCompile(RegFullWal)     // *Regexp to identify a WAL file
-	timelineFinder  = regexp.MustCompile(RegTimeline)    // *Regexp to identify a timeline
-	counterFinder   = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
-	findBackupLabel = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
-	findHistory     = regexp.MustCompile(RegHistory)     // *Regexp to identify an backup label
+	nameFinder      = regexp.MustCompile(RegWalWithExt)     // *Regexp to extract the name from a WAL file with extension
+	historyFinder   = regexp.MustCompile(RegHistoryWithExt) // *Regexp to extract the name from a history file with extension
+	fulWalValidator = regexp.MustCompile(RegFullWal)        // *Regexp to identify a WAL file
+	timelineFinder  = regexp.MustCompile(RegTimeline)       // *Regexp to identify a timeline
+	counterFinder   = regexp.MustCompile(RegCounter)        // *Regexp to get the segment counter
+	findBackupLabel = regexp.MustCompile(RegBackupLabel)    // *Regexp to identify an backup label
+	findHistory     = regexp.MustCompile(RegHistory)        // *Regexp to identify an history file
 
 	// RegBackupLabelFile Regex to identify a backup label file
 	RegBackupLabelFile = regexp.MustCompile(RegBackupLabel)

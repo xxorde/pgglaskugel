@@ -27,8 +27,8 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	log "github.com/Sirupsen/logrus"
 	humanize "github.com/dustin/go-humanize"
-	"github.com/siddontang/go/log"
 )
 
 // ImportName imports a WAL file by name (including extension)
@@ -40,6 +40,7 @@ func (w *Wal) ImportName(nameWithExtension string) (err error) {
 	nameRaw := nameFinder.FindStringSubmatch(nameWithExtension)
 	// If not enough parameters are returned, parse was not possible
 	if len(nameRaw) < 2 {
+		log.Debug("nameFinder nameRaw ", nameRaw)
 		// Name does not parse as WAL / backup label
 		// There is still a chance it is an history file which occurs after timeline switch
 
@@ -47,8 +48,9 @@ func (w *Wal) ImportName(nameWithExtension string) (err error) {
 		// 0 contains full string
 		// 1 contains name
 		// 2 contains extension
-		nameRaw = findBackupLabel.FindStringSubmatch(nameWithExtension)
+		nameRaw = historyFinder.FindStringSubmatch(nameWithExtension)
 		if len(nameRaw) < 2 {
+			log.Debug("historyFinder nameRaw ", nameRaw)
 			return errors.New("WAL name does not parse: " + nameWithExtension)
 		}
 		log.Debug("History file found: ", nameWithExtension)
@@ -75,7 +77,13 @@ func (w *Wal) IsSane() (sane bool) {
 
 // SaneName returns if the WAL file name seems sane
 func (w *Wal) SaneName() (saneName bool) {
+	// If name looks like WAL file
 	if fulWalValidator.MatchString(w.Name) {
+		return true
+	}
+
+	// If type is WalHistory and name looks like history file
+	if w.Type == WalHistory && findHistory.MatchString(w.Name) {
 		return true
 	}
 	return false

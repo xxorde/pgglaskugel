@@ -13,6 +13,7 @@ pgGlaskugel.tar*
 *.prof
 *.swp
 .vagrant
+_vendor*
 vendor
 vendor/
 *.xz
