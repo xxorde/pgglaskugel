@@ -28,6 +28,7 @@ import (
 	"text/tabwriter"
 
 	humanize "github.com/dustin/go-humanize"
+	"github.com/siddontang/go/log"
 )
 
 // ImportName imports a WAL file by name (including extension)
@@ -39,8 +40,29 @@ func (w *Wal) ImportName(nameWithExtension string) (err error) {
 	nameRaw := nameFinder.FindStringSubmatch(nameWithExtension)
 	// If not enough parameters are returned, parse was not possible
 	if len(nameRaw) < 2 {
-		return errors.New("WAL name does not parse: " + nameWithExtension)
+		// Name does not parse as WAL / backup label
+		// There is still a chance it is an history file which occurs after timeline switch
+
+		// Parses the input name as history and returns an array
+		// 0 contains full string
+		// 1 contains name
+		// 2 contains extension
+		nameRaw = findBackupLabel.FindStringSubmatch(nameWithExtension)
+		if len(nameRaw) < 2 {
+			return errors.New("WAL name does not parse: " + nameWithExtension)
+		}
+		log.Debug("History file found: ", nameWithExtension)
+		w.Type = WalHistory
+	} else {
+		if findBackupLabel.MatchString(nameWithExtension) == true {
+			// We found a Backuplabel
+			w.Type = WalBackuplabel
+		} else {
+			// We found a standsad WAL
+			w.Type = WalWal
+		}
 	}
+
 	w.Name = string(nameRaw[1])
 	w.Extension = string(nameRaw[2])
 	return nil
@@ -79,19 +101,11 @@ func (w *Wal) Counter() (counter string) {
 }
 
 // OlderThan returns if *Wal is older than newWal
-func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool, err error) {
-	if w.IsSane() != true {
-		return false, errors.New("WAL not sane: " + w.Name)
-	}
-
-	if newWal.IsSane() != true {
-		return false, errors.New("WAL not sane: " + newWal.Name)
-	}
-
+func (w *Wal) OlderThan(newWal Wal) (isOlderThan bool) {
 	if newWal.Name > w.Name {
-		return true, nil
+		return true
 	}
-	return false, nil
+	return false
 }
 
 // Add adds an WAL to an archive
@@ -102,16 +116,16 @@ func (a *Archive) Add(name string, storageType string, size int64) (err error) {
 		return err
 	}
 
-	if findBackupLabel.MatchString(wal.Name+wal.Extension) == true {
-		// This is a backup label not a WAL file
-		// We should we add it as well till we come up with a better solution :)
-	}
-
 	// Set storage Type
 	wal.StorageType = storageType
 
 	// Set size
 	wal.Size = size
+
+	// Test WAL
+	if wal.IsSane() != true {
+		return errors.New("WAL not sane: " + wal.Name)
+	}
 
 	// Append WAL file to archive
 	a.WalFiles = append(a.WalFiles, wal)
@@ -126,14 +140,20 @@ func (a *Archive) String() (archive string) {
 	notSane := 0
 	w := tabwriter.NewWriter(buf, 0, 0, 0, ' ', tabwriter.AlignRight|tabwriter.Debug)
 	fmt.Fprintln(w, "WAL filesbackup in archive")
-	fmt.Fprintln(w, "# \tName \tExt \tSize \tStorage \t Sane")
+	fmt.Fprintln(w, "# \t Name \t Ext \t Size \t Type \t Storage \t Sane")
 	for _, wal := range a.WalFiles {
 		row++
 		if !wal.IsSane() {
 			notSane++
 		}
 		totalSize += wal.Size
-		fmt.Fprintln(w, row, "\t", wal.Name, "\t", wal.Extension, "\t", humanize.Bytes(uint64(wal.Size)), "\t", wal.StorageType, "\t", wal.IsSane())
+		fmt.Fprintln(w, row,
+			"\t", wal.Name,
+			"\t", wal.Extension,
+			"\t", humanize.Bytes(uint64(wal.Size)),
+			"\t", wal.Type,
+			"\t", wal.StorageType,
+			"\t", wal.IsSane())
 	}
 	fmt.Fprintln(w, "")
 	fmt.Fprintln(w, "Total WALs:", a.Len(), " Total size:",
@@ -164,4 +184,17 @@ func (a *Archive) SortDesc() {
 func (a *Archive) SortAsc() {
 	// Sort, the newest first
 	sort.Sort(a)
+}
+
+func (w WalType) String() (typeString string) {
+	switch w {
+	case WalWal:
+		return "WAL"
+	case WalBackuplabel:
+		return "label"
+	case WalHistory:
+		return "history"
+	default:
+		return "type not defined: " + string(uint(w))
+	}
 }

@@ -28,12 +28,17 @@ import (
 )
 
 const (
+	// WalWal identifies a standart WAL
+	WalWal = WalType(0)
+	// WalBackuplabel identifies a WAL as backuplabel
+	WalBackuplabel = WalType(1)
+	// WalHistory identifies a WAL as history files
+	WalHistory = WalType(2)
+
 	// MaxWalSize maximum size a WAL can have
 	MaxWalSize = int64(16777216)
-
 	// MinArchiveSize minimal size for files to archive
 	MinArchiveSize = int64(100)
-
 	// RegFullWal - name of a WAL file
 	RegFullWal = `^[0-9A-Za-z]{24}`
 	// RegWalWithExt - name of a WAL file wit extension
@@ -44,13 +49,14 @@ const (
 	RegCounter = `^([0-9A-Za-z]{8})([0-9A-Za-z]{16})`
 	// RegBackupLabel backup label with any additional extension
 	RegBackupLabel = `^[0-9A-Za-z]{24}\.[0-9A-Za-z]{8}\.backup.*`
+	// RegHistory history file with any additional extension
+	RegHistory = `^[0-9A-Za-z]{8}\.history.*`
 	// BackupTimeFormat - time.RFC3339
 	BackupTimeFormat = time.RFC3339
 	// SaneBackupMinSize - min size for backups
-	SaneBackupMinSize = 2 * 1000000 // ~ 4MB
-
+	SaneBackupMinSize = 1024 * 1024 * 2 // 2MB
 	// MaxBackupLabelSize Larger files are most likely no backup label
-	MaxBackupLabelSize = 2048
+	MaxBackupLabelSize = 4096
 )
 
 var (
@@ -59,6 +65,7 @@ var (
 	timelineFinder  = regexp.MustCompile(RegTimeline)    // *Regexp to identify a timeline
 	counterFinder   = regexp.MustCompile(RegCounter)     // *Regexp to get the segment counter
 	findBackupLabel = regexp.MustCompile(RegBackupLabel) // *Regexp to identify an backup label
+	findHistory     = regexp.MustCompile(RegHistory)     // *Regexp to identify an backup label
 
 	// RegBackupLabelFile Regex to identify a backup label file
 	RegBackupLabelFile = regexp.MustCompile(RegBackupLabel)
@@ -93,8 +100,12 @@ type Wal struct {
 	Extension   string
 	Size        int64
 	StorageType string
+	Type        WalType
 	Archive     *Archive
 }
+
+// WalType represents different types of WAL
+type WalType uint8
 
 // Archive is a struct to represent an WAL archive
 type Archive struct {

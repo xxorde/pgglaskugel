@@ -135,14 +135,8 @@ func DeleteOldWal(viper *viper.Viper, a *backup.Archive, lastWalToKeep backup.Wa
 		visited++
 
 		// Check if current visited WAL is older than lastWalToKeep
-		old, err := wal.OlderThan(lastWalToKeep)
-		if err != nil {
-			log.Warn(err)
-			continue
-		}
-
 		// If it is older, delete it
-		if old {
+		if wal.OlderThan(lastWalToKeep) {
 			log.Debugf("Older than %s => going to delete: %s", lastWalToKeep.Name, wal.Name)
 			err := DeleteWal(viper, &wal)
 			if err != nil {
