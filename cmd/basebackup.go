@@ -62,7 +62,7 @@ var (
 			backupCmd := exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-")
 			if viper.GetBool("no-standalone") == false {
 				// Set command to include WAL files so the backup is usable without an archive
-				backupCmd = exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "--xlog-method=fetch")
+				backupCmd = exec.Command("pg_basebackup", "--dbname", conString, "--format=tar", "--label", backupName, "--checkpoint", "fast", "--pgdata", "-", "-X", "fetch")
 			}
 			log.Debug("backupCmd: ", backupCmd)
 
